@@ -38,3 +38,12 @@ export const getCashMovement = (id) => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 
 export default api;
+
+// WEB ORDERS
+export const getWebOrders    = (params) => api.get("/web-orders", { params });
+export const getWebOrder     = (id)     => api.get(`/web-orders/${id}`);
+export const createWebOrder  = (data)   => api.post("/web-orders", data);
+export const updateWebOrder  = (id, data) => api.put(`/web-orders/${id}`, data);
+export const deleteWebOrder  = (id)     => api.delete(`/web-orders/${id}`);
+export const setWebOrderColor     = (id, color)     => api.patch(`/web-orders/${id}/color`, { color });
+export const setWebOrderReservado = (id, reservado) => api.patch(`/web-orders/${id}/reservado`, { reservado });

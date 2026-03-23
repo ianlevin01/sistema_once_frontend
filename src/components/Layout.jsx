@@ -7,6 +7,7 @@ const NAV = [
       { to: "/comprobantes", label: "Comprobantes", icon: "🧾" },
       { to: "/remitos",      label: "Remitos",      icon: "📦" },
       { to: "/caja",         label: "Caja",         icon: "💰" },
+      { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
     ],
   },
   {
@@ -22,6 +23,7 @@ const PAGE_TITLES = {
   "/comprobantes": "Comprobantes",
   "/remitos":      "Remitos",
   "/caja":         "Caja",
+  "/pedidos-web":   "Pedidos Web",
   "/clientes":     "Clientes",
   "/productos":    "Productos",
 };

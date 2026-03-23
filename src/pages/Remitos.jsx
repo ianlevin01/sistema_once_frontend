@@ -1,23 +1,52 @@
-import { useState, useEffect } from "react";
-import Modal from "../components/Modal";
-import { getRemitos, getRemito, createRemito, deleteRemito, searchProducts } from "../utils/api";
+import { useState, useEffect, useRef } from "react";
+import {
+  getRemitos, getRemito, createRemito, deleteRemito,
+  searchProducts, searchCustomers, getProduct,
+} from "../utils/api";
 import { useToast } from "../utils/useToast";
 
-const WAREHOUSES = ["Alfred", "Saldo", "Oficina ML", "Camarin", "Salon Teatro", "Oficina", "Tertulia", "Past 280", "Peron Lejos"];
+const WAREHOUSES = ["Alfred","Saldo","Oficina ML","Camarin","Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos"];
+const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
+const PRECIO_LBL = {
+  precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
+  precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
+};
 
-const EMPTY_FORM = { origen: "", destino: "", user_id: "00000000-0000-0000-0000-000000000001" };
+const extractPrice = (product, priceType) => {
+  const prices = product?.prices || product?.product_prices || [];
+  const found  = prices.find((p) => p.price_type === priceType);
+  return found ? Number(found.price) : 0;
+};
 
 export default function Remitos() {
-  const [remitos, setRemitos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [modal, setModal]     = useState(null); // null | 'new' | 'detail'
+  const [remitos,  setRemitos]  = useState([]);
+  const [loading,  setLoading]  = useState(true);
   const [selected, setSelected] = useState(null);
-  const [form, setForm]       = useState(EMPTY_FORM);
-  const [items, setItems]     = useState([]);
-  const [productQuery, setProductQuery] = useState("");
-  const [productResults, setProductResults] = useState([]);
-  const [qty, setQty]   = useState("");
-  const [price, setPrice] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Form
+  const [origen,     setOrigen]     = useState("Alfred");
+  const [destino,    setDestino]    = useState("Past 280");
+  const [priceType,  setPriceType]  = useState("precio_1");
+  const [sinPrecios, setSinPrecios] = useState(false);
+
+  // Cliente
+  const [custQuery,   setCustQuery]   = useState("");
+  const [custResults, setCustResults] = useState([]);
+  const [custSel,     setCustSel]     = useState(null);
+
+  // Items
+  const [items,       setItems]       = useState([]);
+  const [prodQuery,   setProdQuery]   = useState("");
+  const [prodResults, setProdResults] = useState([]);
+  const [prodSel,     setProdSel]     = useState(null);
+  const [itemQty,     setItemQty]     = useState("");
+  const [itemPrice,   setItemPrice]   = useState("");
+  const [itemDesc,    setItemDesc]    = useState("");
+  const [saving,      setSaving]      = useState(false);
+
+  const prodSearchRef = useRef(null);
+  const qtyRef        = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
   const loadAll = async () => {
@@ -30,185 +59,432 @@ export default function Remitos() {
   useEffect(() => { loadAll(); }, []);
 
   useEffect(() => {
-    if (!productQuery.trim()) { setProductResults([]); return; }
+    if (!custQuery.trim()) { setCustResults([]); return; }
     const t = setTimeout(async () => {
-      try { const { data } = await searchProducts(productQuery); setProductResults(data); }
+      try { const { data } = await searchCustomers(custQuery); setCustResults(data); }
       catch {}
-    }, 350);
+    }, 300);
     return () => clearTimeout(t);
-  }, [productQuery]);
+  }, [custQuery]);
 
-  const addItem = (product) => {
-    if (!qty || isNaN(qty) || Number(qty) <= 0) { addToast("Ingresá una cantidad válida", "error"); return; }
-    setItems((prev) => [
-      ...prev,
-      { product_id: product.id, name: product.name, code: product.code, quantity: Number(qty), unit_price: Number(price) || 0 },
-    ]);
-    setProductQuery(""); setProductResults([]); setQty(""); setPrice("");
+  useEffect(() => {
+    if (!prodQuery.trim()) { setProdResults([]); return; }
+    const t = setTimeout(async () => {
+      try { const { data } = await searchProducts(prodQuery); setProdResults(data); }
+      catch {}
+    }, 300);
+    return () => clearTimeout(t);
+  }, [prodQuery]);
+
+  useEffect(() => {
+    if (prodSel) {
+      const p = extractPrice(prodSel, priceType);
+      setItemPrice(p > 0 ? String(p) : "");
+    }
+  }, [priceType, prodSel]);
+
+  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); };
+
+  const selectProd = async (p) => {
+    setProdResults([]);
+    setProdQuery(p.code ? `${p.code} - ${p.name}` : p.name);
+    try {
+      const { data } = await getProduct(p.id);
+      setProdSel(data);
+      setItemDesc(data.name);
+      const precio = extractPrice(data, priceType);
+      setItemPrice(precio > 0 ? String(precio) : "");
+    } catch {
+      setProdSel(p);
+      setItemDesc(p.name);
+      setItemPrice("");
+    }
+    setTimeout(() => qtyRef.current?.focus(), 50);
   };
 
-  const removeItem = (i) => setItems((prev) => prev.filter((_, idx) => idx !== i));
+  const confirmItem = () => {
+    if (!prodSel)                        { addToast("Seleccioná un producto", "error"); return; }
+    if (!itemQty || Number(itemQty) <= 0){ addToast("Ingresá cantidad válida", "error"); return; }
+    setItems((prev) => [...prev, {
+      product_id: prodSel.id,
+      code:       prodSel.code || "",
+      name:       prodSel.name,
+      description:itemDesc || prodSel.name,
+      quantity:   Number(itemQty),
+      unit_price: Number(itemPrice) || 0,
+    }]);
+    setProdSel(null); setProdQuery("");
+    setItemQty(""); setItemPrice(""); setItemDesc("");
+    setTimeout(() => prodSearchRef.current?.focus(), 50);
+  };
+
+  const handleQtyKeyDown = (e) => { if (e.key === "Enter") confirmItem(); };
+  const removeItem = (i) => setItems((prev) => prev.filter((_,idx) => idx !== i));
+  const total = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
 
   const handleCreate = async () => {
-    if (!form.origen || !form.destino) { addToast("Seleccioná origen y destino", "error"); return; }
-    if (items.length === 0) { addToast("Agregá al menos un producto", "error"); return; }
+    if (!origen || !destino)   { addToast("Seleccioná origen y destino", "error"); return; }
+    if (items.length === 0)    { addToast("Agregá al menos un producto", "error"); return; }
+    setSaving(true);
     try {
-      await createRemito({ ...form, items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })) });
+      await createRemito({
+        origen, destino,
+        user_id:    "00000000-0000-0000-0000-000000000001",
+        customer_id: custSel?.id || null,
+        price_type:  priceType,
+        items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
+      });
       addToast("Remito creado", "success");
-      setModal(null); setItems([]); setForm(EMPTY_FORM);
-      loadAll();
+      setCreating(false); resetForm(); loadAll();
     } catch { addToast("Error creando remito", "error"); }
+    setSaving(false);
   };
 
-  const openDetail = async (id) => {
-    try {
-      const { data } = await getRemito(id);
-      setSelected(data); setModal("detail");
-    } catch { addToast("Error cargando remito", "error"); }
+  const resetForm = () => {
+    setOrigen("Alfred"); setDestino("Past 280"); setPriceType("precio_1");
+    setSinPrecios(false); setCustSel(null); setCustQuery(""); setItems([]);
+    setProdSel(null); setProdQuery(""); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este remito?")) return;
-    try { await deleteRemito(id); addToast("Remito eliminado", "success"); loadAll(); }
-    catch { addToast("Error eliminando remito", "error"); }
+    try { await deleteRemito(id); addToast("Eliminado", "success"); loadAll(); }
+    catch { addToast("Error eliminando", "error"); }
   };
 
+  const openDetail = async (id) => {
+    try { const { data } = await getRemito(id); setSelected(data); }
+    catch { addToast("Error cargando", "error"); }
+  };
+
+  // ─────────────────────────────────────────
   return (
     <>
       <ToastContainer />
 
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 20 }}>
-        <button className="btn btn-primary" onClick={() => { setModal("new"); setItems([]); setForm(EMPTY_FORM); }}>
-          + Nuevo remito
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Remitos</span>
-          <span className="badge badge-info">{remitos.length}</span>
-        </div>
-
-        {loading ? <div className="empty">Cargando...</div> : remitos.length === 0 ? (
-          <div className="empty">No hay remitos</div>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr><th>#</th><th>Estado</th><th>Items</th><th></th></tr>
-              </thead>
-              <tbody>
-                {remitos.map((r) => (
-                  <tr key={r.id}>
-                    <td style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-muted)" }}>
-                      {r.id.slice(0, 8)}…
-                    </td>
-                    <td><span className="badge badge-accent">{r.status}</span></td>
-                    <td>{r.items?.length ?? "—"}</td>
-                    <td>
-                      <div style={{ display: "flex", gap: 6 }}>
-                        <button className="btn btn-ghost btn-sm" onClick={() => openDetail(r.id)}>Ver</button>
-                        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(r.id)}>🗑️</button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* NUEVO REMITO */}
-      {modal === "new" && (
-        <Modal
-          title="Nuevo remito"
-          onClose={() => setModal(null)}
-          footer={
-            <>
-              <button className="btn btn-ghost" onClick={() => setModal(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleCreate}>Crear remito</button>
-            </>
-          }
-        >
-          <div className="grid-2">
-            <div className="input-group">
-              <label className="input-label">Origen</label>
-              <select className="select" value={form.origen} onChange={(e) => setForm((p) => ({ ...p, origen: e.target.value }))}>
-                <option value="">Seleccionar</option>
-                {WAREHOUSES.map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
-            <div className="input-group">
-              <label className="input-label">Destino</label>
-              <select className="select" value={form.destino} onChange={(e) => setForm((p) => ({ ...p, destino: e.target.value }))}>
-                <option value="">Seleccionar</option>
-                {WAREHOUSES.map((w) => <option key={w} value={w}>{w}</option>)}
-              </select>
-            </div>
+      {!creating ? (
+        /* ── LISTADO ── */
+        <>
+          <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:24 }}>
+            <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
+              onClick={() => { setCreating(true); resetForm(); }}>
+              + Nuevo remito
+            </button>
           </div>
 
-          <hr className="divider" />
-          <div className="input-label" style={{ marginBottom: 8 }}>AGREGAR PRODUCTOS</div>
-
-          <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-            <div className="search-bar" style={{ flex: 1 }}>
-              <span className="search-icon">🔍</span>
-              <input placeholder="Código o nombre..." value={productQuery} onChange={(e) => setProductQuery(e.target.value)} />
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Remitos</span>
+              <span className="badge badge-info">{remitos.length}</span>
             </div>
-            <input className="input" style={{ width: 70 }} placeholder="Cant." value={qty} onChange={(e) => setQty(e.target.value)} />
-            <input className="input" style={{ width: 90 }} placeholder="Precio" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </div>
-
-          {productResults.length > 0 && (
-            <div className="items-list" style={{ marginBottom: 12 }}>
-              {productResults.slice(0, 6).map((p) => (
-                <div key={p.id} className="item-row" style={{ cursor: "pointer" }} onClick={() => addItem(p)}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", width: 70 }}>{p.code}</span>
-                  <span className="item-name">{p.name}</span>
-                  <span style={{ fontSize: 11, color: "var(--text-dim)" }}>+ Agregar</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {items.length > 0 && (
-            <>
-              <div className="input-label" style={{ marginBottom: 6 }}>ITEMS ({items.length})</div>
-              <div className="items-list">
-                {items.map((it, i) => (
-                  <div key={i} className="item-row">
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", width: 60 }}>{it.code}</span>
-                    <span className="item-name">{it.name}</span>
-                    <span className="item-qty">×{it.quantity}</span>
-                    <span className="item-price">${it.unit_price.toLocaleString("es-AR")}</span>
-                    <button className="btn btn-danger btn-sm btn-icon" onClick={() => removeItem(i)}>✕</button>
-                  </div>
-                ))}
+            {loading ? <div className="empty">Cargando...</div> : remitos.length === 0 ? (
+              <div className="empty">No hay remitos</div>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr><th>#</th><th>Origen</th><th>Destino</th><th>Cliente</th><th>Estado</th><th>Items</th><th>Fecha</th><th></th></tr>
+                  </thead>
+                  <tbody>
+                    {remitos.map((r) => (
+                      <tr key={r.id}>
+                        <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)" }}>{r.id.slice(0,8)}…</td>
+                        <td style={{ fontSize:14, color:"var(--accent)", fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.origen || "—"}</td>
+                        <td style={{ fontSize:14, color:"var(--info)",   fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.destino || "—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.customer_name || "—"}</td>
+                        <td><span className="badge badge-accent">{r.status}</span></td>
+                        <td style={{ fontFamily:"var(--font-mono)", fontSize:13 }}>{r.items?.length ?? "—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>
+                          {r.created_at ? new Date(r.created_at).toLocaleDateString("es-AR") : "—"}
+                        </td>
+                        <td>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openDetail(r.id)}>Ver</button>
+                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(r.id)}>🗑️</button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </>
-          )}
-        </Modal>
-      )}
-
-      {/* DETAIL */}
-      {modal === "detail" && selected && (
-        <Modal title={`Remito ${selected.id?.slice(0, 8)}…`} onClose={() => setModal(null)}>
-          <div style={{ marginBottom: 12 }}>
-            <span className="badge badge-accent">{selected.status}</span>
+            )}
           </div>
-          {selected.items?.length > 0 ? (
-            <div className="items-list">
-              {selected.items.map((it, i) => (
-                <div key={i} className="item-row">
-                  <span className="item-name">{it.product_id}</span>
-                  <span className="item-qty">×{it.quantity}</span>
-                  <span className="item-price">${Number(it.unit_price).toLocaleString("es-AR")}</span>
+
+          {selected && (
+            <div className="modal-overlay" onClick={() => setSelected(null)}>
+              <div className="modal" style={{ maxWidth:520 }} onClick={(e) => e.stopPropagation()}>
+                <div className="modal-header">
+                  <span className="modal-title">Remito {selected.id?.slice(0,8)}…</span>
+                  <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                 </div>
-              ))}
+                <div style={{ display:"flex", gap:10, marginBottom:14 }}>
+                  <span className="badge badge-accent">{selected.status}</span>
+                  {selected.origen && <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{selected.origen}</span>}
+                  {selected.destino && <><span style={{ color:"var(--text-dim)" }}>→</span><span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--info)", fontWeight:700 }}>{selected.destino}</span></>}
+                </div>
+                {selected.items?.length > 0 ? (
+                  <div className="items-list">
+                    {selected.items.map((it, i) => (
+                      <div key={i} className="item-row">
+                        <span className="item-name">{it.product_id}</span>
+                        <span className="item-qty">×{it.quantity}</span>
+                        <span className="item-price">${Number(it.unit_price).toLocaleString("es-AR")}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="empty">Sin items</div>}
+              </div>
             </div>
-          ) : <div className="empty">Sin items</div>}
-        </Modal>
+          )}
+        </>
+      ) : (
+        /* ── NUEVO REMITO ── */
+        <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-28px", overflow:"hidden" }}>
+
+          {/* ── Columna izquierda ── */}
+          <div style={{ width:300, flexShrink:0, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg2)", overflow:"hidden" }}>
+
+            {/* Origen / Destino */}
+            <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid var(--border)", flex:"0 0 auto" }}>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--accent)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:14 }}>
+                Nuevo Remito
+              </div>
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Origen</div>
+                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                    {WAREHOUSES.map((w) => (
+                      <div key={w} onClick={() => setOrigen(w)}
+                        style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
+                          background: origen===w ? "var(--accent-dim)" : "transparent",
+                          color:      origen===w ? "var(--accent)"     : "var(--text-muted)",
+                          borderLeft: `3px solid ${origen===w ? "var(--accent)" : "transparent"}`,
+                          borderBottom:"1px solid var(--border)",
+                          fontWeight: origen===w ? 700 : 400,
+                        }}>
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Destino</div>
+                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                    {WAREHOUSES.map((w) => (
+                      <div key={w} onClick={() => setDestino(w)}
+                        style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
+                          background: destino===w ? "var(--info-dim)"  : "transparent",
+                          color:      destino===w ? "var(--info)"      : "var(--text-muted)",
+                          borderLeft: `3px solid ${destino===w ? "var(--info)" : "transparent"}`,
+                          borderBottom:"1px solid var(--border)",
+                          fontWeight: destino===w ? 700 : 400,
+                        }}>
+                        {w}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Cliente + Precio */}
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
+              {/* Cliente */}
+              <div style={{ marginBottom:16 }}>
+                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente (opcional)</div>
+                {custSel ? (
+                  <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+                    <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{custSel.name}</span>
+                    <button onClick={() => setCustSel(null)} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:16 }}>✕</button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="search-bar">
+                      <span className="search-icon">🔍</span>
+                      <input placeholder="Nombre..." value={custQuery} onChange={(e) => setCustQuery(e.target.value)} style={{ fontSize:13 }} />
+                    </div>
+                    {custResults.length > 0 && (
+                      <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:130, overflowY:"auto", marginTop:6 }}>
+                        {custResults.map((c) => (
+                          <div key={c.id} onClick={() => selectCust(c)}
+                            style={{ padding:"9px 12px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                            {c.name}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Tipo precio */}
+              <div>
+                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Precio</div>
+                <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                  {PRECIOS.map((p) => (
+                    <div key={p} onClick={() => setPriceType(p)}
+                      style={{ padding:"8px 12px", fontSize:13, cursor:"pointer",
+                        background: priceType===p ? "var(--accent-dim)" : "transparent",
+                        color:      priceType===p ? "var(--accent)"     : "var(--text-muted)",
+                        borderLeft: `3px solid ${priceType===p ? "var(--accent)" : "transparent"}`,
+                        borderBottom:"1px solid var(--border)",
+                        fontWeight: priceType===p ? 600 : 400,
+                      }}>
+                      {PRECIO_LBL[p]}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:14 }}>
+                <input type="checkbox" id="sinp" checked={sinPrecios} onChange={(e) => setSinPrecios(e.target.checked)} style={{ accentColor:"var(--accent)", width:16, height:16 }} />
+                <label htmlFor="sinp" style={{ fontSize:13, color:"var(--text-muted)", cursor:"pointer" }}>Imprimir sin precios</label>
+              </div>
+            </div>
+
+            {/* Botones */}
+            <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:10 }}>
+              <button className="btn btn-primary" onClick={handleCreate} disabled={saving}
+                style={{ width:"100%", fontSize:14, padding:"12px" }}>
+                {saving ? "Guardando..." : "✓ Cerrar comprobante"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setCreating(false); resetForm(); }}
+                style={{ width:"100%", fontSize:14 }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+
+          {/* ── Panel central: items ── */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg)" }}>
+
+            {/* Resumen */}
+            <div style={{ padding:"14px 28px", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0, display:"flex", alignItems:"center", gap:16 }}>
+              <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)" }}>{origen}</span>
+              <span style={{ color:"var(--text-dim)", fontSize:18 }}>→</span>
+              <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--info)" }}>{destino}</span>
+              {custSel && <span style={{ fontSize:13, color:"var(--text-muted)", marginLeft:16 }}>Cliente: {custSel.name}</span>}
+              <span style={{ marginLeft:"auto", fontSize:13, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>{PRECIO_LBL[priceType]}</span>
+            </div>
+
+            {/* Lista items */}
+            <div style={{ flex:1, overflowY:"auto", padding:"24px 28px" }}>
+              {items.length === 0 ? (
+                <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:14 }}>
+                  <span style={{ fontSize:52 }}>📦</span>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13 }}>Buscá un producto abajo para agregar</span>
+                </div>
+              ) : (
+                <>
+                  <div style={{ display:"grid", gridTemplateColumns:"90px 1fr 80px 120px 36px", gap:12, padding:"0 0 10px", borderBottom:"2px solid var(--border)", marginBottom:4 }}>
+                    {["Código","Descripción","Cant.",sinPrecios?"":"Total",""].map((h) => (
+                      <div key={h} style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</div>
+                    ))}
+                  </div>
+                  {items.map((it, i) => (
+                    <div key={i} style={{ display:"grid", gridTemplateColumns:"90px 1fr 80px 120px 36px", gap:12, padding:"13px 0", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)" }}>{it.code || "—"}</span>
+                      <span style={{ fontSize:14 }}>{it.description || it.name}</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--text-muted)", textAlign:"right" }}>×{it.quantity}</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color: sinPrecios ? "var(--text-dim)" : "var(--accent)", textAlign:"right" }}>
+                        {sinPrecios ? "—" : `$${(it.quantity * it.unit_price).toLocaleString("es-AR")}`}
+                      </span>
+                      <button onClick={() => removeItem(i)} style={{ background:"none", border:"none", color:"var(--danger)", cursor:"pointer", fontSize:18 }}>✕</button>
+                    </div>
+                  ))}
+                  {!sinPrecios && (
+                    <div style={{ display:"flex", justifyContent:"flex-end", marginTop:24, paddingTop:16, borderTop:"2px solid var(--border)" }}>
+                      <div style={{ textAlign:"right" }}>
+                        <div style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Total</div>
+                        <div style={{ fontSize:32, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
+                          ${total.toLocaleString("es-AR")}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* ── Barra inferior ── */}
+            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"18px 28px", flexShrink:0 }}>
+              <div style={{ display:"flex", gap:14, alignItems:"flex-end", marginBottom:12 }}>
+                <div style={{ flex:2 }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Código o descripción</div>
+                  <div className="search-bar" style={{ height:44 }}>
+                    <span className="search-icon">🔍</span>
+                    <input
+                      ref={prodSearchRef}
+                      placeholder="Buscar producto..."
+                      value={prodQuery}
+                      onChange={(e) => { setProdQuery(e.target.value); if (!e.target.value) setProdSel(null); }}
+                      style={{ fontSize:14 }}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Cantidad</div>
+                  <input ref={qtyRef} className="input"
+                    style={{ height:44, fontSize:16, fontFamily:"var(--font-mono)", textAlign:"center" }}
+                    placeholder="0" value={itemQty}
+                    onChange={(e) => setItemQty(e.target.value)}
+                    onKeyDown={handleQtyKeyDown} />
+                </div>
+                <div style={{ flex:1 }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>
+                    Precio ({PRECIO_LBL[priceType]})
+                  </div>
+                  <input className="input"
+                    style={{ height:44, fontSize:16, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700 }}
+                    placeholder="0.00" value={itemPrice}
+                    onChange={(e) => setItemPrice(e.target.value)}
+                    onKeyDown={handleQtyKeyDown} />
+                </div>
+                <button className="btn btn-primary" onClick={confirmItem}
+                  style={{ height:44, fontSize:14, padding:"0 24px", flexShrink:0 }}>
+                  + Agregar
+                </button>
+              </div>
+
+              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
+                <input className="input" style={{ flex:1, fontSize:14, height:40 }}
+                  placeholder="Presione Enter si no modifica"
+                  value={itemDesc} onChange={(e) => setItemDesc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
+              </div>
+
+              {prodResults.length > 0 && (
+                <div style={{ marginTop:10, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:180, overflowY:"auto" }}>
+                  {prodResults.map((p) => (
+                    <div key={p.id} onClick={() => selectProd(p)}
+                      style={{ padding:"10px 16px", cursor:"pointer", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:14 }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
+                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", width:80, flexShrink:0 }}>{p.code || "—"}</span>
+                      <span style={{ fontSize:14 }}>{p.name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {prodSel && (
+                <div style={{ marginTop:10, padding:"10px 14px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:12 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
+                  <span style={{ fontSize:14, color:"var(--text)", flex:1 }}>{prodSel.name}</span>
+                  {!sinPrecios && <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>
+                    ${Number(itemPrice||0).toLocaleString("es-AR")}
+                  </span>}
+                  <span style={{ fontSize:12, color:"var(--text-dim)" }}>← ingresá cantidad y Enter</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

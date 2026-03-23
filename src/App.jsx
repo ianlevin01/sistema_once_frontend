@@ -5,6 +5,7 @@ import Products from "./pages/Products";
 import Remitos from "./pages/Remitos";
 import Comprobantes from "./pages/Comprobantes";
 import Cash from "./pages/Cash";
+import WebOrders from "./pages/WebOrders";
 import "./index.css";
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/remitos"      element={<Remitos />} />
           <Route path="/comprobantes" element={<Comprobantes />} />
           <Route path="/caja"         element={<Cash />} />
+          <Route path="/pedidos-web"  element={<WebOrders />} />
         </Routes>
       </Layout>
     </BrowserRouter>
