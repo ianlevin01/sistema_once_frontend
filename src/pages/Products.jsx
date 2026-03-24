@@ -15,10 +15,121 @@ const WAREHOUSES_DEFAULT = [
   "Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos",
 ];
 
-const VAL = (v) => (v !== undefined && v !== null && v !== "") ? v : null;
-const FMT = (v) => v != null ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 }) : "—";
+const VAL  = (v) => (v !== undefined && v !== null && v !== "") ? v : null;
+const FMT  = (v) => v != null ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 }) : "—";
 const FMTN = (v) => v != null ? Number(v).toLocaleString("es-AR") : "—";
 
+// ─── Componente de upload de imágenes ────────────────────────────────────────
+function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
+  const inputRef = useRef(null);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+      <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>
+        {label}
+      </div>
+      <div
+        onClick={() => !preview && inputRef.current?.click()}
+        style={{
+          width:"100%", height:110, borderRadius:8,
+          border: preview ? "2px solid var(--accent)" : "2px dashed var(--border)",
+          background: preview ? "var(--bg3)" : "var(--bg)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          cursor: preview ? "default" : "pointer",
+          overflow:"hidden", position:"relative",
+          transition:"border-color 0.15s, background 0.15s",
+        }}
+        onDragOver={(e) => { e.preventDefault(); }}
+        onDrop={(e) => {
+          e.preventDefault();
+          const f = e.dataTransfer.files[0];
+          if (f) onFileChange(f);
+        }}
+      >
+        {preview ? (
+          <>
+            <img
+              src={preview}
+              alt={label}
+              style={{ width:"100%", height:"100%", objectFit:"cover" }}
+            />
+            <button
+              onClick={(e) => { e.stopPropagation(); onClear(); }}
+              title="Quitar imagen"
+              style={{
+                position:"absolute", top:6, right:6,
+                background:"rgba(0,0,0,0.65)", border:"none", borderRadius:"50%",
+                width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", color:"#fff", fontSize:11, lineHeight:1,
+              }}
+            >✕</button>
+          </>
+        ) : (
+          <div style={{ textAlign:"center", color:"var(--text-dim)" }}>
+            <div style={{ fontSize:22, marginBottom:4 }}>📷</div>
+            <div style={{ fontSize:10, fontFamily:"var(--font-mono)" }}>Subir / arrastrar</div>
+          </div>
+        )}
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        style={{ display:"none" }}
+        onChange={(e) => { const f = e.target.files[0]; if (f) onFileChange(f); }}
+      />
+    </div>
+  );
+}
+
+// ─── Galería de imágenes (detalle) ────────────────────────────────────────────
+function ImageGallery({ photos }) {
+  const [active, setActive] = useState(0);
+  const valid = photos.filter(Boolean);
+  if (!valid.length) return null;
+
+  return (
+    <section>
+      <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
+        Fotografías
+      </div>
+
+      <div style={{ width:"100%", height:220, borderRadius:8, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:8, position:"relative" }}>
+        <img
+          src={valid[active]}
+          alt={`Foto ${active + 1}`}
+          style={{ width:"100%", height:"100%", objectFit:"contain" }}
+          onError={(e) => { e.currentTarget.style.opacity = 0.3; }}
+        />
+        {valid.length > 1 && (
+          <div style={{ position:"absolute", bottom:8, right:10, fontFamily:"var(--font-mono)", fontSize:10, color:"#fff", background:"rgba(0,0,0,0.5)", padding:"2px 8px", borderRadius:10 }}>
+            {active + 1} / {valid.length}
+          </div>
+        )}
+      </div>
+
+      {valid.length > 1 && (
+        <div style={{ display:"flex", gap:8 }}>
+          {valid.map((url, i) => (
+            <div
+              key={i}
+              onClick={() => setActive(i)}
+              style={{
+                width:60, height:60, borderRadius:6, overflow:"hidden", cursor:"pointer", flexShrink:0,
+                border: `2px solid ${i === active ? "var(--accent)" : "var(--border)"}`,
+                background:"var(--bg3)", transition:"border-color 0.15s",
+              }}
+            >
+              <img src={url} alt={`Thumb ${i + 1}`} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
 export default function Products() {
   const [query,         setQuery]         = useState("");
   const [results,       setResults]       = useState([]);
@@ -32,6 +143,14 @@ export default function Products() {
   const listRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
+  const EMPTY_IMGS = [
+    { file: null, preview: null, existingUrl: null },
+    { file: null, preview: null, existingUrl: null },
+    { file: null, preview: null, existingUrl: null },
+  ];
+  const [imgSlots, setImgSlots] = useState(EMPTY_IMGS);
+
+  // ── Búsqueda ──────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!query.trim()) { setResults([]); return; }
     const t = setTimeout(async () => {
@@ -44,6 +163,7 @@ export default function Products() {
     return () => clearTimeout(t);
   }, [query]);
 
+  // ── Seleccionar producto ──────────────────────────────────────────────────
   const selectProduct = async (p, idx) => {
     if (idx !== undefined) setSelectedIndex(idx);
     setSelected({ ...p, _loading: true });
@@ -53,8 +173,7 @@ export default function Products() {
     setLoadingDetail(false);
   };
 
-
-  // Keyboard navigation
+  // ── Teclado ───────────────────────────────────────────────────────────────
   useEffect(() => {
     const handleKey = (e) => {
       if (results.length === 0 || modal) return;
@@ -86,10 +205,33 @@ export default function Products() {
     if (item) item.scrollIntoView({ block: "nearest", behavior: "smooth" });
   };
 
-  const openNew = () => { setForm(EMPTY_FORM); setModal("new"); };
+  // ── Helpers de imágenes ───────────────────────────────────────────────────
+  const handleImgFile = (slotIdx, file) => {
+    const preview = URL.createObjectURL(file);
+    setImgSlots((prev) => prev.map((s, i) =>
+      i === slotIdx ? { ...s, file, preview } : s
+    ));
+  };
+
+  const handleImgClear = (slotIdx) => {
+    setImgSlots((prev) => prev.map((s, i) =>
+      i === slotIdx ? { file: null, preview: null, existingUrl: null } : s
+    ));
+  };
+
+  const slotDisplayPreview = (slot) => slot.preview || slot.existingUrl || null;
+
+  // ── Abrir modal nuevo ─────────────────────────────────────────────────────
+  const openNew = () => {
+    setForm(EMPTY_FORM);
+    setImgSlots(EMPTY_IMGS);
+    setModal("new");
+  };
+
+  // ── Abrir modal editar ────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
-    const prices = selected.prices || selected.product_prices || [];
+    const prices  = selected.prices || selected.product_prices || [];
     const getPrice = (type) => prices.find((p) => p.price_type === type)?.price || "";
     setForm({
       name:        selected.name        || "",
@@ -113,19 +255,39 @@ export default function Products() {
       price_4:     getPrice("precio_4") || "",
       price_5:     getPrice("precio_5") || "",
     });
+
+    // ✅ Cargar imágenes desde el array images de la API
+    const imgs = selected.images || [];
+    setImgSlots([
+      { file: null, preview: null, existingUrl: imgs[0]?.url || null },
+      { file: null, preview: null, existingUrl: imgs[1]?.url || null },
+      { file: null, preview: null, existingUrl: imgs[2]?.url || null },
+    ]);
     setModal("edit");
   };
 
+  // ── Guardar ───────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!form.name.trim()) { addToast("El nombre es obligatorio", "error"); return; }
     setSaving(true);
     try {
+      const fd = new FormData();
+
+      Object.entries(form).forEach(([k, v]) => {
+        if (v !== "" && v !== null && v !== undefined) fd.append(k, v);
+      });
+
+      imgSlots.forEach((slot) => {
+        if (slot.file) fd.append("images", slot.file);
+      });
+
       if (modal === "edit" && selected) {
-        await updateProduct(selected.id, form);
-        setSelected((prev) => ({ ...prev, ...form }));
+        await updateProduct(selected.id, fd);
+        const { data } = await getProduct(selected.id);
+        setSelected(data);
         addToast("Producto actualizado", "success");
       } else {
-        await createProduct(form);
+        await createProduct(fd);
         addToast("Producto creado", "success");
         if (query) { const { data } = await searchProducts(query); setResults(data); }
       }
@@ -148,23 +310,26 @@ export default function Products() {
     ...prev, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
   }));
 
-  // Extraer datos del producto seleccionado
+  // ── Datos del producto seleccionado ──────────────────────────────────────
   const prices  = selected?.prices || selected?.product_prices || [];
   const stock   = selected?.stock  || [];
   const costs   = selected?.costs  || selected?.product_costs  || [];
   const getPrice = (type) => prices.find((p) => p.price_type === type);
   const getCost  = () => getPrice("costo") || (selected?.cost ? { price: selected.cost } : null);
 
-  const totalStock    = stock.reduce((a, s) => a + (Number(s.quantity)  || 0), 0);
-  const totalReserved = stock.reduce((a, s) => a + (Number(s.reserved)  || 0), 0);
+  const totalStock    = stock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
+  const totalReserved = stock.reduce((a, s) => a + (Number(s.reserved) || 0), 0);
 
-  // Armar filas de stock: usar los que lleguen, o mostrar los depósitos default vacíos
   const stockRows = stock.length > 0
     ? stock.map((s) => ({ name: s.warehouse?.name || s.warehouse_name || s.warehouse_id, qty: s.quantity, res: s.reserved ?? 0 }))
     : WAREHOUSES_DEFAULT.map((w) => ({ name: w, qty: null, res: null }));
 
-  // Últimos costos históricos
   const lastCosts = [...costs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
+
+  // ✅ Ahora lee desde el array images de la API
+  const selectedPhotos = selected?.images?.length
+    ? selected.images.map((img) => img.url).filter(Boolean)
+    : [];
 
   const LBL = ({ children }) => (
     <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>
@@ -192,9 +357,7 @@ export default function Products() {
       <ToastContainer />
       <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-28px", overflow:"hidden" }}>
 
-        {/* ══════════════════════════════════════
-            PANEL IZQUIERDO — DETALLE COMPLETO
-        ══════════════════════════════════════ */}
+        {/* ══ PANEL IZQUIERDO — DETALLE ══════════════════════════════════════ */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg)" }}>
 
           {/* Header */}
@@ -243,14 +406,14 @@ export default function Products() {
             ) : (
               <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
 
-                {/* ── SECCIÓN 1: Identificación ── */}
+                {/* ── 1: Identificación ── */}
                 <section>
                   <LBL>Identificación</LBL>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-                    <Field label="Código"    value={selected.code}     mono accent />
-                    <Field label="Barcode"   value={selected.barcode}  mono />
-                    <Field label="Box Code"  value={selected.box_code} mono />
-                    <Field label="QxB"       value={VAL(selected.qxb) ?? "—"} mono />
+                    <Field label="Código"   value={selected.code}    mono accent />
+                    <Field label="Barcode"  value={selected.barcode} mono />
+                    <Field label="Box Code" value={selected.box_code} mono />
+                    <Field label="QxB"      value={VAL(selected.qxb) ?? "—"} mono />
                   </div>
                   <div style={{ marginTop:10, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px" }}>
                     <LBL>Detalle / Descripción</LBL>
@@ -258,12 +421,15 @@ export default function Products() {
                   </div>
                 </section>
 
-                {/* ── SECCIÓN 2: Precios y cotizaciones ── */}
+                {/* ── 2: Fotos ── */}
+                {selectedPhotos.length > 0 && (
+                  <ImageGallery photos={selectedPhotos} />
+                )}
+
+                {/* ── 3: Precios ── */}
                 <section>
                   <LBL>Precios</LBL>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-
-                    {/* Costo */}
                     {(() => {
                       const c = getCost();
                       return (
@@ -278,8 +444,6 @@ export default function Products() {
                         </div>
                       );
                     })()}
-
-                    {/* Precio #1 al #5 */}
                     {[1,2,3,4,5].map((n) => {
                       const p = getPrice(`precio_${n}`);
                       return (
@@ -297,18 +461,18 @@ export default function Products() {
                   </div>
                 </section>
 
-                {/* ── SECCIÓN 3: Impuestos / Logística ── */}
+                {/* ── 4: Impuestos / Logística ── */}
                 <section>
                   <LBL>Impuestos y logística</LBL>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-                    <Field label="Tasa IVA"  value={VAL(selected.tasa_iva)  != null ? `${selected.tasa_iva}%` : null} mono />
-                    <Field label="Despacho"  value={selected.despacho}  mono />
-                    <Field label="Aduana"    value={selected.aduana}    mono />
-                    <Field label="Origen"    value={selected.origen}    />
+                    <Field label="Tasa IVA" value={VAL(selected.tasa_iva) != null ? `${selected.tasa_iva}%` : null} mono />
+                    <Field label="Despacho" value={selected.despacho} mono />
+                    <Field label="Aduana"   value={selected.aduana}   mono />
+                    <Field label="Origen"   value={selected.origen}   />
                   </div>
                 </section>
 
-                {/* ── SECCIÓN 4: Stock por depósito ── */}
+                {/* ── 5: Stock ── */}
                 <section>
                   <LBL>Stock por depósito</LBL>
                   <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
@@ -316,7 +480,7 @@ export default function Products() {
                       <thead>
                         <tr style={{ background:"var(--bg3)" }}>
                           {["Depósito","Completo","Reservado"].map((h, i) => (
-                            <th key={h} style={{ padding:"8px 14px", textAlign: i===0?"left":"right", fontFamily:"var(--font-mono)", fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--text-dim)", borderBottom:"1px solid var(--border)" }}>
+                            <th key={h} style={{ padding:"8px 14px", textAlign:i===0?"left":"right", fontFamily:"var(--font-mono)", fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--text-dim)", borderBottom:"1px solid var(--border)" }}>
                               {h}
                             </th>
                           ))}
@@ -340,15 +504,9 @@ export default function Products() {
                       {stock.length > 0 && (
                         <tfoot>
                           <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
-                            <td style={{ padding:"9px 14px", fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
-                              Totales
-                            </td>
-                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)", fontSize:15 }}>
-                              {FMTN(totalStock)}
-                            </td>
-                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--text-muted)" }}>
-                              {FMTN(totalReserved)}
-                            </td>
+                            <td style={{ padding:"9px 14px", fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Totales</td>
+                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)", fontSize:15 }}>{FMTN(totalStock)}</td>
+                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--text-muted)" }}>{FMTN(totalReserved)}</td>
                           </tr>
                         </tfoot>
                       )}
@@ -361,7 +519,7 @@ export default function Products() {
                   )}
                 </section>
 
-                {/* ── SECCIÓN 5: Historial de costos ── */}
+                {/* ── 6: Historial de costos ── */}
                 {lastCosts.length > 0 && (
                   <section>
                     <LBL>Historial de costos</LBL>
@@ -380,7 +538,7 @@ export default function Products() {
                   </section>
                 )}
 
-                {/* ── SECCIÓN 6: Categoría / Rubro + otros datos ── */}
+                {/* ── 7: Clasificación ── */}
                 <section>
                   <LBL>Clasificación y datos adicionales</LBL>
                   <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
@@ -390,7 +548,7 @@ export default function Products() {
                   </div>
                 </section>
 
-                {/* ── SECCIÓN 7: Video ── */}
+                {/* ── 8: Video ── */}
                 {selected.video_url && (
                   <section>
                     <LBL>Video</LBL>
@@ -404,21 +562,7 @@ export default function Products() {
                   </section>
                 )}
 
-                {/* ── SECCIÓN 8: Fotos ── */}
-                {(selected.photo_url || selected.photo_2 || selected.photo_3) && (
-                  <section>
-                    <LBL>Fotografías</LBL>
-                    <div style={{ display:"flex", gap:12 }}>
-                      {[selected.photo_url, selected.photo_2, selected.photo_3].filter(Boolean).map((url, i) => (
-                        <div key={i} style={{ width:120, height:120, borderRadius:6, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)" }}>
-                          <img src={url} alt={`Foto ${i+1}`} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
-
-                {/* ── SECCIÓN 9: ID técnico ── */}
+                {/* ── 9: ID técnico ── */}
                 <section style={{ opacity:0.5 }}>
                   <LBL>ID interno</LBL>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{selected.id}</div>
@@ -429,12 +573,9 @@ export default function Products() {
           </div>
         </div>
 
-        {/* ══════════════════════════════════════
-            PANEL DERECHO — LISTA DE PRODUCTOS
-        ══════════════════════════════════════ */}
+        {/* ══ PANEL DERECHO — LISTA ══════════════════════════════════════════ */}
         <div style={{ width:320, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
 
-          {/* Buscador */}
           <div style={{ padding:"16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             <div className="search-bar">
               <span className="search-icon">🔍</span>
@@ -458,7 +599,6 @@ export default function Products() {
             </div>
           </div>
 
-          {/* Lista scrolleable */}
           <div ref={listRef} style={{ flex:1, overflowY:"auto" }}>
             {results.map((p, i) => {
               const isSelected = selectedIndex === i || (selectedIndex === -1 && selected?.id === p.id);
@@ -505,9 +645,7 @@ export default function Products() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════
-          MODAL NUEVO / EDITAR
-      ══════════════════════════════════════ */}
+      {/* ══ MODAL NUEVO / EDITAR ══════════════════════════════════════════════ */}
       {modal && (
         <Modal
           title={modal === "edit" ? `Editar — ${selected?.code || selected?.name}` : "Nuevo producto"}
@@ -543,6 +681,28 @@ export default function Products() {
               <label className="input-label">QxB</label>
               <input className="input" type="number" value={form.qxb} onChange={f("qxb")} placeholder="36" />
             </div>
+          </div>
+
+          <hr className="divider" />
+
+          {/* Imágenes */}
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>
+            Imágenes del producto
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:4 }}>
+            {["Foto principal", "Foto 2", "Foto 3"].map((label, i) => (
+              <ImageUploadSlot
+                key={i}
+                label={label}
+                file={imgSlots[i].file}
+                preview={slotDisplayPreview(imgSlots[i])}
+                onFileChange={(file) => handleImgFile(i, file)}
+                onClear={() => handleImgClear(i)}
+              />
+            ))}
+          </div>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", marginBottom:2 }}>
+            Formatos: JPG, PNG, WEBP · Arrastrá o hacé click en cada slot
           </div>
 
           <hr className="divider" />
