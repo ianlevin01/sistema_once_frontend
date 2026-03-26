@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 
 const NAV = [
@@ -6,7 +7,13 @@ const NAV = [
     items: [
       { to: "/comprobantes", label: "Comprobantes", icon: "🧾" },
       { to: "/remitos",      label: "Remitos",      icon: "📦" },
-      { to: "/caja",         label: "Caja",         icon: "💰" },
+      {
+        label: "Caja", icon: "💰",
+        submenu: [
+          { to: "/caja",          label: "Imputaciones" },
+          { to: "/caja/listado",  label: "Listado"      },
+        ],
+      },
       { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
     ],
   },
@@ -20,17 +27,65 @@ const NAV = [
 ];
 
 const PAGE_TITLES = {
-  "/comprobantes": "Comprobantes",
-  "/remitos":      "Remitos",
-  "/caja":         "Caja",
-  "/pedidos-web":  "Pedidos Web",
-  "/clientes":     "Clientes",
-  "/productos":    "Productos",
+  "/comprobantes":  "Comprobantes",
+  "/remitos":       "Remitos",
+  "/caja":          "Caja · Imputaciones",
+  "/caja/listado":  "Caja · Listado",
+  "/pedidos-web":   "Pedidos Web",
+  "/clientes":      "Clientes",
+  "/productos":     "Productos",
 };
 
+function CajaNavItem({ item, location }) {
+  const isCajaActive = location.pathname.startsWith("/caja");
+  const [open, setOpen] = useState(isCajaActive);
+
+  return (
+    <div>
+      {/* Ítem principal — toggle al hacer click */}
+      <div
+        className={"sidebar-link" + (isCajaActive ? " active" : "")}
+        style={{ cursor: "pointer", userSelect: "none" }}
+        title={item.label}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <span className="icon">{item.icon}</span>
+        <span className="link-label">{item.label}</span>
+        <span style={{
+          marginLeft: "auto",
+          fontSize: 10,
+          opacity: 0.5,
+          transform: open ? "rotate(90deg)" : "rotate(0deg)",
+          transition: "transform 0.15s",
+          paddingRight: 4,
+        }}>▶</span>
+      </div>
+
+      {/* Submenú expandible hacia abajo dentro del sidebar */}
+      {open && (
+        <div style={{ paddingLeft: 16 }}>
+          {item.submenu.map((sub) => (
+            <NavLink
+              key={sub.to}
+              to={sub.to}
+              end
+              className={({ isActive }) =>
+                "sidebar-link" + (isActive ? " active" : "")
+              }
+              style={{ fontSize: 13 }}
+            >
+              <span className="link-label">{sub.label}</span>
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Layout({ children }) {
-  const { pathname } = useLocation();
-  const title = PAGE_TITLES[pathname] || "Sistema";
+  const location = useLocation();
+  const title = PAGE_TITLES[location.pathname] || "Sistema";
 
   return (
     <div className="layout">
@@ -49,19 +104,23 @@ export default function Layout({ children }) {
               <div className="sidebar-section">
                 <span className="sidebar-section-label">{section}</span>
               </div>
-              {items.map(({ to, label, icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    "sidebar-link" + (isActive ? " active" : "")
-                  }
-                  title={label}
-                >
-                  <span className="icon">{icon}</span>
-                  <span className="link-label">{label}</span>
-                </NavLink>
-              ))}
+              {items.map((item) =>
+                item.submenu ? (
+                  <CajaNavItem key={item.label} item={item} location={location} />
+                ) : (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    className={({ isActive }) =>
+                      "sidebar-link" + (isActive ? " active" : "")
+                    }
+                    title={item.label}
+                  >
+                    <span className="icon">{item.icon}</span>
+                    <span className="link-label">{item.label}</span>
+                  </NavLink>
+                )
+              )}
             </div>
           ))}
         </nav>
@@ -80,7 +139,7 @@ export default function Layout({ children }) {
               borderRadius: "var(--radius)",
               border: "1px solid var(--border)",
             }}>
-              {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+              {new Date().toLocaleDateString("es-AR", { weekday:"short", day:"numeric", month:"short", year:"numeric" })}
             </span>
           </div>
         </header>

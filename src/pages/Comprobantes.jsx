@@ -148,7 +148,7 @@ export default function Comprobantes() {
     try {
       await createComprobante({
         customer_id:    custSel.id,
-        user_id:        "00000000-0000-0000-0000-000000000001",
+        user_id:        null, // TODO: reemplazar con el ID del usuario autenticado
         payment_method: payMethod,
         tipo, vendedor, price_type: priceType,
         texto_libre: textoLibre, escenario,

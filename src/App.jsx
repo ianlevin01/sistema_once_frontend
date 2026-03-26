@@ -1,27 +1,26 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import Layout from "./components/Layout";
-import Customers from "./pages/Customers";
-import Products from "./pages/Products";
-import Remitos from "./pages/Remitos";
+import Layout      from "./components/Layout";
 import Comprobantes from "./pages/Comprobantes";
-import Cash from "./pages/Cash";
-import WebOrders from "./pages/WebOrders";
-import "./index.css";
+import Remitos     from "./pages/Remitos";
+import Cash        from "./pages/Cash";
+import CajaListado from "./pages/CajaListado";   // ← NUEVO
+import WebOrders   from "./pages/WebOrders";
+import Customers   from "./pages/Customers";
+import Products    from "./pages/Products";
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Navigate to="/comprobantes" replace />} />
-          <Route path="/clientes"     element={<Customers />} />
-          <Route path="/productos"    element={<Products />} />
-          <Route path="/remitos"      element={<Remitos />} />
-          <Route path="/comprobantes" element={<Comprobantes />} />
-          <Route path="/caja"         element={<Cash />} />
-          <Route path="/pedidos-web"  element={<WebOrders />} />
-        </Routes>
-      </Layout>
+      <Routes>
+        <Route path="/" element={<Navigate to="/comprobantes" replace />} />
+        <Route path="/comprobantes" element={<Layout><Comprobantes /></Layout>} />
+        <Route path="/remitos"      element={<Layout><Remitos /></Layout>} />
+        <Route path="/caja"         element={<Layout><Cash /></Layout>} />
+        <Route path="/caja/listado" element={<Layout><CajaListado /></Layout>} />  {/* ← NUEVO */}
+        <Route path="/pedidos-web"  element={<Layout><WebOrders /></Layout>} />
+        <Route path="/clientes"     element={<Layout><Customers /></Layout>} />
+        <Route path="/productos"    element={<Layout><Products /></Layout>} />
+      </Routes>
     </BrowserRouter>
   );
 }
