@@ -24,15 +24,15 @@ function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
   const inputRef = useRef(null);
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-      <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>
+    <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+      <div style={{ fontSize:11, fontFamily:"var(--font-sans)", fontWeight:500, color:"var(--text-muted)" }}>
         {label}
       </div>
       <div
         onClick={() => !preview && inputRef.current?.click()}
         style={{
-          width:"100%", height:110, borderRadius:8,
-          border: preview ? "2px solid var(--accent)" : "2px dashed var(--border)",
+          width:"100%", height:90, borderRadius:6,
+          border: preview ? "2px solid var(--accent)" : "2px dashed var(--border-mid)",
           background: preview ? "var(--bg3)" : "var(--bg)",
           display:"flex", alignItems:"center", justifyContent:"center",
           cursor: preview ? "default" : "pointer",
@@ -57,17 +57,17 @@ function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
               onClick={(e) => { e.stopPropagation(); onClear(); }}
               title="Quitar imagen"
               style={{
-                position:"absolute", top:6, right:6,
-                background:"rgba(0,0,0,0.65)", border:"none", borderRadius:"50%",
-                width:22, height:22, display:"flex", alignItems:"center", justifyContent:"center",
-                cursor:"pointer", color:"#fff", fontSize:11, lineHeight:1,
+                position:"absolute", top:4, right:4,
+                background:"rgba(0,0,0,0.55)", border:"none", borderRadius:"50%",
+                width:20, height:20, display:"flex", alignItems:"center", justifyContent:"center",
+                cursor:"pointer", color:"#fff", fontSize:10, lineHeight:1,
               }}
             >✕</button>
           </>
         ) : (
           <div style={{ textAlign:"center", color:"var(--text-dim)" }}>
-            <div style={{ fontSize:22, marginBottom:4 }}>📷</div>
-            <div style={{ fontSize:10, fontFamily:"var(--font-mono)" }}>Subir / arrastrar</div>
+            <div style={{ fontSize:18, marginBottom:2 }}>+</div>
+            <div style={{ fontSize:10, fontFamily:"var(--font-sans)" }}>Subir</div>
           </div>
         )}
       </div>
@@ -82,50 +82,49 @@ function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
   );
 }
 
-// ─── Galería de imágenes (detalle) ────────────────────────────────────────────
+// ─── Galería de imágenes compacta (tira deslizable) ──────────────────────────
 function ImageGallery({ photos }) {
   const [active, setActive] = useState(0);
   const valid = photos.filter(Boolean);
   if (!valid.length) return null;
 
   return (
-    <section>
-      <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
-        Fotografías
-      </div>
-
-      <div style={{ width:"100%", height:220, borderRadius:8, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:8, position:"relative" }}>
+    <div style={{ width:130 }}>
+      {/* Imagen principal compacta */}
+      <div style={{ width:130, height:120, borderRadius:7, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:5, position:"relative" }}>
         <img
           src={valid[active]}
           alt={`Foto ${active + 1}`}
           style={{ width:"100%", height:"100%", objectFit:"contain" }}
-          onError={(e) => { e.currentTarget.style.opacity = 0.3; }}
+          onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
         />
         {valid.length > 1 && (
-          <div style={{ position:"absolute", bottom:8, right:10, fontFamily:"var(--font-mono)", fontSize:10, color:"#fff", background:"rgba(0,0,0,0.5)", padding:"2px 8px", borderRadius:10 }}>
-            {active + 1} / {valid.length}
+          <div style={{ position:"absolute", bottom:4, right:5, fontFamily:"var(--font-mono)", fontSize:9, color:"var(--text-muted)", background:"rgba(255,255,255,0.9)", padding:"1px 5px", borderRadius:8, border:"1px solid var(--border)" }}>
+            {active + 1}/{valid.length}
           </div>
         )}
       </div>
 
+      {/* Thumbnails */}
       {valid.length > 1 && (
-        <div style={{ display:"flex", gap:8 }}>
+        <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
           {valid.map((url, i) => (
             <div
               key={i}
               onClick={() => setActive(i)}
               style={{
-                width:60, height:60, borderRadius:6, overflow:"hidden", cursor:"pointer", flexShrink:0,
+                width:36, height:36, borderRadius:4, overflow:"hidden", cursor:"pointer", flexShrink:0,
                 border: `2px solid ${i === active ? "var(--accent)" : "var(--border)"}`,
-                background:"var(--bg3)", transition:"border-color 0.15s",
+                opacity: i === active ? 1 : 0.65,
+                transition:"all 0.13s",
               }}
             >
-              <img src={url} alt={`Thumb ${i + 1}`} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
+              <img src={url} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }} />
             </div>
           ))}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -332,19 +331,19 @@ export default function Products() {
     : [];
 
   const LBL = ({ children }) => (
-    <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>
+    <div style={{ fontSize:11, fontFamily:"var(--font-sans)", fontWeight:500, color:"var(--text-muted)", marginBottom:6 }}>
       {children}
     </div>
   );
 
   const Field = ({ label, value, mono, accent, dim }) => (
-    <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px" }}>
+    <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"9px 12px" }}>
       <LBL>{label}</LBL>
       <div style={{
-        fontSize: mono ? 14 : 13,
+        fontSize: 13,
         fontFamily: mono ? "var(--font-mono)" : "var(--font-sans)",
-        fontWeight: accent ? 700 : 400,
-        color: accent ? "var(--accent)" : dim ? "var(--text-dim)" : "var(--text-muted)",
+        fontWeight: accent ? 600 : 400,
+        color: accent ? "var(--accent)" : dim ? "var(--text-dim)" : "var(--text)",
         wordBreak: "break-all",
       }}>
         {value ?? "—"}
@@ -355,28 +354,28 @@ export default function Products() {
   return (
     <>
       <ToastContainer />
-      <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-28px", overflow:"hidden" }}>
+      <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-24px", overflow:"hidden" }}>
 
         {/* ══ PANEL IZQUIERDO — DETALLE ══════════════════════════════════════ */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg)" }}>
 
           {/* Header */}
-          <div style={{ padding:"16px 24px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", background:"var(--bg2)", flexShrink:0 }}>
+          <div style={{ padding:"12px 20px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", background:"var(--bg2)", flexShrink:0 }}>
             <div>
               {selected ? (
-                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--accent)", background:"var(--accent-dim)", padding:"3px 10px", borderRadius:4 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, fontWeight:600, color:"var(--accent)", background:"var(--accent-light)", padding:"2px 9px", borderRadius:4 }}>
                     {selected.code || "—"}
                   </span>
                   <span style={{ fontSize:14, fontWeight:600, color:"var(--text)", maxWidth:400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
                     {selected.name}
                   </span>
                   <span className={`badge ${selected.active !== false ? "badge-success" : "badge-danger"}`}>
-                    {selected.active !== false ? "ACTIVO" : "INACTIVO"}
+                    {selected.active !== false ? "Activo" : "Inactivo"}
                   </span>
                 </div>
               ) : (
-                <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", letterSpacing:"0.1em", textTransform:"uppercase" }}>
+                <span style={{ fontSize:13, color:"var(--text-dim)" }}>
                   Seleccioná un producto →
                 </span>
               )}
@@ -384,189 +383,202 @@ export default function Products() {
             <div style={{ display:"flex", gap:8 }}>
               <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>
               {selected && <>
-                <button className="btn btn-ghost btn-sm" onClick={openEdit}>✏️ Editar</button>
-                <button className="btn btn-danger btn-sm" onClick={handleDelete}>🗑️</button>
+                <button className="btn btn-ghost btn-sm" onClick={openEdit}>Editar</button>
+                <button className="btn btn-danger btn-sm" onClick={handleDelete}>Eliminar</button>
               </>}
             </div>
           </div>
 
-          {/* Cuerpo scrolleable */}
-          <div style={{ flex:1, overflowY:"auto", padding:24 }}>
+          {/* Cuerpo — dos columnas fijas, sin scroll vertical en la vista principal */}
+          <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
             {!selected ? (
-              <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, color:"var(--text-dim)" }}>
-                <span style={{ fontSize:52 }}>🏷️</span>
-                <span style={{ fontFamily:"var(--font-mono)", fontSize:12, letterSpacing:"0.08em" }}>
-                  Buscá y seleccioná un producto de la lista →
-                </span>
+              <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--text-dim)" }}>
+                <span style={{ fontSize:40 }}>🏷️</span>
+                <span style={{ fontSize:13 }}>Buscá y seleccioná un producto de la lista →</span>
               </div>
             ) : loadingDetail ? (
-              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"var(--text-dim)", fontSize:13 }}>
                 Cargando...
               </div>
             ) : (
-              <div style={{ display:"flex", flexDirection:"column", gap:22 }}>
+              /* Layout en dos columnas: izquierda datos, derecha stock */
+              <div style={{ display:"flex", height:"100%", gap:0, overflow:"hidden" }}>
 
-                {/* ── 1: Identificación ── */}
-                <section>
-                  <LBL>Identificación</LBL>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-                    <Field label="Código"   value={selected.code}    mono accent />
-                    <Field label="Barcode"  value={selected.barcode} mono />
-                    <Field label="Box Code" value={selected.box_code} mono />
-                    <Field label="QxB"      value={VAL(selected.qxb) ?? "—"} mono />
-                  </div>
-                  <div style={{ marginTop:10, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px" }}>
-                    <LBL>Detalle / Descripción</LBL>
-                    <div style={{ fontSize:14, color:"var(--text)", fontWeight:500 }}>{selected.description || selected.name || "—"}</div>
-                  </div>
-                </section>
+                {/* ── COLUMNA IZQUIERDA: identificación + foto + precios + logística ── */}
+                <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", display:"flex", flexDirection:"column", gap:14, borderRight:"1px solid var(--border)" }}>
 
-                {/* ── 2: Fotos ── */}
-                {selectedPhotos.length > 0 && (
-                  <ImageGallery photos={selectedPhotos} />
-                )}
+                  {/* Identificación */}
+                  <section>
+                    <LBL>Identificación</LBL>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+                      <Field label="Código"   value={selected.code}    mono accent />
+                      <Field label="Barcode"  value={selected.barcode} mono />
+                      <Field label="Box Code" value={selected.box_code} mono />
+                      <Field label="QxB"      value={VAL(selected.qxb) ?? "—"} mono />
+                    </div>
+                    <div style={{ marginTop:6, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"7px 10px" }}>
+                      <LBL>Descripción</LBL>
+                      <div style={{ fontSize:13, color:"var(--text)", fontWeight:500 }}>{selected.description || selected.name || "—"}</div>
+                    </div>
+                  </section>
 
-                {/* ── 3: Precios ── */}
-                <section>
-                  <LBL>Precios</LBL>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-                    {(() => {
-                      const c = getCost();
-                      return (
-                        <div style={{ background:"rgba(224,85,85,0.08)", border:"1px solid rgba(224,85,85,0.25)", borderRadius:6, padding:"12px 14px" }}>
-                          <LBL>Costo</LBL>
-                          <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:700, color:"var(--danger)" }}>
-                            {c ? `$${FMT(c.price)}` : "—"}
-                          </div>
-                          {c?.currency && c.currency !== "ARS" && (
-                            <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:4 }}>{c.currency}</div>
-                          )}
+                  {/* Foto + Precios en fila */}
+                  <section>
+                    <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                      {/* Foto compacta */}
+                      {selectedPhotos.length > 0 && (
+                        <div style={{ flexShrink:0 }}>
+                          <LBL>Foto</LBL>
+                          <ImageGallery photos={selectedPhotos} />
                         </div>
-                      );
-                    })()}
-                    {[1,2,3,4,5].map((n) => {
-                      const p = getPrice(`precio_${n}`);
-                      return (
-                        <div key={n} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"12px 14px" }}>
-                          <LBL>Precio #{n}</LBL>
-                          <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:700, color: p ? "var(--accent)" : "var(--text-dim)" }}>
-                            {p ? `$${FMT(p.price)}` : "—"}
+                      )}
+
+                      {/* Precios compactos — tabla inline */}
+                      <div style={{ flex:1 }}>
+                        <LBL>Precios</LBL>
+                        <div style={{ border:"1px solid var(--border)", borderRadius:7, overflow:"hidden", background:"var(--bg2)" }}>
+                          {/* Costo */}
+                          {(() => {
+                            const c = getCost();
+                            return (
+                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
+                                <span style={{ fontSize:11, color:"var(--danger)", fontWeight:500 }}>Costo</span>
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)" }}>
+                                  {c ? `$${FMT(c.price)}` : "—"}
+                                </span>
+                              </div>
+                            );
+                          })()}
+                          {/* Precios 1-5 */}
+                          {[1,2,3,4,5].map((n, idx) => {
+                            const p = getPrice(`precio_${n}`);
+                            const isLast = idx === 4;
+                            return (
+                              <div key={n} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: p ? "var(--accent-light)" : "transparent" }}>
+                                <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: p ? 700 : 400, color: p ? "var(--accent)" : "var(--text-dim)" }}>
+                                  {p ? `$${FMT(p.price)}` : "—"}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Logística — fila compacta */}
+                  <section>
+                    <LBL>Logística</LBL>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
+                      <Field label="IVA"      value={VAL(selected.tasa_iva) != null ? `${selected.tasa_iva}%` : null} mono />
+                      <Field label="Despacho" value={selected.despacho} mono />
+                      <Field label="Aduana"   value={selected.aduana}   mono />
+                      <Field label="Origen"   value={selected.origen}   />
+                    </div>
+                  </section>
+
+                  {/* Clasificación */}
+                  <section>
+                    <LBL>Clasificación</LBL>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6 }}>
+                      <Field label="Categoría" value={selected.category?.name || selected.category_name || selected.category_id || "—"} />
+                      <Field label="Fecha alta" value={selected.fecha || (selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : null)} mono />
+                      <Field label="Estado"    value={selected.active !== false ? "Activo" : "Inactivo"} />
+                    </div>
+                  </section>
+
+                  {/* Historial de costos */}
+                  {lastCosts.length > 0 && (
+                    <section>
+                      <LBL>Historial de costos</LBL>
+                      <div style={{ display:"flex", gap:6 }}>
+                        {lastCosts.map((c, i) => (
+                          <div key={i} style={{ flex:1, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"7px 10px" }}>
+                            <div style={{ fontSize:10, color:"var(--text-dim)", marginBottom:2 }}>
+                              {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : `Costo ${i+1}`}
+                            </div>
+                            <div style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)" }}>
+                              ${FMT(c.cost)}
+                            </div>
                           </div>
-                          {p?.currency && p.currency !== "ARS" && (
-                            <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:4 }}>{p.currency}</div>
-                          )}
+                        ))}
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Video */}
+                  {selected.video_url && (
+                    <section>
+                      <LBL>Video</LBL>
+                      <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"7px 10px", display:"flex", alignItems:"center", gap:8 }}>
+                        <span style={{ fontSize:13 }}>▶</span>
+                        <a href={selected.video_url} target="_blank" rel="noreferrer"
+                          style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--info)", textDecoration:"none", wordBreak:"break-all" }}>
+                          {selected.video_url}
+                        </a>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* ID técnico */}
+                  <section style={{ opacity:0.4, marginTop:"auto", paddingTop:4 }}>
+                    <LBL>ID interno</LBL>
+                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>{selected.id}</div>
+                  </section>
+                </div>
+
+                {/* ── COLUMNA DERECHA: stock ── */}
+                <div style={{ width:280, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--sidebar-stock-bg, #f0f6ff)" }}>
+                  <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", background:"var(--accent)", flexShrink:0 }}>
+                    <span style={{ fontSize:11, fontWeight:600, color:"#fff", textTransform:"uppercase", letterSpacing:"0.06em" }}>Stock por depósito</span>
+                    {stock.length > 0 && (
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"#fff", background:"rgba(255,255,255,0.2)", padding:"1px 8px", borderRadius:4 }}>
+                        {FMTN(totalStock)}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ flex:1, overflowY:"auto" }}>
+                    {stockRows.map((row, i) => {
+                      const hasQty = row.qty !== null;
+                      const isPos  = hasQty && row.qty > 0;
+                      const isNeg  = hasQty && row.qty < 0;
+                      return (
+                        <div key={row.name} style={{
+                          display:"flex", alignItems:"center", justifyContent:"space-between",
+                          padding:"8px 14px", borderBottom:"1px solid var(--border)",
+                          background: isPos ? "rgba(37,99,235,0.04)" : "transparent",
+                        }}>
+                          <span style={{ fontSize:12, color:"var(--text-muted)", flex:1 }}>{row.name}</span>
+                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
+                            {row.res !== null && row.res > 0 && (
+                              <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--warning)", background:"var(--warning-dim)", padding:"1px 6px", borderRadius:3 }}>
+                                R:{FMTN(row.res)}
+                              </span>
+                            )}
+                            <span style={{
+                              fontFamily:"var(--font-mono)", fontSize:13, fontWeight:600, minWidth:32, textAlign:"right",
+                              color: !hasQty ? "var(--text-dim)" : isPos ? "var(--accent)" : isNeg ? "var(--danger)" : "var(--text-muted)"
+                            }}>
+                              {!hasQty ? "—" : FMTN(row.qty)}
+                            </span>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                </section>
-
-                {/* ── 4: Impuestos / Logística ── */}
-                <section>
-                  <LBL>Impuestos y logística</LBL>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:10 }}>
-                    <Field label="Tasa IVA" value={VAL(selected.tasa_iva) != null ? `${selected.tasa_iva}%` : null} mono />
-                    <Field label="Despacho" value={selected.despacho} mono />
-                    <Field label="Aduana"   value={selected.aduana}   mono />
-                    <Field label="Origen"   value={selected.origen}   />
-                  </div>
-                </section>
-
-                {/* ── 5: Stock ── */}
-                <section>
-                  <LBL>Stock por depósito</LBL>
-                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
-                    <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                      <thead>
-                        <tr style={{ background:"var(--bg3)" }}>
-                          {["Depósito","Completo","Reservado"].map((h, i) => (
-                            <th key={h} style={{ padding:"8px 14px", textAlign:i===0?"left":"right", fontFamily:"var(--font-mono)", fontSize:10, letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--text-dim)", borderBottom:"1px solid var(--border)" }}>
-                              {h}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {stockRows.map((row, i) => (
-                          <tr key={row.name} style={{ borderBottom: i < stockRows.length-1 ? "1px solid var(--border)" : "none" }}>
-                            <td style={{ padding:"8px 14px", fontSize:13 }}>{row.name}</td>
-                            <td style={{ padding:"8px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:600,
-                              color: row.qty === null ? "var(--text-dim)" : row.qty > 0 ? "var(--success)" : row.qty < 0 ? "var(--danger)" : "var(--text-muted)"
-                            }}>
-                              {row.qty === null ? "—" : FMTN(row.qty)}
-                            </td>
-                            <td style={{ padding:"8px 14px", textAlign:"right", fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>
-                              {row.res === null ? "—" : FMTN(row.res)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                      {stock.length > 0 && (
-                        <tfoot>
-                          <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
-                            <td style={{ padding:"9px 14px", fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Totales</td>
-                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)", fontSize:15 }}>{FMTN(totalStock)}</td>
-                            <td style={{ padding:"9px 14px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--text-muted)" }}>{FMTN(totalReserved)}</td>
-                          </tr>
-                        </tfoot>
-                      )}
-                    </table>
-                  </div>
-                  {VAL(selected.punto_pedido) != null && (
-                    <div style={{ marginTop:8, fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>
-                      Punto de pedido: <span style={{ color:"var(--accent)" }}>{selected.punto_pedido}</span>
+                  {stock.length > 0 && (
+                    <div style={{ padding:"10px 14px", borderTop:"2px solid var(--accent)", background:"var(--accent-light)", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:11, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Total</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)" }}>{FMTN(totalStock)}</span>
                     </div>
                   )}
-                </section>
-
-                {/* ── 6: Historial de costos ── */}
-                {lastCosts.length > 0 && (
-                  <section>
-                    <LBL>Historial de costos</LBL>
-                    <div style={{ display:"flex", gap:10 }}>
-                      {lastCosts.map((c, i) => (
-                        <div key={i} style={{ flex:1, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px" }}>
-                          <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", marginBottom:4 }}>
-                            {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : `Costo ${i+1}`}
-                          </div>
-                          <div style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--danger)" }}>
-                            ${FMT(c.cost)}
-                          </div>
-                        </div>
-                      ))}
+                  {VAL(selected.punto_pedido) != null && (
+                    <div style={{ padding:"6px 14px", borderTop:"1px solid var(--border)", fontSize:11, color:"var(--text-muted)", background:"var(--bg3)" }}>
+                      Punto de pedido: <span style={{ color:"var(--accent)", fontWeight:600 }}>{selected.punto_pedido}</span>
                     </div>
-                  </section>
-                )}
-
-                {/* ── 7: Clasificación ── */}
-                <section>
-                  <LBL>Clasificación y datos adicionales</LBL>
-                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10 }}>
-                    <Field label="Rubro / Categoría" value={selected.category?.name || selected.category_name || selected.category_id || "—"} />
-                    <Field label="Fecha alta" value={selected.fecha || (selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : null)} mono />
-                    <Field label="Estado" value={selected.active !== false ? "Activo" : "Inactivo"} />
-                  </div>
-                </section>
-
-                {/* ── 8: Video ── */}
-                {selected.video_url && (
-                  <section>
-                    <LBL>Video</LBL>
-                    <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
-                      <span style={{ fontSize:18 }}>▶</span>
-                      <a href={selected.video_url} target="_blank" rel="noreferrer"
-                        style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--info)", textDecoration:"none", wordBreak:"break-all" }}>
-                        {selected.video_url}
-                      </a>
-                    </div>
-                  </section>
-                )}
-
-                {/* ── 9: ID técnico ── */}
-                <section style={{ opacity:0.5 }}>
-                  <LBL>ID interno</LBL>
-                  <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{selected.id}</div>
-                </section>
+                  )}
+                </div>
 
               </div>
             )}
@@ -574,9 +586,9 @@ export default function Products() {
         </div>
 
         {/* ══ PANEL DERECHO — LISTA ══════════════════════════════════════════ */}
-        <div style={{ width:320, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
+        <div style={{ width:290, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
 
-          <div style={{ padding:"16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
+          <div style={{ padding:"12px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             <div className="search-bar">
               <span className="search-icon">🔍</span>
               <input
@@ -590,7 +602,7 @@ export default function Products() {
                   style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:14, padding:"0 4px" }}>✕</button>
               )}
             </div>
-            <div style={{ marginTop:8, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.06em" }}>
+            <div style={{ marginTop:6, fontSize:11, color:"var(--text-dim)" }}>
               {loadingList
                 ? "Buscando..."
                 : results.length > 0
@@ -605,41 +617,40 @@ export default function Products() {
               return (
                 <div key={p.id} onClick={() => selectProduct(p, i)}
                   style={{
-                    padding:"10px 14px", borderBottom:"1px solid var(--border)", cursor:"pointer",
-                    background: isSelected ? "var(--accent-dim)" : "transparent",
+                    padding:"9px 12px", borderBottom:"1px solid var(--border)", cursor:"pointer",
+                    background: isSelected ? "var(--accent-light)" : "transparent",
                     borderLeft: `3px solid ${isSelected ? "var(--accent)" : "transparent"}`,
                     transition:"background 0.1s",
-                    display:"flex", alignItems:"center", gap:10,
+                    display:"flex", alignItems:"center", gap:8,
                   }}
                   onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "var(--bg3)"; }}
                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
                 >
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color: isSelected ? "var(--accent)" : "var(--text-dim)", width:62, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis" }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color: isSelected ? "var(--accent)" : "var(--text-dim)", width:56, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis" }}>
                     {p.code || "—"}
                   </span>
-                  <span style={{ fontSize:12, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: isSelected ? 500 : 400 }}>
+                  <span style={{ fontSize:12, color: isSelected ? "var(--text)" : "var(--text-muted)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: isSelected ? 500 : 400 }}>
                     {p.name}
                   </span>
-                  {isSelected && <span style={{ color:"var(--accent)", fontSize:10, flexShrink:0 }}>◀</span>}
                 </div>
               );
             })}
 
             {!loadingList && results.length === 0 && query && (
-              <div style={{ padding:"40px 16px", textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:11, lineHeight:1.8 }}>
+              <div style={{ padding:"40px 16px", textAlign:"center", color:"var(--text-dim)", fontSize:12, lineHeight:1.8 }}>
                 Sin resultados para<br /><span style={{ color:"var(--text-muted)" }}>"{query}"</span>
               </div>
             )}
             {!query && (
-              <div style={{ padding:"60px 16px", textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:11, lineHeight:2.4 }}>
+              <div style={{ padding:"60px 16px", textAlign:"center", color:"var(--text-dim)", fontSize:12, lineHeight:2.4 }}>
                 ↑<br />Buscá por código<br />o nombre de producto
               </div>
             )}
           </div>
 
           {results.length > 0 && (
-            <div style={{ padding:"10px 16px", borderTop:"1px solid var(--border)", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.06em", background:"var(--bg3)", flexShrink:0 }}>
-              {results.length} PRODUCTOS · ↕ SCROLL
+            <div style={{ padding:"8px 12px", borderTop:"1px solid var(--border)", fontSize:10.5, color:"var(--text-dim)", background:"var(--bg3)", flexShrink:0 }}>
+              {results.length} resultados · ↕ Scroll
             </div>
           )}
         </div>
@@ -686,10 +697,10 @@ export default function Products() {
           <hr className="divider" />
 
           {/* Imágenes */}
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>
+          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>
             Imágenes del producto
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:12, marginBottom:4 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:4 }}>
             {["Foto principal", "Foto 2", "Foto 3"].map((label, i) => (
               <ImageUploadSlot
                 key={i}
@@ -701,14 +712,14 @@ export default function Products() {
               />
             ))}
           </div>
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", marginBottom:2 }}>
+          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, color:"var(--text-dim)", marginBottom:2 }}>
             Formatos: JPG, PNG, WEBP · Arrastrá o hacé click en cada slot
           </div>
 
           <hr className="divider" />
 
           {/* Precios */}
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Precios</div>
+          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Costo</label>
@@ -719,7 +730,7 @@ export default function Products() {
               <input className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21" />
             </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10 }}>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
             {[1,2,3,4,5].map((n) => (
               <div className="input-group" key={n}>
                 <label className="input-label">Precio #{n}</label>
@@ -731,7 +742,7 @@ export default function Products() {
           <hr className="divider" />
 
           {/* Logística */}
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>Logística</div>
+          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Logística</div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Despacho</label>
