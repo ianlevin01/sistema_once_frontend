@@ -20,20 +20,20 @@ const NAV = [
   {
     section: "Maestros",
     items: [
-      { to: "/clientes",  label: "Clientes",  icon: "👤" },
-      { to: "/productos", label: "Productos", icon: "🏷️" },
+      { to: "/cuenta-corriente", label: "Cuenta Corriente", icon: "💳" },
+      { to: "/productos",        label: "Productos",        icon: "🏷️" },
     ],
   },
 ];
 
 const PAGE_TITLES = {
-  "/comprobantes":  "Comprobantes",
-  "/remitos":       "Remitos",
-  "/caja":          "Caja · Imputaciones",
-  "/caja/listado":  "Caja · Listado",
-  "/pedidos-web":   "Pedidos Web",
-  "/clientes":      "Clientes",
-  "/productos":     "Productos",
+  "/comprobantes":      "Comprobantes",
+  "/remitos":           "Remitos",
+  "/caja":              "Caja · Imputaciones",
+  "/caja/listado":      "Caja · Listado",
+  "/pedidos-web":       "Pedidos Web",
+  "/cuenta-corriente":  "Cuenta Corriente",
+  "/productos":         "Productos",
 };
 
 function CajaNavItem({ item, location }) {

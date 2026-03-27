@@ -7,20 +7,33 @@ const SOURCES = ["venta", "gasto", "ajuste", "retiro", "ingreso manual", "otro"]
 const EMPTY = { type: "ingreso", source: "venta", amount: "" };
 
 export default function Cash() {
+  const today = () => new Date().toISOString().slice(0, 10);
+
   const [movements, setMovements] = useState([]);
   const [loading, setLoading]     = useState(true);
   const [modal, setModal]         = useState(false);
   const [form, setForm]           = useState(EMPTY);
+  const [from,        setFrom]        = useState(today());
+  const [to,          setTo]          = useState(today());
+  const [appliedFrom, setAppliedFrom] = useState(today());
+  const [appliedTo,   setAppliedTo]   = useState(today());
+  const filterDirty = from !== appliedFrom || to !== appliedTo;
   const { addToast, ToastContainer } = useToast();
 
-  const load = async () => {
+  const load = async (f = appliedFrom, t = appliedTo) => {
     setLoading(true);
-    try { const { data } = await getCashMovements(); setMovements(data); }
+    try { const { data } = await getCashMovements(f, t); setMovements(data); }
     catch { addToast("Error cargando movimientos", "error"); }
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, []);
+  const applyFilter = () => {
+    setAppliedFrom(from);
+    setAppliedTo(to);
+    load(from, to);
+  };
+
+  useEffect(() => { load(today(), today()); }, []);
 
   const totalIngreso = movements.filter((m) => m.type === "ingreso").reduce((a, m) => a + Number(m.amount), 0);
   const totalEgreso  = movements.filter((m) => m.type === "egreso" ).reduce((a, m) => a + Number(m.amount), 0);
@@ -33,7 +46,7 @@ export default function Cash() {
     try {
       await createCashMovement({ ...form, amount: Number(form.amount) });
       addToast("Movimiento registrado", "success");
-      setModal(false); setForm(EMPTY); load();
+      setModal(false); setForm(EMPTY); load(appliedFrom, appliedTo);
     } catch { addToast("Error registrando movimiento", "error"); }
   };
 
@@ -42,6 +55,23 @@ export default function Cash() {
   return (
     <>
       <ToastContainer />
+
+      {/* Filtro fechas */}
+      <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20, flexWrap:"wrap" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <label style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Desde</label>
+          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+            style={{ fontSize:13, padding:"6px 10px", width:150 }} />
+        </div>
+        <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+          <label style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Hasta</label>
+          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)}
+            style={{ fontSize:13, padding:"6px 10px", width:150 }} />
+        </div>
+        {filterDirty && (
+          <button className="btn btn-primary btn-sm" onClick={applyFilter}>Filtrar</button>
+        )}
+      </div>
 
       {/* Stats */}
       <div className="stats-row">

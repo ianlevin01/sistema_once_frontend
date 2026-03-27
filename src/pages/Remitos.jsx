@@ -19,10 +19,17 @@ const extractPrice = (product, priceType) => {
 };
 
 export default function Remitos() {
-  const [remitos,  setRemitos]  = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [selected, setSelected] = useState(null);
-  const [creating, setCreating] = useState(false);
+  const today = () => new Date().toISOString().slice(0, 10);
+
+  const [remitos,      setRemitos]      = useState([]);
+  const [loading,      setLoading]      = useState(true);
+  const [selected,     setSelected]     = useState(null);
+  const [creating,     setCreating]     = useState(false);
+  const [from,         setFrom]         = useState(today());
+  const [to,           setTo]           = useState(today());
+  const [appliedFrom,  setAppliedFrom]  = useState(today());
+  const [appliedTo,    setAppliedTo]    = useState(today());
+  const filterDirty = from !== appliedFrom || to !== appliedTo;
 
   // Form
   const [origen,     setOrigen]     = useState("Alfred");
@@ -49,14 +56,20 @@ export default function Remitos() {
   const qtyRef        = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
-  const loadAll = async () => {
+  const loadAll = async (f = appliedFrom, t = appliedTo) => {
     setLoading(true);
-    try { const { data } = await getRemitos(); setRemitos(data); }
+    try { const { data } = await getRemitos(f, t); setRemitos(data); }
     catch { addToast("Error cargando remitos", "error"); }
     setLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  const applyFilter = () => {
+    setAppliedFrom(from);
+    setAppliedTo(to);
+    loadAll(from, to);
+  };
+
+  useEffect(() => { loadAll(today(), today()); }, []);
 
   useEffect(() => {
     if (!custQuery.trim()) { setCustResults([]); return; }
@@ -129,7 +142,7 @@ export default function Remitos() {
     try {
       await createRemito({
         origen, destino,
-        user_id:    "00000000-0000-0000-0000-000000000001",
+        user_id:    null, // TODO: reemplazar con el ID del usuario autenticado
         customer_id: custSel?.id || null,
         price_type:  priceType,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
@@ -148,7 +161,7 @@ export default function Remitos() {
 
   const handleDelete = async (id) => {
     if (!confirm("¿Eliminar este remito?")) return;
-    try { await deleteRemito(id); addToast("Eliminado", "success"); loadAll(); }
+    try { await deleteRemito(id); addToast("Eliminado", "success"); loadAll(appliedFrom, appliedTo); }
     catch { addToast("Error eliminando", "error"); }
   };
 
@@ -165,11 +178,28 @@ export default function Remitos() {
       {!creating ? (
         /* ── LISTADO ── */
         <>
-          <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:24 }}>
-            <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
-              onClick={() => { setCreating(true); resetForm(); }}>
-              + Nuevo remito
-            </button>
+          <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:24, flexWrap:"wrap" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <label style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Desde</label>
+              <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)}
+                style={{ fontSize:13, padding:"6px 10px", width:150 }} />
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+              <label style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Hasta</label>
+              <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)}
+                style={{ fontSize:13, padding:"6px 10px", width:150 }} />
+            </div>
+            {filterDirty && (
+              <button className="btn btn-primary btn-sm" onClick={applyFilter}>
+                Filtrar
+              </button>
+            )}
+            <div style={{ marginLeft:"auto" }}>
+              <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
+                onClick={() => { setCreating(true); resetForm(); }}>
+                + Nuevo remito
+              </button>
+            </div>
           </div>
 
           <div className="card">

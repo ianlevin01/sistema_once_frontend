@@ -27,8 +27,12 @@ export default function Comprobantes() {
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
   const [creating,     setCreating]     = useState(false);
-  const [from, setFrom] = useState("");
-  const [to,   setTo]   = useState("");
+  const today = () => new Date().toISOString().slice(0, 10);
+  const [from,        setFrom]        = useState(today());
+  const [to,          setTo]          = useState(today());
+  const [appliedFrom, setAppliedFrom] = useState(today());
+  const [appliedTo,   setAppliedTo]   = useState(today());
+  const filterDirty = from !== appliedFrom || to !== appliedTo;
 
   // Form
   const [tipo,       setTipo]       = useState("Presupuesto");
@@ -58,14 +62,20 @@ export default function Comprobantes() {
   const qtyRef        = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
-  const loadAll = async () => {
+  const loadAll = async (f = appliedFrom, t = appliedTo) => {
     setLoading(true);
-    try { const { data } = await getComprobantes(from, to); setComprobantes(data); }
+    try { const { data } = await getComprobantes(f, t); setComprobantes(data); }
     catch { addToast("Error cargando comprobantes", "error"); }
     setLoading(false);
   };
 
-  useEffect(() => { loadAll(); }, []);
+  const applyFilter = () => {
+    setAppliedFrom(from);
+    setAppliedTo(to);
+    loadAll(from, to);
+  };
+
+  useEffect(() => { loadAll(today(), today()); }, []);
 
   useEffect(() => {
     if (!custQuery.trim()) { setCustResults([]); return; }
@@ -155,7 +165,7 @@ export default function Comprobantes() {
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante creado", "success");
-      setCreating(false); resetForm(); loadAll();
+      setCreating(false); resetForm(); loadAll(appliedFrom, appliedTo);
     } catch { addToast("Error creando comprobante", "error"); }
     setSaving(false);
   };
@@ -193,7 +203,9 @@ export default function Comprobantes() {
               <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width:150 }} />
               <span style={{ fontSize:13, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>HASTA</span>
               <input className="input" type="date" value={to}   onChange={(e) => setTo(e.target.value)}   style={{ width:150 }} />
-              <button className="btn btn-ghost" onClick={loadAll}>Filtrar</button>
+              {filterDirty && (
+                <button className="btn btn-primary btn-sm" onClick={applyFilter}>Filtrar</button>
+              )}
             </div>
             <div style={{ flex:1 }} />
             <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}

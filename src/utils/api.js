@@ -11,6 +11,12 @@ export const createCustomer  = (data) => api.post("/customers", data);
 export const updateCustomer  = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer  = (id)   => api.delete(`/customers/${id}`);
 
+// CUENTA CORRIENTE
+export const getCuentaCorrienteGeneral  = ()         => api.get("/cuenta-corriente");
+export const getCuentaCorrienteCliente  = (id)       => api.get(`/cuenta-corriente/cliente/${id}`);
+export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/pago`, data);
+export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/saldo`, data);
+
 // PRODUCTS
 export const searchProducts = (name) => api.get(`/products/search?name=${name}`);
 export const getProduct     = (id)   => api.get(`/products/${id}`);
@@ -19,7 +25,8 @@ export const updateProduct  = (id, data) => api.put(`/products/${id}`, data);
 export const deleteProduct  = (id)   => api.delete(`/products/${id}`);
 
 // REMITOS
-export const getRemitos    = ()     => api.get("/remitos");
+export const getRemitos    = (from, to) =>
+  api.get(`/remitos${from && to ? `?from=${from}&to=${to}` : ""}`);
 export const getRemito     = (id)   => api.get(`/remitos/${id}`);
 export const createRemito  = (data) => api.post("/remitos", data);
 export const deleteRemito  = (id)   => api.delete(`/remitos/${id}`);
@@ -36,7 +43,8 @@ export const getListadoCaja = (from, to) =>
   api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : ""}`);
 
 // CASH
-export const getCashMovements  = ()     => api.get("/cash");
+export const getCashMovements  = (from, to) =>
+  api.get(`/cash${from && to ? `?from=${from}&to=${to}` : ""}`);
 export const getCashMovement   = (id)   => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 
