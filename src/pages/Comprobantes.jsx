@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef } from "react";
 import {
   getComprobantes, getComprobante, createComprobante, deleteComprobante,
-  searchCustomers, searchProducts, getProduct,
+  searchCustomers,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
+import { useVendedores } from "../utils/useVendedores";
+import ProductSearchBar from "../components/ProductSearchBar";
 
 const TIPOS      = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedo"];
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
-const VENDEDORES = ["Ale Pessaj","Alfredo","Burcez","Admin"];
 const ESCENARIOS = ["Escenario","Escenario A","Escenario B","Escenario C"];
 const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
@@ -23,6 +24,7 @@ const extractPrice = (product, priceType) => {
 };
 
 export default function Comprobantes() {
+  const vendedores = useVendedores();
   const [comprobantes, setComprobantes] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
@@ -50,16 +52,13 @@ export default function Comprobantes() {
 
   // Items
   const [items,        setItems]        = useState([]);
-  const [prodQuery,    setProdQuery]    = useState("");
-  const [prodResults,  setProdResults]  = useState([]);
-  const [prodSel,      setProdSel]      = useState(null); // producto seleccionado esperando cantidad
+  const [prodSel,      setProdSel]      = useState(null);
   const [itemQty,      setItemQty]      = useState("");
   const [itemPrice,    setItemPrice]    = useState("");
   const [itemDesc,     setItemDesc]     = useState("");
   const [saving,       setSaving]       = useState(false);
 
-  const prodSearchRef = useRef(null);
-  const qtyRef        = useRef(null);
+  const qtyRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
   const loadAll = async (f = appliedFrom, t = appliedTo) => {
@@ -86,40 +85,22 @@ export default function Comprobantes() {
     return () => clearTimeout(t);
   }, [custQuery]);
 
-  useEffect(() => {
-    if (!prodQuery.trim()) { setProdResults([]); return; }
-    const t = setTimeout(async () => {
-      try { const { data } = await searchProducts(prodQuery); setProdResults(data); }
-      catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [prodQuery]);
-
   // Cuando cambia el tipo de precio y hay un producto seleccionado, actualizar el precio
   useEffect(() => {
     if (prodSel) {
-      const p = extractPrice(prodSel, priceType);
-      setItemPrice(p > 0 ? String(p) : "");
+      const prices = prodSel?.prices || prodSel?.product_prices || [];
+      const found  = prices.find((p) => p.price_type === priceType);
+      setItemPrice(found ? String(Number(found.price)) : "");
     }
   }, [priceType, prodSel]);
 
   const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); };
 
-  // Al seleccionar un producto: buscar su detalle completo para tener precios
-  const selectProd = async (p) => {
-    setProdResults([]);
-    setProdQuery(p.code ? `${p.code} - ${p.name}` : p.name);
-    try {
-      const { data } = await getProduct(p.id);
-      setProdSel(data);
-      setItemDesc(data.name);
-      const precio = extractPrice(data, priceType);
-      setItemPrice(precio > 0 ? String(precio) : "");
-    } catch {
-      setProdSel(p);
-      setItemDesc(p.name);
-      setItemPrice("");
-    }
+  // Callback del ProductSearchBar — recibe { product, price }
+  const handleProdSelect = ({ product, price }) => {
+    setProdSel(product);
+    setItemDesc(product.name);
+    setItemPrice(price > 0 ? String(price) : "");
     setTimeout(() => qtyRef.current?.focus(), 50);
   };
 
@@ -134,13 +115,11 @@ export default function Comprobantes() {
       quantity:   Number(itemQty),
       unit_price: Number(itemPrice) || 0,
     }]);
-    // Resetear para el siguiente producto
     setProdSel(null);
-    setProdQuery("");
     setItemQty("");
     setItemPrice("");
     setItemDesc("");
-    setTimeout(() => prodSearchRef.current?.focus(), 50);
+    // El foco vuelve automáticamente al ProductSearchBar por su autoFocus
   };
 
   const handleQtyKeyDown = (e) => {
@@ -174,7 +153,7 @@ export default function Comprobantes() {
     setTipo("Presupuesto"); setPayMethod("Contado"); setPriceType("precio_1");
     setVendedor(""); setTextoLibre(""); setEscenario("Escenario");
     setCustSel(null); setCustQuery(""); setItems([]);
-    setProdSel(null); setProdQuery(""); setItemQty(""); setItemPrice(""); setItemDesc("");
+    setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
     setFecha(new Date().toISOString().slice(0,10));
   };
 
@@ -377,7 +356,7 @@ export default function Comprobantes() {
                 <label className="input-label">Vendedor</label>
                 <select className="select" value={vendedor} onChange={(e) => setVendedor(e.target.value)} style={{ fontSize:13 }}>
                   <option value="">— seleccionar —</option>
-                  {VENDEDORES.map((v) => <option key={v}>{v}</option>)}
+                  {vendedores.map((v) => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
                 </select>
               </div>
               <div className="input-group">
@@ -458,17 +437,11 @@ export default function Comprobantes() {
               <div style={{ display:"flex", gap:14, alignItems:"flex-end", marginBottom:12 }}>
                 <div style={{ flex:2 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Código o descripción</div>
-                  <div className="search-bar" style={{ height:44 }}>
-                    <span className="search-icon">🔍</span>
-                    <input
-                      ref={prodSearchRef}
-                      placeholder="Buscar producto..."
-                      value={prodQuery}
-                      onChange={(e) => { setProdQuery(e.target.value); if (!e.target.value) setProdSel(null); }}
-                      style={{ fontSize:14 }}
-                      autoFocus
-                    />
-                  </div>
+                  <ProductSearchBar
+                    priceType={priceType}
+                    onSelect={handleProdSelect}
+                    autoFocus={!prodSel}
+                  />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Cantidad</div>
@@ -514,21 +487,6 @@ export default function Comprobantes() {
                   onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }}
                 />
               </div>
-
-              {/* Resultados de búsqueda */}
-              {prodResults.length > 0 && (
-                <div style={{ marginTop:10, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:180, overflowY:"auto" }}>
-                  {prodResults.map((p) => (
-                    <div key={p.id} onClick={() => selectProd(p)}
-                      style={{ padding:"10px 16px", cursor:"pointer", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:14 }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", width:80, flexShrink:0 }}>{p.code || "—"}</span>
-                      <span style={{ fontSize:14 }}>{p.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {/* Chip del producto seleccionado esperando cantidad */}
               {prodSel && (

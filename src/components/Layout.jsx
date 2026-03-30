@@ -22,6 +22,7 @@ const NAV = [
     items: [
       { to: "/cuenta-corriente", label: "Cuenta Corriente", icon: "💳" },
       { to: "/productos",        label: "Productos",        icon: "🏷️" },
+      { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
     ],
   },
 ];
@@ -34,6 +35,7 @@ const PAGE_TITLES = {
   "/pedidos-web":       "Pedidos Web",
   "/cuenta-corriente":  "Cuenta Corriente",
   "/productos":         "Productos",
+  "/vendedores":        "Vendedores",
 };
 
 function CajaNavItem({ item, location }) {

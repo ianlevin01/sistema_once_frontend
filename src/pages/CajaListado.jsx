@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import api, { searchCustomers, searchProducts, getProduct, createComprobante, deleteComprobante, getListadoCaja } from "../utils/api";
+import { searchCustomers, createComprobante, deleteComprobante, getListadoCaja, getCashMovements } from "../utils/api";
 import { useToast } from "../utils/useToast";
+import { useVendedores } from "../utils/useVendedores";
+import ProductSearchBar from "../components/ProductSearchBar";
 
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
@@ -8,7 +10,6 @@ const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
-const VENDEDORES = ["Ale Pessaj","Alfredo","Burcez","Admin"];
 const METODOS_PAGO = ["Efectivo","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 
 const extractPrice = (product, priceType) => {
@@ -22,9 +23,9 @@ const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDig
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
 
 // ── Mini hook para modal de presupuestar una nota de pedido ─────
-function usePresModal({ addToast, onSuccess }) {
+function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const [open,      setOpen]      = useState(false);
-  const [source,    setSource]    = useState(null); // la orden origen
+  const [source,    setSource]    = useState(null);
   const [tipo,      setTipo]      = useState("Presupuesto");
   const [payMethod, setPayMethod] = useState("Contado");
   const [priceType, setPriceType] = useState("precio_1");
@@ -34,16 +35,13 @@ function usePresModal({ addToast, onSuccess }) {
   const [custQuery, setCustQuery] = useState("");
   const [custRes,   setCustRes]   = useState([]);
   const [items,     setItems]     = useState([]);
-  const [prodQuery, setProdQuery] = useState("");
-  const [prodRes,   setProdRes]   = useState([]);
   const [prodSel,   setProdSel]   = useState(null);
   const [itemQty,   setItemQty]   = useState("");
   const [itemPrice, setItemPrice] = useState("");
   const [itemDesc,  setItemDesc]  = useState("");
   const [saving,    setSaving]    = useState(false);
 
-  const qtyRef  = useRef(null);
-  const prodRef = useRef(null);
+  const qtyRef = useRef(null);
 
   useEffect(() => {
     if (!open || !custQuery.trim()) { setCustRes([]); return; }
@@ -53,18 +51,12 @@ function usePresModal({ addToast, onSuccess }) {
     return () => clearTimeout(t);
   }, [custQuery, open]);
 
-  useEffect(() => {
-    if (!open || !prodQuery.trim()) { setProdRes([]); return; }
-    const t = setTimeout(async () => {
-      try { const { data } = await searchProducts(prodQuery); setProdRes(data); } catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [prodQuery, open]);
-
+  // Actualizar precio cuando cambia tipo de precio
   useEffect(() => {
     if (prodSel) {
-      const p = extractPrice(prodSel, priceType);
-      setItemPrice(p > 0 ? String(p) : "");
+      const prices = prodSel?.prices || prodSel?.product_prices || [];
+      const found  = prices.find((p) => p.price_type === priceType);
+      setItemPrice(found ? String(Number(found.price)) : "");
     }
   }, [priceType, prodSel]);
 
@@ -87,29 +79,16 @@ function usePresModal({ addToast, onSuccess }) {
     setVendedor(order.vendedor || "");
     setTexto(order.texto_libre || "");
     setProdSel(null);
-    setProdQuery("");
-    setItemQty("");
-    setItemPrice("");
-    setItemDesc("");
+    setItemQty(""); setItemPrice(""); setItemDesc("");
     setOpen(true);
   };
 
   const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustRes([]); };
 
-  const selectProd = async (p) => {
-    setProdRes([]);
-    setProdQuery(p.code ? `${p.code} - ${p.name}` : p.name);
-    try {
-      const { data } = await getProduct(p.id);
-      setProdSel(data);
-      setItemDesc(data.name);
-      const precio = extractPrice(data, priceType);
-      setItemPrice(precio > 0 ? String(precio) : "");
-    } catch {
-      setProdSel(p);
-      setItemDesc(p.name);
-      setItemPrice("");
-    }
+  const handleProdSelect = ({ product, price }) => {
+    setProdSel(product);
+    setItemDesc(product.name);
+    setItemPrice(price > 0 ? String(price) : "");
     setTimeout(() => qtyRef.current?.focus(), 50);
   };
 
@@ -124,22 +103,20 @@ function usePresModal({ addToast, onSuccess }) {
       quantity: Number(itemQty),
       unit_price: Number(itemPrice) || 0,
     }]);
-    setProdSel(null); setProdQuery(""); setItemQty(""); setItemPrice(""); setItemDesc("");
-    setTimeout(() => prodRef.current?.focus(), 50);
+    setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
   const removeItem = (i) => setItems((prev) => prev.filter((_, idx) => idx !== i));
-
   const totalCalc = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
 
   const handleCreate = async () => {
-    if (!custSel)         { addToast("Seleccioná un cliente", "error"); return; }
+    if (!custSel)          { addToast("Seleccioná un cliente", "error"); return; }
     if (items.length === 0){ addToast("Agregá al menos un producto", "error"); return; }
     setSaving(true);
     try {
       await createComprobante({
         customer_id:    custSel.id,
-        user_id:        "00000000-0000-0000-0000-000000000001",
+        user_id:        null,
         payment_method: payMethod,
         tipo, vendedor, price_type: priceType, texto_libre: texto,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
@@ -156,10 +133,10 @@ function usePresModal({ addToast, onSuccess }) {
     tipo, setTipo, payMethod, setPayMethod, priceType, setPriceType,
     vendedor, setVendedor, texto, setTexto,
     custSel, setCustSel, custQuery, setCustQuery, custRes, selectCust,
-    items, removeItem, prodQuery, setProdQuery, prodRes, prodSel,
-    selectProd, itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
+    items, removeItem, prodSel, handleProdSelect,
+    itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
     confirmItem, totalCalc, saving, handleCreate,
-    qtyRef, prodRef,
+    qtyRef, vendedores,
   };
 }
 
@@ -235,7 +212,7 @@ function PresModal({ m }) {
                 <label className="input-label">Vendedor</label>
                 <select className="select" value={m.vendedor} onChange={(e) => m.setVendedor(e.target.value)} style={{ fontSize:12 }}>
                   <option value="">— seleccionar —</option>
-                  {VENDEDORES.map((v) => <option key={v}>{v}</option>)}
+                  {m.vendedores.map((v) => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
                 </select>
               </div>
               <div className="input-group">
@@ -295,12 +272,11 @@ function PresModal({ m }) {
               <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:8 }}>
                 <div style={{ flex:2 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <div className="search-bar" style={{ height:40 }}>
-                    <span className="search-icon">🔍</span>
-                    <input ref={m.prodRef} placeholder="Buscar producto..." value={m.prodQuery}
-                      onChange={(e) => { m.setProdQuery(e.target.value); if (!e.target.value) {} }}
-                      style={{ fontSize:13 }} />
-                  </div>
+                  <ProductSearchBar
+                    priceType={m.priceType}
+                    onSelect={m.handleProdSelect}
+                    autoFocus={!m.prodSel}
+                  />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
@@ -322,17 +298,11 @@ function PresModal({ m }) {
                   value={m.itemDesc} onChange={(e) => m.setItemDesc(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
               </div>
-              {m.prodRes.length > 0 && (
-                <div style={{ marginTop:8, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:150, overflowY:"auto" }}>
-                  {m.prodRes.map((p) => (
-                    <div key={p.id} onClick={() => m.selectProd(p)}
-                      style={{ padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", width:70, flexShrink:0 }}>{p.code||"—"}</span>
-                      <span style={{ fontSize:13 }}>{p.name}</span>
-                    </div>
-                  ))}
+              {m.prodSel && (
+                <div style={{ marginTop:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{m.prodSel.code}</span>
+                  <span style={{ fontSize:13, color:"var(--text)", flex:1 }}>{m.prodSel.name}</span>
+                  <span style={{ fontSize:12, color:"var(--text-dim)" }}>← cantidad y Enter</span>
                 </div>
               )}
             </div>
@@ -352,18 +322,24 @@ export default function CajaListado() {
   const [presupuestos, setPresupuestos] = useState([]);
   const [notasPedido,  setNotasPedido]  = useState([]);
   const [remitos,      setRemitos]      = useState([]);
+  const [cashMovs,     setCashMovs]     = useState([]);
 
   const { addToast, ToastContainer } = useToast();
+  const vendedores = useVendedores();
 
-  const presModal = usePresModal({ addToast, onSuccess: load });
+  const presModal = usePresModal({ addToast, onSuccess: load, vendedores });
 
   async function load() {
     setLoading(true);
     try {
-      const { data } = await getListadoCaja(from, to);
+      const [{ data }, cashRes] = await Promise.all([
+        getListadoCaja(from, to),
+        getCashMovements(from, to),
+      ]);
       setPresupuestos(data.presupuestos || []);
       setNotasPedido(data.notasPedido  || []);
       setRemitos(data.remitos          || []);
+      setCashMovs(cashRes.data         || []);
     } catch { addToast("Error cargando listado", "error"); }
     setLoading(false);
   }
@@ -378,6 +354,39 @@ export default function CajaListado() {
   }, {});
 
   const totalGeneral = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
+
+  // Resumen de caja
+  const METODOS_COLS = ["Efectivo","Cta Cte","Tarjeta","Por Banco","Mercado Pago","Cheques"];
+  const metodoKey = (m) => {
+    if (!m) return "Efectivo";
+    const l = m.toLowerCase();
+    if (l.includes("banco"))        return "Por Banco";
+    if (l.includes("tarjeta"))      return "Tarjeta";
+    if (l.includes("cta") || l.includes("corriente")) return "Cta Cte";
+    if (l.includes("mercado"))      return "Mercado Pago";
+    if (l.includes("cheque"))       return "Cheques";
+    return "Efectivo";
+  };
+
+  // Total ventas por método (de presupuestos)
+  const ventasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+  presupuestos.forEach((p) => {
+    const col = metodoKey(p.payment_method);
+    ventasPorMetodo[col] = (ventasPorMetodo[col] || 0) + Number(p.total || 0);
+  });
+
+  // Entradas y salidas de caja (de imputaciones)
+  const entradasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+  const salidasPorMetodo  = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+  cashMovs.forEach((mv) => {
+    const col = metodoKey(mv.source);
+    if (mv.type === "ingreso") entradasPorMetodo[col] = (entradasPorMetodo[col] || 0) + Number(mv.amount || 0);
+    else                       salidasPorMetodo[col]  = (salidasPorMetodo[col]  || 0) + Number(mv.amount || 0);
+  });
+
+  const totalVentas   = Object.values(ventasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalEntradas = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalSalidas  = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
 
   const handleDeleteNota = async (id) => {
     if (!confirm("¿Eliminar esta nota de pedido?")) return;
@@ -601,6 +610,60 @@ export default function CajaListado() {
             </table>
           </div>
         )}
+      </div>
+      {/* ── SECCIÓN 4: RESUMEN DE CAJA ───────────────────────── */}
+      <div className="card" style={{ marginTop:24 }}>
+        <div className="card-header">
+          <span className="card-title">Resumen de Caja</span>
+          <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+            {from === to ? from : `${from} al ${to}`}
+          </span>
+        </div>
+        <div style={{ overflowX:"auto" }}>
+          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+            <thead>
+              <tr style={{ background:"var(--bg3)", borderBottom:"2px solid var(--border)" }}>
+                <th style={{ padding:"10px 16px", textAlign:"left", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", width:180 }}></th>
+                {METODOS_COLS.map((m) => (
+                  <th key={m} style={{ padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>{m}</th>
+                ))}
+                <th style={{ padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Fila: Total Ventas */}
+              <tr style={{ borderBottom:"1px solid var(--border)" }}>
+                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Total ventas</td>
+                {METODOS_COLS.map((m) => (
+                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: ventasPorMetodo[m] ? "var(--text)" : "var(--text-dim)" }}>
+                    {ventasPorMetodo[m] ? `$${fmt(ventasPorMetodo[m])}` : "—"}
+                  </td>
+                ))}
+                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)" }}>${fmt(totalVentas)}</td>
+              </tr>
+              {/* Fila: Entradas por Caja */}
+              <tr style={{ borderBottom:"1px solid var(--border)" }}>
+                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Entradas por Caja</td>
+                {METODOS_COLS.map((m) => (
+                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: entradasPorMetodo[m] ? "var(--success)" : "var(--text-dim)" }}>
+                    {entradasPorMetodo[m] ? `$${fmt(entradasPorMetodo[m])}` : "—"}
+                  </td>
+                ))}
+                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--success)" }}>${fmt(totalEntradas)}</td>
+              </tr>
+              {/* Fila: Salidas por Caja */}
+              <tr style={{ borderBottom:"2px solid var(--border)" }}>
+                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Salidas por Caja</td>
+                {METODOS_COLS.map((m) => (
+                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: salidasPorMetodo[m] ? "var(--danger)" : "var(--text-dim)" }}>
+                    {salidasPorMetodo[m] ? `-$${fmt(salidasPorMetodo[m])}` : "—"}
+                  </td>
+                ))}
+                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--danger)" }}>-${fmt(totalSalidas)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </>
   );

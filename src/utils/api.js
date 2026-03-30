@@ -4,6 +4,13 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
 });
 
+// VENDEDORES
+export const getVendedores       = ()         => api.get("/vendedores");
+export const getVendedoresActivos = ()        => api.get("/vendedores/activos");
+export const createVendedor      = (data)     => api.post("/vendedores", data);
+export const updateVendedor      = (id, data) => api.put(`/vendedores/${id}`, data);
+export const deleteVendedor      = (id)       => api.delete(`/vendedores/${id}`);
+
 // CUSTOMERS
 export const searchCustomers = (name) => api.get(`/customers/search?name=${name}`);
 export const getCustomer     = (id)   => api.get(`/customers/${id}`);

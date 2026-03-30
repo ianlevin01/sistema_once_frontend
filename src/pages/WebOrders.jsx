@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "../utils/useToast";
-import api, { searchCustomers, searchProducts, getProduct, createComprobante } from "../utils/api";
+import api, { searchCustomers, createComprobante } from "../utils/api";
+import { useVendedores } from "../utils/useVendedores";
+import ProductSearchBar from "../components/ProductSearchBar";
 
 const COLORS = [
   { value:"pending", label:"Sin marcar",  bg:"var(--bg3)",           border:"var(--border)",  text:"var(--text-muted)" },
@@ -16,7 +18,6 @@ const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
-const VENDEDORES = ["Ale Pessaj","Alfredo","Burcez","Admin"];
 
 const extractPrice = (product, priceType) => {
   const prices = product?.prices || product?.product_prices || [];
@@ -27,6 +28,7 @@ const extractPrice = (product, priceType) => {
 const today = () => new Date().toISOString().slice(0, 10);
 
 export default function WebOrders() {
+  const vendedores = useVendedores();
   const [orders,   setOrders]   = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [from,     setFrom]     = useState(today());
@@ -49,16 +51,13 @@ export default function WebOrders() {
   const [presCustQuery,setPresCustQuery]= useState("");
   const [presCustRes,  setPresCustRes]  = useState([]);
   const [presItems,    setPresItems]    = useState([]);
-  const [presProdQuery,setPresProdQuery]= useState("");
-  const [presProdRes,  setPresProdRes]  = useState([]);
   const [presProdSel,  setPresProdSel]  = useState(null);
   const [presItemQty,  setPresItemQty]  = useState("");
   const [presItemPrice,setPresItemPrice]= useState("");
   const [presItemDesc, setPresItemDesc] = useState("");
   const [presSaving,   setPresSaving]   = useState(false);
 
-  const presQtyRef  = useRef(null);
-  const presProdRef = useRef(null);
+  const presQtyRef = useRef(null);
 
   // ── Buscar cliente en modal presupuesto ───────────────────────
   useEffect(() => {
@@ -69,20 +68,12 @@ export default function WebOrders() {
     return () => clearTimeout(t);
   }, [presCustQuery, presModal]);
 
-  // ── Buscar producto en modal presupuesto ──────────────────────
-  useEffect(() => {
-    if (!presModal || !presProdQuery.trim()) { setPresProdRes([]); return; }
-    const t = setTimeout(async () => {
-      try { const { data } = await searchProducts(presProdQuery); setPresProdRes(data); } catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [presProdQuery, presModal]);
-
   // ── Cuando cambia tipo de precio, actualizar precio del prod seleccionado
   useEffect(() => {
     if (presProdSel) {
-      const p = extractPrice(presProdSel, presPriceType);
-      setPresItemPrice(p > 0 ? String(p) : "");
+      const prices = presProdSel?.prices || presProdSel?.product_prices || [];
+      const found  = prices.find((p) => p.price_type === presPriceType);
+      setPresItemPrice(found ? String(Number(found.price)) : "");
     }
   }, [presPriceType, presProdSel]);
 
@@ -196,7 +187,6 @@ export default function WebOrders() {
     setPresVendedor("");
     setPresTexto(selected.observaciones || "");
     setPresProdSel(null);
-    setPresProdQuery("");
     setPresItemQty("");
     setPresItemPrice("");
     setPresItemDesc("");
@@ -206,20 +196,10 @@ export default function WebOrders() {
   // ── Acciones dentro del modal de presupuesto ──────────────────
   const presSelectCust = (c) => { setPresCustSel(c); setPresCustQuery(""); setPresCustRes([]); };
 
-  const presSelectProd = async (p) => {
-    setPresProdRes([]);
-    setPresProdQuery(p.code ? `${p.code} - ${p.name}` : p.name);
-    try {
-      const { data } = await getProduct(p.id);
-      setPresProdSel(data);
-      setPresItemDesc(data.name);
-      const precio = extractPrice(data, presPriceType);
-      setPresItemPrice(precio > 0 ? String(precio) : "");
-    } catch {
-      setPresProdSel(p);
-      setPresItemDesc(p.name);
-      setPresItemPrice("");
-    }
+  const presHandleProdSelect = ({ product, price }) => {
+    setPresProdSel(product);
+    setPresItemDesc(product.name);
+    setPresItemPrice(price > 0 ? String(price) : "");
     setTimeout(() => presQtyRef.current?.focus(), 50);
   };
 
@@ -235,11 +215,7 @@ export default function WebOrders() {
       unit_price:  Number(presItemPrice) || 0,
     }]);
     setPresProdSel(null);
-    setPresProdQuery("");
-    setPresItemQty("");
-    setPresItemPrice("");
-    setPresItemDesc("");
-    setTimeout(() => presProdRef.current?.focus(), 50);
+    setPresItemQty(""); setPresItemPrice(""); setPresItemDesc("");
   };
 
   const presRemoveItem = (i) => setPresItems((prev) => prev.filter((_, idx) => idx !== i));
@@ -391,7 +367,7 @@ export default function WebOrders() {
                     <label className="input-label">Vendedor</label>
                     <select className="select" value={presVendedor} onChange={(e) => setPresVendedor(e.target.value)} style={{ fontSize:12 }}>
                       <option value="">— seleccionar —</option>
-                      {VENDEDORES.map((v) => <option key={v}>{v}</option>)}
+                      {vendedores.map((v) => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
                     </select>
                   </div>
                   <div className="input-group">
@@ -458,12 +434,11 @@ export default function WebOrders() {
                   <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:8 }}>
                     <div style={{ flex:2 }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Código o descripción</div>
-                      <div className="search-bar" style={{ height:40 }}>
-                        <span className="search-icon">🔍</span>
-                        <input ref={presProdRef} placeholder="Buscar producto..." value={presProdQuery}
-                          onChange={(e) => { setPresProdQuery(e.target.value); if (!e.target.value) setPresProdSel(null); }}
-                          style={{ fontSize:13 }} />
-                      </div>
+                      <ProductSearchBar
+                        priceType={presPriceType}
+                        onSelect={presHandleProdSelect}
+                        autoFocus={!presProdSel}
+                      />
                     </div>
                     <div style={{ flex:1 }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Cantidad</div>
@@ -486,19 +461,6 @@ export default function WebOrders() {
                       value={presItemDesc} onChange={(e) => setPresItemDesc(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
                   </div>
-                  {presProdRes.length > 0 && (
-                    <div style={{ marginTop:8, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:150, overflowY:"auto" }}>
-                      {presProdRes.map((p) => (
-                        <div key={p.id} onClick={() => presSelectProd(p)}
-                          style={{ padding:"9px 14px", cursor:"pointer", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:12 }}
-                          onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                          <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", width:70, flexShrink:0 }}>{p.code || "—"}</span>
-                          <span style={{ fontSize:13 }}>{p.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                   {presProdSel && (
                     <div style={{ marginTop:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{presProdSel.code}</span>

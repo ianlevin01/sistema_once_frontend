@@ -143,9 +143,9 @@ export default function Products() {
   const { addToast, ToastContainer } = useToast();
 
   const EMPTY_IMGS = [
-    { file: null, preview: null, existingUrl: null },
-    { file: null, preview: null, existingUrl: null },
-    { file: null, preview: null, existingUrl: null },
+    { file: null, preview: null, existingKey: null },
+    { file: null, preview: null, existingKey: null },
+    { file: null, preview: null, existingKey: null },
   ];
   const [imgSlots, setImgSlots] = useState(EMPTY_IMGS);
 
@@ -214,11 +214,11 @@ export default function Products() {
 
   const handleImgClear = (slotIdx) => {
     setImgSlots((prev) => prev.map((s, i) =>
-      i === slotIdx ? { file: null, preview: null, existingUrl: null } : s
+      i === slotIdx ? { file: null, preview: null, existingKey: null } : s
     ));
   };
 
-  const slotDisplayPreview = (slot) => slot.preview || slot.existingUrl || null;
+  const slotDisplayPreview = (slot) => slot.preview || null;
 
   // ── Abrir modal nuevo ─────────────────────────────────────────────────────
   const openNew = () => {
@@ -255,12 +255,12 @@ export default function Products() {
       price_5:     getPrice("precio_5") || "",
     });
 
-    // ✅ Cargar imágenes desde el array images de la API
+    // Cargar imágenes desde el array images de la API — guardar la key para poder conservarla
     const imgs = selected.images || [];
     setImgSlots([
-      { file: null, preview: null, existingUrl: imgs[0]?.url || null },
-      { file: null, preview: null, existingUrl: imgs[1]?.url || null },
-      { file: null, preview: null, existingUrl: imgs[2]?.url || null },
+      { file: null, preview: imgs[0]?.url || null, existingKey: imgs[0]?.key || null },
+      { file: null, preview: imgs[1]?.url || null, existingKey: imgs[1]?.key || null },
+      { file: null, preview: imgs[2]?.url || null, existingKey: imgs[2]?.key || null },
     ]);
     setModal("edit");
   };
@@ -276,7 +276,15 @@ export default function Products() {
         if (v !== "" && v !== null && v !== undefined) fd.append(k, v);
       });
 
-      imgSlots.forEach((slot) => {
+      // Para edición: mandar las keys existentes que se conservan (las que no se borraron)
+      if (modal === "edit") {
+        imgSlots.forEach((slot) => {
+          if (slot.existingKey) fd.append("keepImages", slot.existingKey);
+        });
+      }
+
+      // Mandar archivos nuevos slot por slot con su índice
+      imgSlots.forEach((slot, idx) => {
         if (slot.file) fd.append("images", slot.file);
       });
 

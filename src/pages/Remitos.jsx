@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import {
   getRemitos, getRemito, createRemito, deleteRemito,
-  searchProducts, searchCustomers, getProduct,
+  searchCustomers,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
+import ProductSearchBar from "../components/ProductSearchBar";
 
 const WAREHOUSES = ["Alfred","Saldo","Oficina ML","Camarin","Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
@@ -44,16 +45,13 @@ export default function Remitos() {
 
   // Items
   const [items,       setItems]       = useState([]);
-  const [prodQuery,   setProdQuery]   = useState("");
-  const [prodResults, setProdResults] = useState([]);
   const [prodSel,     setProdSel]     = useState(null);
   const [itemQty,     setItemQty]     = useState("");
   const [itemPrice,   setItemPrice]   = useState("");
   const [itemDesc,    setItemDesc]    = useState("");
   const [saving,      setSaving]      = useState(false);
 
-  const prodSearchRef = useRef(null);
-  const qtyRef        = useRef(null);
+  const qtyRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
   const loadAll = async (f = appliedFrom, t = appliedTo) => {
@@ -80,40 +78,23 @@ export default function Remitos() {
     return () => clearTimeout(t);
   }, [custQuery]);
 
-  useEffect(() => {
-    if (!prodQuery.trim()) { setProdResults([]); return; }
-    const t = setTimeout(async () => {
-      try { const { data } = await searchProducts(prodQuery); setProdResults(data); }
-      catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [prodQuery]);
-
-  useEffect(() => {
-    if (prodSel) {
-      const p = extractPrice(prodSel, priceType);
-      setItemPrice(p > 0 ? String(p) : "");
-    }
-  }, [priceType, prodSel]);
-
   const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); };
 
-  const selectProd = async (p) => {
-    setProdResults([]);
-    setProdQuery(p.code ? `${p.code} - ${p.name}` : p.name);
-    try {
-      const { data } = await getProduct(p.id);
-      setProdSel(data);
-      setItemDesc(data.name);
-      const precio = extractPrice(data, priceType);
-      setItemPrice(precio > 0 ? String(precio) : "");
-    } catch {
-      setProdSel(p);
-      setItemDesc(p.name);
-      setItemPrice("");
-    }
+  const handleProdSelect = ({ product, price }) => {
+    setProdSel(product);
+    setItemDesc(product.name);
+    setItemPrice(price > 0 ? String(price) : "");
     setTimeout(() => qtyRef.current?.focus(), 50);
   };
+
+  // Cuando cambia tipo de precio y hay producto seleccionado, actualizar precio
+  useEffect(() => {
+    if (prodSel) {
+      const prices = prodSel?.prices || prodSel?.product_prices || [];
+      const found  = prices.find((p) => p.price_type === priceType);
+      setItemPrice(found ? String(Number(found.price)) : "");
+    }
+  }, [priceType, prodSel]);
 
   const confirmItem = () => {
     if (!prodSel)                        { addToast("Seleccioná un producto", "error"); return; }
@@ -126,9 +107,8 @@ export default function Remitos() {
       quantity:   Number(itemQty),
       unit_price: Number(itemPrice) || 0,
     }]);
-    setProdSel(null); setProdQuery("");
+    setProdSel(null);
     setItemQty(""); setItemPrice(""); setItemDesc("");
-    setTimeout(() => prodSearchRef.current?.focus(), 50);
   };
 
   const handleQtyKeyDown = (e) => { if (e.key === "Enter") confirmItem(); };
@@ -156,7 +136,7 @@ export default function Remitos() {
   const resetForm = () => {
     setOrigen("Alfred"); setDestino("Past 280"); setPriceType("precio_1");
     setSinPrecios(false); setCustSel(null); setCustQuery(""); setItems([]);
-    setProdSel(null); setProdQuery(""); setItemQty(""); setItemPrice(""); setItemDesc("");
+    setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
   const handleDelete = async (id) => {
@@ -444,17 +424,11 @@ export default function Remitos() {
               <div style={{ display:"flex", gap:14, alignItems:"flex-end", marginBottom:12 }}>
                 <div style={{ flex:2 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Código o descripción</div>
-                  <div className="search-bar" style={{ height:44 }}>
-                    <span className="search-icon">🔍</span>
-                    <input
-                      ref={prodSearchRef}
-                      placeholder="Buscar producto..."
-                      value={prodQuery}
-                      onChange={(e) => { setProdQuery(e.target.value); if (!e.target.value) setProdSel(null); }}
-                      style={{ fontSize:14 }}
-                      autoFocus
-                    />
-                  </div>
+                  <ProductSearchBar
+                    priceType={priceType}
+                    onSelect={handleProdSelect}
+                    autoFocus={!prodSel}
+                  />
                 </div>
                 <div style={{ flex:1 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Cantidad</div>
@@ -487,20 +461,6 @@ export default function Remitos() {
                   value={itemDesc} onChange={(e) => setItemDesc(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
               </div>
-
-              {prodResults.length > 0 && (
-                <div style={{ marginTop:10, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:180, overflowY:"auto" }}>
-                  {prodResults.map((p) => (
-                    <div key={p.id} onClick={() => selectProd(p)}
-                      style={{ padding:"10px 16px", cursor:"pointer", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", gap:14 }}
-                      onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", width:80, flexShrink:0 }}>{p.code || "—"}</span>
-                      <span style={{ fontSize:14 }}>{p.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
 
               {prodSel && (
                 <div style={{ marginTop:10, padding:"10px 14px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:12 }}>
