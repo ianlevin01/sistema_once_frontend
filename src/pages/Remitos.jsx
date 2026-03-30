@@ -87,7 +87,6 @@ export default function Remitos() {
     setTimeout(() => qtyRef.current?.focus(), 50);
   };
 
-  // Cuando cambia tipo de precio y hay producto seleccionado, actualizar precio
   useEffect(() => {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
@@ -122,7 +121,7 @@ export default function Remitos() {
     try {
       await createRemito({
         origen, destino,
-        user_id:    null, // TODO: reemplazar con el ID del usuario autenticado
+        user_id:    null,
         customer_id: custSel?.id || null,
         price_type:  priceType,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
@@ -170,9 +169,7 @@ export default function Remitos() {
                 style={{ fontSize:13, padding:"6px 10px", width:150 }} />
             </div>
             {filterDirty && (
-              <button className="btn btn-primary btn-sm" onClick={applyFilter}>
-                Filtrar
-              </button>
+              <button className="btn btn-primary btn-sm" onClick={applyFilter}>Filtrar</button>
             )}
             <div style={{ marginLeft:"auto" }}>
               <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
@@ -256,7 +253,7 @@ export default function Remitos() {
           <div style={{ width:300, flexShrink:0, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg2)", overflow:"hidden" }}>
 
             {/* Origen / Destino */}
-            <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid var(--border)", flex:"0 0 auto" }}>
+            <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--accent)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:14 }}>
                 Nuevo Remito
               </div>
@@ -298,7 +295,7 @@ export default function Remitos() {
               </div>
             </div>
 
-            {/* Cliente + Precio */}
+            {/* Cliente + Precio — scroll interno */}
             <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
               {/* Cliente */}
               <div style={{ marginBottom:16 }}>
@@ -355,11 +352,11 @@ export default function Remitos() {
               </div>
             </div>
 
-            {/* Botones */}
-            <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:10 }}>
+            {/* Botones — siempre visibles al fondo */}
+            <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <button className="btn btn-primary" onClick={handleCreate} disabled={saving}
                 style={{ width:"100%", fontSize:14, padding:"12px" }}>
-                {saving ? "Guardando..." : "✓ Cerrar comprobante"}
+                {saving ? "Guardando..." : "✓ Cerrar remito"}
               </button>
               <button className="btn btn-ghost" onClick={() => { setCreating(false); resetForm(); }}
                 style={{ width:"100%", fontSize:14 }}>
@@ -419,59 +416,66 @@ export default function Remitos() {
               )}
             </div>
 
-            {/* ── Barra inferior ── */}
-            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"18px 28px", flexShrink:0 }}>
-              <div style={{ display:"flex", gap:14, alignItems:"flex-end", marginBottom:12 }}>
-                <div style={{ flex:2 }}>
-                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Código o descripción</div>
-                  <ProductSearchBar
-                    priceType={priceType}
-                    onSelect={handleProdSelect}
-                    autoFocus={!prodSel}
-                  />
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>Cantidad</div>
-                  <input ref={qtyRef} className="input"
-                    style={{ height:44, fontSize:16, fontFamily:"var(--font-mono)", textAlign:"center" }}
-                    placeholder="0" value={itemQty}
-                    onChange={(e) => setItemQty(e.target.value)}
-                    onKeyDown={handleQtyKeyDown} />
-                </div>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:6 }}>
-                    Precio ({PRECIO_LBL[priceType]})
-                  </div>
-                  <input className="input"
-                    style={{ height:44, fontSize:16, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700 }}
-                    placeholder="0.00" value={itemPrice}
-                    onChange={(e) => setItemPrice(e.target.value)}
-                    onKeyDown={handleQtyKeyDown} />
-                </div>
-                <button className="btn btn-primary" onClick={confirmItem}
-                  style={{ height:44, fontSize:14, padding:"0 24px", flexShrink:0 }}>
-                  + Agregar
-                </button>
-              </div>
+            {/* ── Barra inferior — dropdown abre hacia ARRIBA ── */}
+            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"14px 28px 16px", flexShrink:0 }}>
 
-              <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+              {/* Chip del producto seleccionado */}
+              {prodSel && (
+                <div style={{ marginBottom:10, padding:"9px 14px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:12 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
+                  <span style={{ fontSize:14, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{prodSel.name}</span>
+                  {!sinPrecios && (
+                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700, flexShrink:0 }}>
+                      ${Number(itemPrice||0).toLocaleString("es-AR")}
+                    </span>
+                  )}
+                  <span style={{ fontSize:12, color:"var(--text-dim)", flexShrink:0 }}>← ingresá cantidad</span>
+                </div>
+              )}
+
+              {/* Descripción */}
+              <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
                 <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
-                <input className="input" style={{ flex:1, fontSize:14, height:40 }}
+                <input className="input" style={{ flex:1, fontSize:14, height:36 }}
                   placeholder="Presione Enter si no modifica"
                   value={itemDesc} onChange={(e) => setItemDesc(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
               </div>
 
-              {prodSel && (
-                <div style={{ marginTop:10, padding:"10px 14px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:12 }}>
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
-                  <span style={{ fontSize:14, color:"var(--text)", flex:1 }}>{prodSel.name}</span>
-                  {!sinPrecios && <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>
-                    ${Number(itemPrice||0).toLocaleString("es-AR")}
-                  </span>}
-                  <span style={{ fontSize:12, color:"var(--text-dim)" }}>← ingresá cantidad y Enter</span>
+              {/* Fila principal */}
+              <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
+                <div style={{ flex:2, minWidth:0 }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Código o descripción</div>
+                  <ProductSearchBar
+                    priceType={priceType}
+                    onSelect={handleProdSelect}
+                    autoFocus={!prodSel}
+                    dropUp
+                  />
                 </div>
-              )}
+                <div style={{ flex:"0 0 110px" }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Cantidad</div>
+                  <input ref={qtyRef} className="input"
+                    style={{ height:40, fontSize:16, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
+                    placeholder="0" value={itemQty}
+                    onChange={(e) => setItemQty(e.target.value)}
+                    onKeyDown={handleQtyKeyDown} />
+                </div>
+                <div style={{ flex:"0 0 130px" }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>
+                    {PRECIO_LBL[priceType]}
+                  </div>
+                  <input className="input"
+                    style={{ height:40, fontSize:16, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
+                    placeholder="0.00" value={itemPrice}
+                    onChange={(e) => setItemPrice(e.target.value)}
+                    onKeyDown={handleQtyKeyDown} />
+                </div>
+                <button className="btn btn-primary" onClick={confirmItem}
+                  style={{ height:40, fontSize:14, padding:"0 20px", flexShrink:0 }}>
+                  + Agregar
+                </button>
+              </div>
             </div>
           </div>
         </div>

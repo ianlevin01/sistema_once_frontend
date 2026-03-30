@@ -164,7 +164,6 @@ export default function WebOrders() {
   // ── Presupuestar: abre modal con datos prellenados ─────────────
   const presupuestar = () => {
     if (!selected) return;
-    // Precargar items del pedido web
     const itemsPre = (selected.items || []).map((i) => ({
       product_id:  i.product_id || null,
       code:        i.code || "",
@@ -174,7 +173,6 @@ export default function WebOrders() {
       unit_price:  Number(i.unit_price || 0),
     }));
     setPresItems(itemsPre);
-    // Precargar cliente si existe en el sistema
     if (selected.customer_id) {
       setPresCustSel({ id: selected.customer_id, name: selected.customer_name });
     } else {
@@ -229,7 +227,7 @@ export default function WebOrders() {
     try {
       await createComprobante({
         customer_id:    presCustSel.id,
-        user_id:        null, // TODO: reemplazar con el ID del usuario autenticado
+        user_id:        null,
         payment_method: presPayMethod,
         tipo:           presTipo,
         vendedor:       presVendedor,
@@ -240,7 +238,6 @@ export default function WebOrders() {
       });
       addToast("Presupuesto Web creado", "success");
       setPresModal(false);
-      // Marcar el pedido con color verde (confirmado) automáticamente
       if (selected) setColor(selected.id, "green");
     } catch { addToast("Error creando presupuesto", "error"); }
     setPresSaving(false);
@@ -308,10 +305,10 @@ export default function WebOrders() {
             <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
 
               {/* Columna izquierda: config */}
-              <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflowY:"auto" }}>
+              <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
-                {/* Tipo — fijo en Presupuesto Web */}
-                <div style={{ padding:"14px 14px 10px", borderBottom:"1px solid var(--border)" }}>
+                {/* Tipo */}
+                <div style={{ padding:"14px 14px 10px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
                   <div style={{ padding:"8px 10px", borderRadius:4, fontSize:13, background:"var(--accent-dim)", color:"var(--accent)", borderLeft:"3px solid var(--accent)", fontWeight:600 }}>
                     Presupuesto Web
@@ -319,7 +316,7 @@ export default function WebOrders() {
                 </div>
 
                 {/* Cliente */}
-                <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)" }}>
+                <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente</div>
                   {presCustSel ? (
                     <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -349,7 +346,7 @@ export default function WebOrders() {
                   )}
                 </div>
 
-                {/* Config */}
+                {/* Config — scroll interno */}
                 <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
                   <div className="input-group">
                     <label className="input-label">Método de pago</label>
@@ -377,8 +374,8 @@ export default function WebOrders() {
                   </div>
                 </div>
 
-                {/* Botones */}
-                <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8 }}>
+                {/* Botones — siempre al fondo */}
+                <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
                   <button className="btn btn-primary" onClick={presHandleCreate} disabled={presSaving}
                     style={{ width:"100%", fontSize:13, padding:"10px" }}>
                     {presSaving ? "Guardando..." : "✓ Cerrar presupuesto"}
@@ -429,48 +426,56 @@ export default function WebOrders() {
                   )}
                 </div>
 
-                {/* Barra de ingreso de productos */}
-                <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"14px 20px", flexShrink:0 }}>
-                  <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:8 }}>
-                    <div style={{ flex:2 }}>
+                {/* ── Barra de ingreso — dropdown abre hacia ARRIBA ── */}
+                <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
+
+                  {/* Chip del producto seleccionado */}
+                  {presProdSel && (
+                    <div style={{ marginBottom:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{presProdSel.code}</span>
+                      <span style={{ fontSize:13, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{presProdSel.name}</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700, flexShrink:0 }}>
+                        ${Number(presItemPrice||0).toLocaleString("es-AR")}
+                      </span>
+                      <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
+                    </div>
+                  )}
+
+                  {/* Descripción */}
+                  <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+                    <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
+                    <input className="input" style={{ flex:1, fontSize:13, height:34 }} placeholder="Enter si no modifica"
+                      value={presItemDesc} onChange={(e) => setPresItemDesc(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
+                  </div>
+
+                  {/* Fila principal */}
+                  <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                    <div style={{ flex:2, minWidth:0 }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Código o descripción</div>
+                      {/* dropUp=true: el dropdown se abre hacia arriba */}
                       <ProductSearchBar
                         priceType={presPriceType}
                         onSelect={presHandleProdSelect}
                         autoFocus={!presProdSel}
+                        dropUp
                       />
                     </div>
-                    <div style={{ flex:1 }}>
+                    <div style={{ flex:"0 0 100px" }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Cantidad</div>
-                      <input ref={presQtyRef} className="input" style={{ height:40, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center" }}
+                      <input ref={presQtyRef} className="input" style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
                         placeholder="0" value={presItemQty} onChange={(e) => setPresItemQty(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
                     </div>
-                    <div style={{ flex:1 }}>
+                    <div style={{ flex:"0 0 110px" }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Precio</div>
-                      <input className="input" style={{ height:40, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700 }}
+                      <input className="input" style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
                         placeholder="0.00" value={presItemPrice} onChange={(e) => setPresItemPrice(e.target.value)}
                         onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
                     </div>
                     <button className="btn btn-primary" onClick={presConfirmItem}
-                      style={{ height:40, fontSize:13, padding:"0 18px", flexShrink:0 }}>+ Agregar</button>
+                      style={{ height:38, fontSize:13, padding:"0 16px", flexShrink:0 }}>+ Agregar</button>
                   </div>
-                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                    <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
-                    <input className="input" style={{ flex:1, fontSize:13, height:36 }} placeholder="Enter si no modifica"
-                      value={presItemDesc} onChange={(e) => setPresItemDesc(e.target.value)}
-                      onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
-                  </div>
-                  {presProdSel && (
-                    <div style={{ marginTop:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{presProdSel.code}</span>
-                      <span style={{ fontSize:13, color:"var(--text)", flex:1 }}>{presProdSel.name}</span>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>
-                        ${Number(presItemPrice||0).toLocaleString("es-AR")}
-                      </span>
-                      <span style={{ fontSize:11, color:"var(--text-dim)" }}>← cantidad y Enter</span>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>

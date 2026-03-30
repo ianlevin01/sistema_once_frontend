@@ -18,8 +18,8 @@ const extractPrice = (product, priceType) => {
   return found ? Number(found.price) : 0;
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
-const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
+const today   = () => new Date().toISOString().slice(0, 10);
+const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
 
 // ── Mini hook para modal de presupuestar una nota de pedido ─────
@@ -51,7 +51,6 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
     return () => clearTimeout(t);
   }, [custQuery, open]);
 
-  // Actualizar precio cuando cambia tipo de precio
   useEffect(() => {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
@@ -140,21 +139,29 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   };
 }
 
-// ── Modal de presupuestar (reutilizable) ───────────────────────
+// ── Modal de presupuestar ──────────────────────────────────────
 function PresModal({ m }) {
   if (!m.open) return null;
   return (
     <div className="modal-overlay" onClick={() => m.setOpen(false)}>
-      <div className="modal" style={{ maxWidth:900, width:"96vw", maxHeight:"92vh", overflow:"hidden", display:"flex", flexDirection:"column" }}
-        onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal"
+        style={{ maxWidth:900, width:"96vw", maxHeight:"92vh", overflow:"hidden", display:"flex", flexDirection:"column" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
         <div className="modal-header" style={{ flexShrink:0 }}>
           <span className="modal-title">🧾 Presupuestar — {m.source?.customer_name || "—"}</span>
           <button className="modal-close" onClick={() => m.setOpen(false)}>✕</button>
         </div>
+
         <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
-          {/* Columna izquierda */}
-          <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflowY:"auto" }}>
-            <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)" }}>
+
+          {/* ── Columna izquierda ── */}
+          <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            {/* Tipo */}
+            <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo de comprobante</div>
               {["Presupuesto","Devolucion","Reposicion"].map((t) => (
                 <div key={t} onClick={() => m.setTipo(t)}
@@ -166,7 +173,9 @@ function PresModal({ m }) {
                   }}>{t}</div>
               ))}
             </div>
-            <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)" }}>
+
+            {/* Cliente */}
+            <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente</div>
               {m.custSel ? (
                 <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -195,6 +204,8 @@ function PresModal({ m }) {
                 </>
               )}
             </div>
+
+            {/* Config — scroll interno */}
             <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
               <div className="input-group">
                 <label className="input-label">Método de pago</label>
@@ -220,7 +231,9 @@ function PresModal({ m }) {
                 <input className="input" value={m.texto} onChange={(e) => m.setTexto(e.target.value)} placeholder="Texto libre..." style={{ fontSize:12 }} />
               </div>
             </div>
-            <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8 }}>
+
+            {/* Botones — siempre visibles al fondo */}
+            <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
               <button className="btn btn-primary" onClick={m.handleCreate} disabled={m.saving}
                 style={{ width:"100%", fontSize:13, padding:"10px" }}>
                 {m.saving ? "Guardando..." : "✓ Cerrar presupuesto"}
@@ -229,8 +242,10 @@ function PresModal({ m }) {
             </div>
           </div>
 
-          {/* Panel central items */}
+          {/* ── Panel central: items ── */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            {/* Lista de items */}
             <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
               {m.items.length === 0 ? (
                 <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:10 }}>
@@ -267,44 +282,61 @@ function PresModal({ m }) {
               )}
             </div>
 
-            {/* Barra de ingreso */}
-            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"14px 20px", flexShrink:0 }}>
-              <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:8 }}>
-                <div style={{ flex:2 }}>
+            {/* ── Barra de ingreso — dropdown abre hacia ARRIBA ── */}
+            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
+
+              {/* Chip del producto seleccionado */}
+              {m.prodSel && (
+                <div style={{ marginBottom:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{m.prodSel.code}</span>
+                  <span style={{ fontSize:13, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{m.prodSel.name}</span>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700, flexShrink:0 }}>
+                    ${Number(m.itemPrice||0).toLocaleString("es-AR")}
+                  </span>
+                  <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
+                </div>
+              )}
+
+              {/* Descripción */}
+              <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+                <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", whiteSpace:"nowrap" }}>Descripción:</div>
+                <input className="input" style={{ flex:1, fontSize:13, height:34 }} placeholder="Enter si no modifica"
+                  value={m.itemDesc} onChange={(e) => m.setItemDesc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
+              </div>
+
+              {/* Fila principal — ProductSearchBar con dropUp */}
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
                   <ProductSearchBar
                     priceType={m.priceType}
                     onSelect={m.handleProdSelect}
                     autoFocus={!m.prodSel}
+                    dropUp
                   />
                 </div>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
-                  <input ref={m.qtyRef} className="input" style={{ height:40, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center" }}
-                    placeholder="0" value={m.itemQty} onChange={(e) => m.setItemQty(e.target.value)}
+                  <input ref={m.qtyRef} className="input"
+                    style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
+                    placeholder="0" value={m.itemQty}
+                    onChange={(e) => m.setItemQty(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
                 </div>
-                <div style={{ flex:1 }}>
+                <div style={{ flex:"0 0 110px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Precio</div>
-                  <input className="input" style={{ height:40, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700 }}
-                    placeholder="0.00" value={m.itemPrice} onChange={(e) => m.setItemPrice(e.target.value)}
+                  <input className="input"
+                    style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
+                    placeholder="0.00" value={m.itemPrice}
+                    onChange={(e) => m.setItemPrice(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
                 </div>
-                <button className="btn btn-primary" onClick={m.confirmItem} style={{ height:40, fontSize:13, padding:"0 18px", flexShrink:0 }}>+ Agregar</button>
+                <button className="btn btn-primary" onClick={m.confirmItem}
+                  style={{ height:38, fontSize:13, padding:"0 16px", flexShrink:0 }}>
+                  + Agregar
+                </button>
               </div>
-              <div style={{ display:"flex", gap:8, alignItems:"center" }}>
-                <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", whiteSpace:"nowrap" }}>Descripción:</div>
-                <input className="input" style={{ flex:1, fontSize:13, height:36 }} placeholder="Enter si no modifica"
-                  value={m.itemDesc} onChange={(e) => m.setItemDesc(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
-              </div>
-              {m.prodSel && (
-                <div style={{ marginTop:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{m.prodSel.code}</span>
-                  <span style={{ fontSize:13, color:"var(--text)", flex:1 }}>{m.prodSel.name}</span>
-                  <span style={{ fontSize:12, color:"var(--text-dim)" }}>← cantidad y Enter</span>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -368,14 +400,12 @@ export default function CajaListado() {
     return "Efectivo";
   };
 
-  // Total ventas por método (de presupuestos)
   const ventasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   presupuestos.forEach((p) => {
     const col = metodoKey(p.payment_method);
     ventasPorMetodo[col] = (ventasPorMetodo[col] || 0) + Number(p.total || 0);
   });
 
-  // Entradas y salidas de caja (de imputaciones)
   const entradasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   const salidasPorMetodo  = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   cashMovs.forEach((mv) => {
@@ -433,13 +463,6 @@ export default function CajaListado() {
     win.document.close();
     win.print();
   };
-
-  const sectionTitle = (label, count) => (
-    <div style={{ fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-      {label}
-      <span style={{ background:"var(--accent-dim)", color:"var(--accent)", borderRadius:4, padding:"1px 8px", fontSize:10 }}>{count}</span>
-    </div>
-  );
 
   return (
     <>
@@ -611,6 +634,7 @@ export default function CajaListado() {
           </div>
         )}
       </div>
+
       {/* ── SECCIÓN 4: RESUMEN DE CAJA ───────────────────────── */}
       <div className="card" style={{ marginTop:24 }}>
         <div className="card-header">
@@ -631,7 +655,6 @@ export default function CajaListado() {
               </tr>
             </thead>
             <tbody>
-              {/* Fila: Total Ventas */}
               <tr style={{ borderBottom:"1px solid var(--border)" }}>
                 <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Total ventas</td>
                 {METODOS_COLS.map((m) => (
@@ -641,7 +664,6 @@ export default function CajaListado() {
                 ))}
                 <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)" }}>${fmt(totalVentas)}</td>
               </tr>
-              {/* Fila: Entradas por Caja */}
               <tr style={{ borderBottom:"1px solid var(--border)" }}>
                 <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Entradas por Caja</td>
                 {METODOS_COLS.map((m) => (
@@ -651,7 +673,6 @@ export default function CajaListado() {
                 ))}
                 <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--success)" }}>${fmt(totalEntradas)}</td>
               </tr>
-              {/* Fila: Salidas por Caja */}
               <tr style={{ borderBottom:"2px solid var(--border)" }}>
                 <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Salidas por Caja</td>
                 {METODOS_COLS.map((m) => (

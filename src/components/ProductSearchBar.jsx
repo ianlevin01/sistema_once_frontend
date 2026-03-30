@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { searchProducts, getProduct } from "../utils/api";
 
 const extractPrice = (product, priceType) => {
@@ -7,36 +8,78 @@ const extractPrice = (product, priceType) => {
   return found ? Number(found.price) : 0;
 };
 
-export default function ProductSearchBar({ priceType = "precio_1", onSelect, disabled, autoFocus }) {
-  const [query,      setQuery]      = useState("");
-  const [results,    setResults]    = useState([]);
-  const [activeIdx,  setActiveIdx]  = useState(0);
-  const [hovered,    setHovered]    = useState(null);
+const DROPDOWN_W = 660;
+const PREVIEW_W  = 220;
+const LIST_MAX_H = 340;
+
+/**
+ * Calcula la posición del dropdown.
+ * - Siempre intenta abrirse hacia abajo; si no hay espacio, abre hacia arriba.
+ * - Evita salirse del viewport horizontalmente.
+ * - Funciona dentro de modales (usa getBoundingClientRect que ya es relativo al viewport).
+ */
+function calcDropdownPos(anchorEl, preferUp = false) {
+  if (!anchorEl) return { top: 0, left: 0, openUp: false };
+
+  const rect   = anchorEl.getBoundingClientRect();
+  const vpW    = window.innerWidth;
+  const vpH    = window.innerHeight;
+  const GAP    = 6;
+
+  // Horizontal: alinear con el input, sin salirse
+  let left = rect.left;
+  if (left + DROPDOWN_W > vpW - 8) left = vpW - DROPDOWN_W - 8;
+  if (left < 8) left = 8;
+
+  // Vertical: ¿hay espacio abajo?
+  const spaceBelow = vpH - rect.bottom - GAP;
+  const spaceAbove = rect.top - GAP;
+  const dropH      = LIST_MAX_H + 16; // altura aproximada
+
+  let openUp = preferUp;
+  if (!preferUp && spaceBelow < dropH && spaceAbove > spaceBelow) openUp = true;
+  if (preferUp  && spaceAbove < 80)                                openUp = false;
+
+  const top = openUp
+    ? rect.top  - GAP   // el dropdown crece hacia arriba desde aquí (transform)
+    : rect.bottom + GAP;
+
+  return { top, left, openUp };
+}
+
+export default function ProductSearchBar({
+  priceType  = "precio_1",
+  onSelect,
+  disabled,
+  autoFocus,
+  dropUp: preferUp = false,
+}) {
+  const [query,         setQuery]         = useState("");
+  const [results,       setResults]       = useState([]);
+  const [activeIdx,     setActiveIdx]     = useState(0);
+  const [hovered,       setHovered]       = useState(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [detailCache,   setDetailCache]   = useState({});
-  const [open,       setOpen]       = useState(false);
-  const [dropPos,    setDropPos]    = useState({ top: 0, left: 0, width: 0 });
+  const [open,          setOpen]          = useState(false);
+  const [dropPos,       setDropPos]       = useState({ top: 0, left: 0, openUp: false });
 
   const inputRef   = useRef(null);
   const wrapperRef = useRef(null);
   const listRef    = useRef(null);
 
+  // ── Preview ────────────────────────────────────────────────────
   const previewIdx     = hovered !== null ? hovered : activeIdx;
   const previewProduct = results[previewIdx] ? detailCache[results[previewIdx].id] : null;
   const previewPhotos  = previewProduct?.images?.map((i) => i.url).filter(Boolean) || [];
+  const previewPrice   = previewProduct ? extractPrice(previewProduct, priceType) : 0;
 
-  // Calcular posición del dropdown basada en la posición real del wrapper en pantalla
-  const updateDropPos = () => {
-    if (!wrapperRef.current) return;
-    const rect = wrapperRef.current.getBoundingClientRect();
-    setDropPos({
-      top:   rect.bottom + window.scrollY + 4,
-      left:  rect.left   + window.scrollX,
-      width: rect.width,
-    });
-  };
+  // ── Recalcular posición ────────────────────────────────────────
+  const updateDropPos = useCallback(() => {
+    const pos = calcDropdownPos(wrapperRef.current, preferUp);
+    setDropPos(pos);
+  }, [preferUp]);
 
-  // Búsqueda con debounce
+  // ── Búsqueda con debounce ──────────────────────────────────────
   useEffect(() => {
     if (!query.trim()) { setResults([]); setOpen(false); return; }
     const t = setTimeout(async () => {
@@ -44,53 +87,59 @@ export default function ProductSearchBar({ priceType = "precio_1", onSelect, dis
         const { data } = await searchProducts(query);
         setResults(data);
         setActiveIdx(0);
-        setOpen(data.length > 0);
-        updateDropPos();
+        setHovered(null);
+        if (data.length > 0) {
+          updateDropPos();
+          setOpen(true);
+        } else {
+          setOpen(false);
+        }
       } catch {}
     }, 300);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, updateDropPos]);
 
-  // Actualizar posición si cambia el tamaño de ventana o se hace scroll
+  // ── Reposicionar al scroll/resize ─────────────────────────────
   useEffect(() => {
     if (!open) return;
     const handle = () => updateDropPos();
-    window.addEventListener("resize", handle);
-    window.addEventListener("scroll", handle, true);
+    window.addEventListener("resize",  handle);
+    window.addEventListener("scroll",  handle, true);
     return () => {
-      window.removeEventListener("resize", handle);
-      window.removeEventListener("scroll", handle, true);
+      window.removeEventListener("resize",  handle);
+      window.removeEventListener("scroll",  handle, true);
     };
-  }, [open]);
+  }, [open, updateDropPos]);
 
-  // Pre-cargar detalles del producto activo para la preview
+  // ── Precargar detalle del producto activo ─────────────────────
   useEffect(() => {
     const idx  = hovered !== null ? hovered : activeIdx;
     const prod = results[idx];
     if (!prod || detailCache[prod.id]) return;
-
     let cancelled = false;
     setLoadingDetail(true);
     getProduct(prod.id)
       .then(({ data }) => { if (!cancelled) setDetailCache((c) => ({ ...c, [prod.id]: data })); })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoadingDetail(false); });
-
     return () => { cancelled = true; };
   }, [activeIdx, hovered, results]);
 
-  // Scroll del item activo en la lista
+  // ── Scroll al ítem activo ──────────────────────────────────────
   useEffect(() => {
     if (!listRef.current) return;
     const el = listRef.current.children[activeIdx];
     if (el) el.scrollIntoView({ block: "nearest" });
   }, [activeIdx]);
 
-  // Cerrar al hacer click fuera
+  // ── Cerrar al click fuera ──────────────────────────────────────
   useEffect(() => {
     if (!open) return;
     const handle = (e) => {
-      if (wrapperRef.current && !wrapperRef.current.contains(e.target)) {
+      if (
+        wrapperRef.current && !wrapperRef.current.contains(e.target) &&
+        !document.getElementById("psb-portal")?.contains(e.target)
+      ) {
         setOpen(false);
       }
     };
@@ -98,6 +147,7 @@ export default function ProductSearchBar({ priceType = "precio_1", onSelect, dis
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
 
+  // ── Teclado ────────────────────────────────────────────────────
   const handleKeyDown = (e) => {
     if (!open || !results.length) return;
     if (e.key === "ArrowDown") {
@@ -116,12 +166,12 @@ export default function ProductSearchBar({ priceType = "precio_1", onSelect, dis
     }
   };
 
+  // ── Confirmar selección ────────────────────────────────────────
   const confirmSelection = useCallback(async (prod) => {
     if (!prod) return;
     setOpen(false);
     setQuery("");
     setResults([]);
-
     let detail = detailCache[prod.id];
     if (!detail) {
       try { const { data } = await getProduct(prod.id); detail = data; }
@@ -131,128 +181,255 @@ export default function ProductSearchBar({ priceType = "precio_1", onSelect, dis
     onSelect?.({ product: detail, price });
   }, [detailCache, priceType, onSelect]);
 
+  // ── Dropdown content (renderizado via portal) ──────────────────
+  const dropdownEl = open && results.length > 0 && createPortal(
+    <div
+      id="psb-portal"
+      style={{
+        position:      "fixed",
+        top:           dropPos.openUp ? undefined : dropPos.top,
+        bottom:        dropPos.openUp ? `calc(100vh - ${dropPos.top}px)` : undefined,
+        left:          dropPos.left,
+        width:         DROPDOWN_W,
+        zIndex:        99999,
+        background:    "var(--bg2)",
+        border:        "1px solid var(--border)",
+        borderRadius:  10,
+        boxShadow:     "0 16px 56px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2)",
+        display:       "flex",
+        overflow:      "hidden",
+        maxHeight:     LIST_MAX_H + 16,
+        // Animación sutil de entrada
+        animation:     dropPos.openUp ? "psbSlideUp 0.14s ease" : "psbSlideDown 0.14s ease",
+      }}
+    >
+      {/* ── Lista de resultados ───────────────────────────────── */}
+      <div
+        ref={listRef}
+        style={{
+          flex:       1,
+          overflowY:  "auto",
+          minWidth:   0,
+          scrollbarWidth: "thin",
+          scrollbarColor: "var(--border) transparent",
+        }}
+      >
+        {results.map((p, i) => {
+          const isActive  = i === activeIdx && hovered === null;
+          const isHover   = i === hovered;
+          const highlight = isActive || isHover;
+          return (
+            <div
+              key={p.id}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              onMouseDown={(e) => { e.preventDefault(); confirmSelection(p); }}
+              style={{
+                padding:      "10px 16px",
+                cursor:       "pointer",
+                display:      "flex",
+                alignItems:   "center",
+                gap:          12,
+                background:   highlight ? "var(--accent-dim)" : "transparent",
+                borderLeft:   `3px solid ${highlight ? "var(--accent)" : "transparent"}`,
+                borderBottom: "1px solid var(--border)",
+                transition:   "background 0.07s",
+              }}
+            >
+              {/* Código */}
+              <span style={{
+                fontFamily:   "var(--font-mono)",
+                fontSize:     11,
+                color:        highlight ? "var(--accent)" : "var(--text-dim)",
+                width:        80,
+                flexShrink:   0,
+                overflow:     "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace:   "nowrap",
+              }}>
+                {p.code || "—"}
+              </span>
+
+              {/* Nombre */}
+              <span style={{
+                fontSize:     13,
+                color:        highlight ? "var(--text)" : "var(--text-muted, var(--text))",
+                flex:         1,
+                overflow:     "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace:   "nowrap",
+                fontWeight:   highlight ? 500 : 400,
+              }}>
+                {p.name}
+              </span>
+
+              {/* Enter hint */}
+              {highlight && (
+                <span style={{ fontSize: 11, color: "var(--accent)", flexShrink: 0, opacity: 0.7 }}>
+                  ↵
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ── Panel de preview ──────────────────────────────────── */}
+      <div style={{
+        width:          PREVIEW_W,
+        flexShrink:     0,
+        borderLeft:     "1px solid var(--border)",
+        display:        "flex",
+        flexDirection:  "column",
+        alignItems:     "center",
+        padding:        "18px 14px",
+        background:     "var(--bg3, var(--bg2))",
+        gap:            10,
+        overflowY:      "auto",
+      }}>
+        {/* Imagen */}
+        <div style={{
+          width:          188,
+          height:         188,
+          borderRadius:   8,
+          overflow:       "hidden",
+          border:         "1px solid var(--border)",
+          background:     "var(--bg2)",
+          display:        "flex",
+          alignItems:     "center",
+          justifyContent: "center",
+          flexShrink:     0,
+        }}>
+          {loadingDetail && !previewPhotos.length ? (
+            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
+              Cargando…
+            </span>
+          ) : previewPhotos.length ? (
+            <img
+              src={previewPhotos[0]}
+              alt="preview"
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
+            />
+          ) : (
+            <span style={{ fontSize: 44, opacity: 0.3 }}>📦</span>
+          )}
+        </div>
+
+        {/* Info del producto */}
+        {previewProduct ? (
+          <div style={{ width: "100%", textAlign: "center" }}>
+            {previewProduct.code && (
+              <div style={{
+                display:      "inline-block",
+                fontFamily:   "var(--font-mono)",
+                fontSize:     10,
+                color:        "var(--accent)",
+                background:   "var(--accent-dim)",
+                border:       "1px solid var(--accent)",
+                borderRadius: 4,
+                padding:      "2px 8px",
+                marginBottom: 8,
+              }}>
+                {previewProduct.code}
+              </div>
+            )}
+            <div style={{
+              fontSize:     12,
+              fontWeight:   600,
+              color:        "var(--text)",
+              lineHeight:   1.4,
+              marginBottom: previewPrice > 0 ? 8 : 0,
+              wordBreak:    "break-word",
+            }}>
+              {previewProduct.name}
+            </div>
+            {previewPrice > 0 && (
+              <div style={{
+                fontFamily: "var(--font-mono)",
+                fontSize:   18,
+                fontWeight: 700,
+                color:      "var(--accent)",
+              }}>
+                ${previewPrice.toLocaleString("es-AR")}
+              </div>
+            )}
+          </div>
+        ) : !loadingDetail ? (
+          <div style={{
+            fontSize:   11,
+            fontFamily: "var(--font-mono)",
+            color:      "var(--text-dim)",
+            textAlign:  "center",
+          }}>
+            Sin imagen
+          </div>
+        ) : null}
+      </div>
+
+      {/* Keyframes inyectados inline */}
+      <style>{`
+        @keyframes psbSlideDown {
+          from { opacity: 0; transform: translateY(-6px); }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+        @keyframes psbSlideUp {
+          from { opacity: 0; transform: translateY(6px);  }
+          to   { opacity: 1; transform: translateY(0);    }
+        }
+      `}</style>
+    </div>,
+    document.body
+  );
+
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
+
+      {/* ── Input ───────────────────────────────────────────────── */}
       <div className="search-bar" style={{ height: 44 }}>
         <span className="search-icon">🔍</span>
         <input
           ref={inputRef}
           placeholder="Buscar producto por código o nombre..."
           value={query}
-          onChange={(e) => { setQuery(e.target.value); if (!e.target.value) setOpen(false); }}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            if (!e.target.value) setOpen(false);
+          }}
           onKeyDown={handleKeyDown}
-          onFocus={() => { if (results.length) { updateDropPos(); setOpen(true); } }}
+          onFocus={() => {
+            if (results.length) {
+              updateDropPos();
+              setOpen(true);
+            }
+          }}
           style={{ fontSize: 14 }}
           autoFocus={autoFocus}
           disabled={disabled}
         />
         {query && (
           <button
-            onClick={() => { setQuery(""); setResults([]); setOpen(false); inputRef.current?.focus(); }}
-            style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:14, padding:"0 6px" }}
-          >✕</button>
+            onClick={() => {
+              setQuery("");
+              setResults([]);
+              setOpen(false);
+              inputRef.current?.focus();
+            }}
+            style={{
+              background: "none",
+              border:     "none",
+              color:      "var(--text-dim)",
+              cursor:     "pointer",
+              fontSize:   14,
+              padding:    "0 6px",
+            }}
+          >
+            ✕
+          </button>
         )}
       </div>
 
-      {/* Dropdown con position:fixed para escapar de overflow:hidden de modales */}
-      {open && results.length > 0 && (
-        <div style={{
-          position: "fixed",
-          top:   dropPos.top,
-          left:  dropPos.left,
-          width: dropPos.width,
-          zIndex: 9999,
-          background: "var(--bg2)",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.45)",
-          display: "flex",
-          maxHeight: 340,
-          overflow: "hidden",
-        }}>
-          {/* Lista de resultados */}
-          <div ref={listRef} style={{ flex: 1, overflowY: "auto", minWidth: 0 }}>
-            {results.map((p, i) => {
-              const isActive = i === activeIdx && hovered === null;
-              const isHover  = i === hovered;
-              const highlight = isActive || isHover;
-              return (
-                <div
-                  key={p.id}
-                  onMouseEnter={() => setHovered(i)}
-                  onMouseLeave={() => setHovered(null)}
-                  onMouseDown={(e) => { e.preventDefault(); confirmSelection(p); }}
-                  style={{
-                    padding: "10px 14px",
-                    cursor: "pointer",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 10,
-                    background: highlight ? "var(--accent-dim)" : "transparent",
-                    borderLeft: `3px solid ${isActive ? "var(--accent)" : "transparent"}`,
-                    borderBottom: "1px solid var(--border)",
-                    transition: "background 0.08s",
-                  }}
-                >
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color: highlight ? "var(--accent)" : "var(--text-dim)", width:64, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {p.code || "—"}
-                  </span>
-                  <span style={{ fontSize:13, color: highlight ? "var(--text)" : "var(--text-muted)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: highlight ? 500 : 400 }}>
-                    {p.name}
-                  </span>
-                  {highlight && <span style={{ fontSize:10, color:"var(--accent)", flexShrink:0 }}>↵</span>}
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Preview de imagen */}
-          <div style={{
-            width: 180,
-            flexShrink: 0,
-            borderLeft: "1px solid var(--border)",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            background: "var(--bg3)",
-            gap: 10,
-          }}>
-            {loadingDetail && !previewPhotos.length ? (
-              <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>Cargando...</div>
-            ) : previewPhotos.length ? (
-              <>
-                <div style={{ width:140, height:140, borderRadius:8, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg2)" }}>
-                  <img
-                    src={previewPhotos[0]}
-                    alt="preview"
-                    style={{ width:"100%", height:"100%", objectFit:"contain" }}
-                    onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
-                  />
-                </div>
-                {previewProduct && (
-                  <div style={{ textAlign:"center" }}>
-                    <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", marginBottom:2 }}>{previewProduct.code || ""}</div>
-                    <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.4 }}>{previewProduct.name}</div>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:8, color:"var(--text-dim)" }}>
-                <span style={{ fontSize:36 }}>📦</span>
-                <span style={{ fontSize:11, fontFamily:"var(--font-mono)" }}>Sin imagen</span>
-                {previewProduct && (
-                  <div style={{ textAlign:"center", marginTop:4 }}>
-                    <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>{previewProduct.code || ""}</div>
-                    <div style={{ fontSize:12, color:"var(--text-muted)", lineHeight:1.4 }}>{previewProduct.name}</div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {dropdownEl}
     </div>
   );
 }
