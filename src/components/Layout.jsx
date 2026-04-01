@@ -25,6 +25,12 @@ const NAV = [
       { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
     ],
   },
+  {
+    section: "Sistema",
+    items: [
+      { to: "/configuracion", label: "Configuración", icon: "⚙️" },
+    ],
+  },
 ];
 
 const PAGE_TITLES = {
@@ -36,6 +42,7 @@ const PAGE_TITLES = {
   "/cuenta-corriente":  "Cuenta Corriente",
   "/productos":         "Productos",
   "/vendedores":        "Vendedores",
+  "/configuracion":     "Configuración de Precios",
 };
 
 function CajaNavItem({ item, location }) {
@@ -44,7 +51,6 @@ function CajaNavItem({ item, location }) {
 
   return (
     <div>
-      {/* Ítem principal — toggle al hacer click */}
       <div
         className={"sidebar-link" + (isCajaActive ? " active" : "")}
         style={{ cursor: "pointer", userSelect: "none" }}
@@ -63,7 +69,6 @@ function CajaNavItem({ item, location }) {
         }}>▶</span>
       </div>
 
-      {/* Submenú expandible hacia abajo dentro del sidebar */}
       {open && (
         <div style={{ paddingLeft: 16 }}>
           {item.submenu.map((sub) => (

@@ -5,18 +5,13 @@ import {
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import ProductSearchBar from "../components/ProductSearchBar";
+import { printRemitoPDF } from "../utils/printDoc";
 
 const WAREHOUSES = ["Alfred","Saldo","Oficina ML","Camarin","Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
 const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
-};
-
-const extractPrice = (product, priceType) => {
-  const prices = product?.prices || product?.product_prices || [];
-  const found  = prices.find((p) => p.price_type === priceType);
-  return found ? Number(found.price) : 0;
 };
 
 export default function Remitos() {
@@ -119,7 +114,7 @@ export default function Remitos() {
     if (items.length === 0)    { addToast("Agregá al menos un producto", "error"); return; }
     setSaving(true);
     try {
-      await createRemito({
+      const { data: newRemito } = await createRemito({
         origen, destino,
         user_id:    null,
         customer_id: custSel?.id || null,
@@ -128,6 +123,16 @@ export default function Remitos() {
       });
       addToast("Remito creado", "success");
       setCreating(false); resetForm(); loadAll();
+      // Ofrecer imprimir inmediatamente
+      const remitoPrint = {
+        ...newRemito,
+        origen, destino,
+        customer_name: custSel?.name || null,
+        items,
+      };
+      if (confirm("¿Querés imprimir el remito ahora?")) {
+        printRemitoPDF(remitoPrint, sinPrecios);
+      }
     } catch { addToast("Error creando remito", "error"); }
     setSaving(false);
   };
@@ -190,7 +195,7 @@ export default function Remitos() {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>#</th><th>Origen</th><th>Destino</th><th>Cliente</th><th>Estado</th><th>Items</th><th>Fecha</th><th></th></tr>
+                    <tr><th>#</th><th>Origen</th><th>Destino</th><th>Cliente</th><th>Items</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
                     {remitos.map((r) => (
@@ -199,7 +204,6 @@ export default function Remitos() {
                         <td style={{ fontSize:14, color:"var(--accent)", fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.origen || "—"}</td>
                         <td style={{ fontSize:14, color:"var(--info)",   fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.destino || "—"}</td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.customer_name || "—"}</td>
-                        <td><span className="badge badge-accent">{r.status}</span></td>
                         <td style={{ fontFamily:"var(--font-mono)", fontSize:13 }}>{r.items?.length ?? "—"}</td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>
                           {r.created_at ? new Date(r.created_at).toLocaleDateString("es-AR") : "—"}
@@ -207,6 +211,16 @@ export default function Remitos() {
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(r.id)}>Ver</button>
+                            <button className="btn btn-ghost btn-sm" title="Imprimir"
+                              style={{ fontSize:15 }}
+                              onClick={async () => {
+                                try {
+                                  const { data } = await getRemito(r.id);
+                                  printRemitoPDF(data);
+                                } catch { addToast("Error cargando remito", "error"); }
+                              }}>
+                              🖨️
+                            </button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(r.id)}>🗑️</button>
                           </div>
                         </td>
@@ -218,29 +232,79 @@ export default function Remitos() {
             )}
           </div>
 
+          {/* ── MODAL DETALLE ── */}
           {selected && (
             <div className="modal-overlay" onClick={() => setSelected(null)}>
-              <div className="modal" style={{ maxWidth:520 }} onClick={(e) => e.stopPropagation()}>
+              <div className="modal" style={{ maxWidth:580 }} onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
-                  <span className="modal-title">Remito {selected.id?.slice(0,8)}…</span>
+                  <span className="modal-title">
+                    🚚 {selected.origen || "—"} → {selected.destino || "—"}
+                  </span>
                   <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                 </div>
-                <div style={{ display:"flex", gap:10, marginBottom:14 }}>
-                  <span className="badge badge-accent">{selected.status}</span>
-                  {selected.origen && <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{selected.origen}</span>}
-                  {selected.destino && <><span style={{ color:"var(--text-dim)" }}>→</span><span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--info)", fontWeight:700 }}>{selected.destino}</span></>}
+
+                {/* Meta */}
+                <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
+                  <span style={{ fontSize:12, color:"var(--text-dim)" }}>
+                    {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : "—"}
+                  </span>
+                  {selected.customer_name && (
+                    <span style={{ fontSize:13, color:"var(--text-muted)" }}>Cliente: {selected.customer_name}</span>
+                  )}
+                  {selected.vendedor && (
+                    <span style={{ fontSize:13, color:"var(--text-muted)" }}>Vendedor: {selected.vendedor}</span>
+                  )}
                 </div>
+
+                {/* Items */}
                 {selected.items?.length > 0 ? (
-                  <div className="items-list">
-                    {selected.items.map((it, i) => (
-                      <div key={i} className="item-row">
-                        <span className="item-name">{it.product_id}</span>
-                        <span className="item-qty">×{it.quantity}</span>
-                        <span className="item-price">${Number(it.unit_price).toLocaleString("es-AR")}</span>
-                      </div>
-                    ))}
+                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", marginBottom:16 }}>
+                    <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                      <thead>
+                        <tr style={{ background:"var(--bg3)", borderBottom:"2px solid var(--border)" }}>
+                          {["Código","Descripción","Cant.","P. Unit.","Total"].map((h,i) => (
+                            <th key={h} style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:10, letterSpacing:"0.07em", textTransform:"uppercase", color:"var(--text-dim)", textAlign: i>1?"right":"left" }}>{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selected.items.map((it, i) => (
+                          <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
+                            <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.code || "—"}</td>
+                            <td style={{ padding:"7px 8px", fontSize:13 }}>{it.name || it.description || "—"}</td>
+                            <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right" }}>{it.quantity}</td>
+                            <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right", color:"var(--text-muted)" }}>
+                              ${Number(it.unit_price||0).toLocaleString("es-AR",{minimumFractionDigits:2})}
+                            </td>
+                            <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, textAlign:"right", color:"var(--accent)" }}>
+                              ${(it.quantity*Number(it.unit_price||0)).toLocaleString("es-AR",{minimumFractionDigits:2})}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
+                          <td colSpan={4} style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-muted)", textTransform:"uppercase", textAlign:"right" }}>Total</td>
+                          <td style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:15, fontWeight:800, color:"var(--accent)", textAlign:"right" }}>
+                            ${(selected.items||[]).reduce((a,i)=>a+i.quantity*Number(i.unit_price||0),0).toLocaleString("es-AR",{minimumFractionDigits:2})}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
                   </div>
-                ) : <div className="empty">Sin items</div>}
+                ) : <div className="empty" style={{ marginBottom:16 }}>Sin items</div>}
+
+                {/* Botones del modal */}
+                <div style={{ display:"flex", gap:8 }}>
+                  <button className="btn btn-ghost" style={{ flex:1 }}
+                    onClick={() => printRemitoPDF(selected, false)}>
+                    🖨️ Imprimir con precios
+                  </button>
+                  <button className="btn btn-ghost" style={{ flex:1 }}
+                    onClick={() => printRemitoPDF(selected, true)}>
+                    🖨️ Imprimir sin precios
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -295,7 +359,7 @@ export default function Remitos() {
               </div>
             </div>
 
-            {/* Cliente + Precio — scroll interno */}
+            {/* Cliente + Precio */}
             <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
               {/* Cliente */}
               <div style={{ marginBottom:16 }}>
@@ -352,7 +416,7 @@ export default function Remitos() {
               </div>
             </div>
 
-            {/* Botones — siempre visibles al fondo */}
+            {/* Botones */}
             <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <button className="btn btn-primary" onClick={handleCreate} disabled={saving}
                 style={{ width:"100%", fontSize:14, padding:"12px" }}>
@@ -416,10 +480,8 @@ export default function Remitos() {
               )}
             </div>
 
-            {/* ── Barra inferior — dropdown abre hacia ARRIBA ── */}
+            {/* ── Barra inferior ── */}
             <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"14px 28px 16px", flexShrink:0 }}>
-
-              {/* Chip del producto seleccionado */}
               {prodSel && (
                 <div style={{ marginBottom:10, padding:"9px 14px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:12 }}>
                   <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
@@ -433,7 +495,6 @@ export default function Remitos() {
                 </div>
               )}
 
-              {/* Descripción */}
               <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:10 }}>
                 <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
                 <input className="input" style={{ flex:1, fontSize:14, height:36 }}
@@ -442,16 +503,10 @@ export default function Remitos() {
                   onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
               </div>
 
-              {/* Fila principal */}
               <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Código o descripción</div>
-                  <ProductSearchBar
-                    priceType={priceType}
-                    onSelect={handleProdSelect}
-                    autoFocus={!prodSel}
-                    dropUp
-                  />
+                  <ProductSearchBar priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 110px" }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Cantidad</div>

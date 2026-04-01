@@ -8,6 +8,7 @@ import WebOrders        from "./pages/WebOrders";
 import CuentaCorriente  from "./pages/CuentaCorriente";
 import Products         from "./pages/Products";
 import Vendedores       from "./pages/Vendedores";
+import Configuracion    from "./pages/Configuracion";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/cuenta-corriente"   element={<Layout><CuentaCorriente /></Layout>} />
         <Route path="/productos"          element={<Layout><Products /></Layout>} />
         <Route path="/vendedores"         element={<Layout><Vendedores /></Layout>} />
+        <Route path="/configuracion"      element={<Layout><Configuracion /></Layout>} />
       </Routes>
     </BrowserRouter>
   );

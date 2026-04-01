@@ -3,6 +3,7 @@ import { searchCustomers, createComprobante, deleteComprobante, getListadoCaja, 
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
+import { printComprobantePDF } from "../utils/printDoc";
 
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
@@ -12,20 +13,16 @@ const PRECIO_LBL = {
 };
 const METODOS_PAGO = ["Efectivo","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 
-const extractPrice = (product, priceType) => {
-  const prices = product?.prices || product?.product_prices || [];
-  const found  = prices.find((p) => p.price_type === priceType);
-  return found ? Number(found.price) : 0;
-};
-
 const today   = () => new Date().toISOString().slice(0, 10);
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
 
-// ── Mini hook para modal de presupuestar una nota de pedido ─────
+// ─────────────────────────────────────────────────────────────────────────────
+// Hook para el modal de presupuestar una nota de pedido
+// ─────────────────────────────────────────────────────────────────────────────
 function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const [open,      setOpen]      = useState(false);
-  const [source,    setSource]    = useState(null);
+  const [source,    setSource]    = useState(null);   // la nota de pedido original
   const [tipo,      setTipo]      = useState("Presupuesto");
   const [payMethod, setPayMethod] = useState("Contado");
   const [priceType, setPriceType] = useState("precio_1");
@@ -40,6 +37,9 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const [itemPrice, setItemPrice] = useState("");
   const [itemDesc,  setItemDesc]  = useState("");
   const [saving,    setSaving]    = useState(false);
+
+  // Items originales de la nota (para detectar cuáles se eliminaron)
+  const [originalItems, setOriginalItems] = useState([]);
 
   const qtyRef = useRef(null);
 
@@ -69,6 +69,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
       quantity: i.quantity,
       unit_price: Number(i.unit_price || 0),
     }));
+    setOriginalItems(itemsPre);
     setItems(itemsPre);
     setCustSel(order.customer_id ? { id: order.customer_id, name: order.customer_name } : null);
     setCustQuery(order.customer_name || "");
@@ -113,17 +114,44 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
     if (items.length === 0){ addToast("Agregá al menos un producto", "error"); return; }
     setSaving(true);
     try {
+      // ── Detectar items eliminados respecto a la nota original ──────────
+      // Un item se considera "eliminado" si su product_id ya no aparece en los items actuales
+      const currentIds = new Set(items.map((i) => i.product_id).filter(Boolean));
+      const removedItems = originalItems.filter(
+        (oi) => oi.product_id && !currentIds.has(oi.product_id)
+      );
+
+      // ── Crear el presupuesto ───────────────────────────────────────────
+      // Pasamos source_nota_id para que el backend:
+      //   1. Descuente stock_reserva de los items presupuestados
+      //   2. Descuente stock real
+      //   3. Cree nota paralela con removed_items (si hay)
+      //   4. Elimine la nota original
       await createComprobante({
         customer_id:    custSel.id,
         user_id:        null,
         payment_method: payMethod,
         tipo, vendedor, price_type: priceType, texto_libre: texto,
+        source_nota_id: source?.id || null,
+        removed_items:  removedItems,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
+
       addToast("Presupuesto creado", "success");
+
+      if (removedItems.length > 0) {
+        addToast(
+          `Se creó una nueva Nota de Pedido con ${removedItems.length} producto${removedItems.length > 1 ? "s" : ""} eliminado${removedItems.length > 1 ? "s" : ""}`,
+          "info"
+        );
+      }
+
       setOpen(false);
       onSuccess && onSuccess();
-    } catch { addToast("Error creando presupuesto", "error"); }
+    } catch (err) {
+      addToast("Error creando presupuesto", "error");
+      console.error(err);
+    }
     setSaving(false);
   };
 
@@ -136,12 +164,20 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
     itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
     confirmItem, totalCalc, saving, handleCreate,
     qtyRef, vendedores,
+    originalItems,
   };
 }
 
-// ── Modal de presupuestar ──────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Modal de presupuestar
+// ─────────────────────────────────────────────────────────────────────────────
 function PresModal({ m }) {
   if (!m.open) return null;
+
+  // Items eliminados en tiempo real (para mostrar aviso)
+  const currentIds  = new Set(m.items.map((i) => i.product_id).filter(Boolean));
+  const removedNow  = m.originalItems.filter((oi) => oi.product_id && !currentIds.has(oi.product_id));
+
   return (
     <div className="modal-overlay" onClick={() => m.setOpen(false)}>
       <div
@@ -154,6 +190,16 @@ function PresModal({ m }) {
           <span className="modal-title">🧾 Presupuestar — {m.source?.customer_name || "—"}</span>
           <button className="modal-close" onClick={() => m.setOpen(false)}>✕</button>
         </div>
+
+        {/* Aviso de items eliminados */}
+        {removedNow.length > 0 && (
+          <div style={{ padding:"10px 18px", background:"rgba(240,160,0,0.12)", borderBottom:"1px solid rgba(240,160,0,0.3)", flexShrink:0 }}>
+            <span style={{ fontSize:12, color:"var(--accent)", fontFamily:"var(--font-mono)" }}>
+              ⚠️ {removedNow.length} producto{removedNow.length > 1 ? "s eliminados" : " eliminado"} →
+              se creará una nueva Nota de Pedido con {removedNow.map((i) => i.name || i.description).join(", ")}
+            </span>
+          </div>
+        )}
 
         <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
 
@@ -205,7 +251,7 @@ function PresModal({ m }) {
               )}
             </div>
 
-            {/* Config — scroll interno */}
+            {/* Config */}
             <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
               <div className="input-group">
                 <label className="input-label">Método de pago</label>
@@ -232,7 +278,7 @@ function PresModal({ m }) {
               </div>
             </div>
 
-            {/* Botones — siempre visibles al fondo */}
+            {/* Botones */}
             <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
               <button className="btn btn-primary" onClick={m.handleCreate} disabled={m.saving}
                 style={{ width:"100%", fontSize:13, padding:"10px" }}>
@@ -282,10 +328,8 @@ function PresModal({ m }) {
               )}
             </div>
 
-            {/* ── Barra de ingreso — dropdown abre hacia ARRIBA ── */}
+            {/* Barra de ingreso — dropUp */}
             <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
-
-              {/* Chip del producto seleccionado */}
               {m.prodSel && (
                 <div style={{ marginBottom:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
                   <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{m.prodSel.code}</span>
@@ -296,25 +340,16 @@ function PresModal({ m }) {
                   <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
                 </div>
               )}
-
-              {/* Descripción */}
               <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
                 <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", whiteSpace:"nowrap" }}>Descripción:</div>
                 <input className="input" style={{ flex:1, fontSize:13, height:34 }} placeholder="Enter si no modifica"
                   value={m.itemDesc} onChange={(e) => m.setItemDesc(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
               </div>
-
-              {/* Fila principal — ProductSearchBar con dropUp */}
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar
-                    priceType={m.priceType}
-                    onSelect={m.handleProdSelect}
-                    autoFocus={!m.prodSel}
-                    dropUp
-                  />
+                  <ProductSearchBar priceType={m.priceType} onSelect={m.handleProdSelect} autoFocus={!m.prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
@@ -345,7 +380,9 @@ function PresModal({ m }) {
   );
 }
 
-// ── Componente principal ───────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Componente principal
+// ─────────────────────────────────────────────────────────────────────────────
 export default function CajaListado() {
   const [from, setFrom] = useState(today());
   const [to,   setTo]   = useState(today());
@@ -419,7 +456,7 @@ export default function CajaListado() {
   const totalSalidas  = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
 
   const handleDeleteNota = async (id) => {
-    if (!confirm("¿Eliminar esta nota de pedido?")) return;
+    if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
     try {
       await deleteComprobante(id);
       setNotasPedido((prev) => prev.filter((n) => n.id !== id));
@@ -427,42 +464,9 @@ export default function CajaListado() {
     } catch { addToast("Error eliminando", "error"); }
   };
 
-  const printNotaPDF = (nota) => {
-    const win = window.open("", "_blank");
-    const items = nota.items || [];
-    win.document.write(`
-      <html><head><title>Nota de Pedido — ${nota.customer_name}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 32px; font-size: 14px; }
-        h2 { margin-bottom: 4px; }
-        p  { margin: 2px 0; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th { text-align: left; border-bottom: 2px solid #000; padding: 7px 10px; font-size: 12px; text-transform: uppercase; }
-        td { padding: 7px 10px; border-bottom: 1px solid #eee; }
-      </style></head><body>
-      <h2>Nota de Pedido</h2>
-      <p><b>${nota.customer_name || "—"}</b></p>
-      <p>Fecha: ${fmtDate(nota.created_at)}</p>
-      ${nota.vendedor ? `<p>Vendedor: ${nota.vendedor}</p>` : ""}
-      <table>
-        <thead><tr><th>Código</th><th>Descripción</th><th>Cant.</th><th style="text-align:right">Precio</th><th style="text-align:right">Total</th></tr></thead>
-        <tbody>
-          ${items.map((i) => `<tr>
-            <td>${i.code||"—"}</td><td>${i.name||i.description||"—"}</td>
-            <td>${i.quantity}</td>
-            <td style="text-align:right">$${fmt(i.unit_price)}</td>
-            <td style="text-align:right">$${fmt(i.quantity*Number(i.unit_price||0))}</td>
-          </tr>`).join("")}
-        </tbody>
-        <tfoot><tr>
-          <td colspan="4" style="text-align:right;font-weight:bold;padding-top:10px">TOTAL</td>
-          <td style="text-align:right;font-weight:bold;padding-top:10px">$${fmt(nota.total)}</td>
-        </tr></tfoot>
-      </table>
-      </body></html>`);
-    win.document.close();
-    win.print();
-  };
+  // Usar la función compartida de impresión
+  const printNotaPDF = (nota) => printComprobantePDF(nota);
+  const printPresupuestoPDF = (p) => printComprobantePDF(p);
 
   return (
     <>
@@ -499,6 +503,7 @@ export default function CajaListado() {
                   <th>Vendedor</th>
                   <th>Método de pago</th>
                   <th style={{ textAlign:"right" }}>Total</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -523,6 +528,9 @@ export default function CajaListado() {
                     </td>
                     <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                       ${fmt(p.total)}
+                    </td>
+                    <td>
+                      <button className="btn btn-ghost btn-sm" onClick={() => printPresupuestoPDF(p)} title="Imprimir">🖨️</button>
                     </td>
                   </tr>
                 ))}
@@ -615,6 +623,7 @@ export default function CajaListado() {
                   <th>Destino</th>
                   <th>Vendedor</th>
                   <th style={{ textAlign:"right" }}>Importe</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -626,6 +635,10 @@ export default function CajaListado() {
                     <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor || "—"}</td>
                     <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                       ${fmt(r.total)}
+                    </td>
+                    <td>
+                      <button className="btn btn-ghost btn-sm" title="Imprimir"
+                        onClick={() => printComprobantePDF({ ...r, tipo: "Remito" })}>🖨️</button>
                     </td>
                   </tr>
                 ))}
