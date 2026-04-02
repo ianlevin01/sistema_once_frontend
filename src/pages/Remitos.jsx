@@ -6,16 +6,31 @@ import {
 import { useToast } from "../utils/useToast";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { printRemitoPDF } from "../utils/printDoc";
+import api from "../utils/api";
 
-const WAREHOUSES = ["Alfred","Saldo","Oficina ML","Camarin","Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
 const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
 
+// Hook que carga los warehouses desde la API
+function useWarehouses() {
+  const [warehouses, setWarehouses] = useState([]);
+  useEffect(() => {
+    api.get("/warehouses")
+      .then(({ data }) => setWarehouses(Array.isArray(data) ? data.map((w) => w.name || w) : []))
+      .catch(() => {
+        // Fallback si no existe el endpoint todavía
+        setWarehouses(["Alfred","Saldo","Oficina ML","Camarin","Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos"]);
+      });
+  }, []);
+  return warehouses;
+}
+
 export default function Remitos() {
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today      = () => new Date().toISOString().slice(0, 10);
+  const warehouses = useWarehouses();
 
   const [remitos,      setRemitos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -28,10 +43,18 @@ export default function Remitos() {
   const filterDirty = from !== appliedFrom || to !== appliedTo;
 
   // Form
-  const [origen,     setOrigen]     = useState("Alfred");
-  const [destino,    setDestino]    = useState("Past 280");
+  const [origen,     setOrigen]     = useState("");
+  const [destino,    setDestino]    = useState("");
   const [priceType,  setPriceType]  = useState("precio_1");
   const [sinPrecios, setSinPrecios] = useState(false);
+
+  // Cuando cargan los warehouses, inicializar origen/destino con los primeros valores reales
+  useEffect(() => {
+    if (warehouses.length > 0) {
+      if (!origen) setOrigen(warehouses[0]);
+      if (!destino) setDestino(warehouses[warehouses.length > 1 ? 1 : 0]);
+    }
+  }, [warehouses]);
 
   // Cliente
   const [custQuery,   setCustQuery]   = useState("");
@@ -138,7 +161,8 @@ export default function Remitos() {
   };
 
   const resetForm = () => {
-    setOrigen("Alfred"); setDestino("Past 280"); setPriceType("precio_1");
+    setOrigen(warehouses[0] || ""); setDestino(warehouses[warehouses.length > 1 ? 1 : 0] || "");
+    setPriceType("precio_1");
     setSinPrecios(false); setCustSel(null); setCustQuery(""); setItems([]);
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
@@ -325,8 +349,8 @@ export default function Remitos() {
                 <div>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Origen</div>
                   <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
-                    {WAREHOUSES.map((w) => (
-                      <div key={w} onClick={() => setOrigen(w)}
+                    {warehouses.map((w, idx) => (
+                      <div key={`origen-${idx}`} onClick={() => setOrigen(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
                           background: origen===w ? "var(--accent-dim)" : "transparent",
                           color:      origen===w ? "var(--accent)"     : "var(--text-muted)",
@@ -342,8 +366,8 @@ export default function Remitos() {
                 <div>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Destino</div>
                   <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
-                    {WAREHOUSES.map((w) => (
-                      <div key={w} onClick={() => setDestino(w)}
+                    {warehouses.map((w, idx) => (
+                      <div key={`destino-${idx}`} onClick={() => setDestino(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
                           background: destino===w ? "var(--info-dim)"  : "transparent",
                           color:      destino===w ? "var(--info)"      : "var(--text-muted)",

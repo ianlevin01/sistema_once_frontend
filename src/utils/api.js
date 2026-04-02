@@ -23,13 +23,17 @@ export const getCuentaCorrienteGeneral  = ()         => api.get("/cuenta-corrien
 export const getCuentaCorrienteCliente  = (id)       => api.get(`/cuenta-corriente/cliente/${id}`);
 export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/pago`, data);
 export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/saldo`, data);
+export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/cobranza`, data);
+export const getCobranzasCC             = (from, to) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : ""}`);
 
 // PRODUCTS
-export const searchProducts = (name) => api.get(`/products/search?name=${name}`);
-export const getProduct     = (id)   => api.get(`/products/${id}`);
-export const createProduct  = (data) => api.post("/products", data);
-export const updateProduct  = (id, data) => api.put(`/products/${id}`, data);
-export const deleteProduct  = (id)   => api.delete(`/products/${id}`);
+export const searchProducts  = (name)     => api.get(`/products/search?name=${name}`);
+export const getProduct      = (id)       => api.get(`/products/${id}`);
+export const createProduct   = (data)     => api.post("/products", data);
+export const updateProduct   = (id, data) => api.put(`/products/${id}`, data);
+export const deleteProduct   = (id)       => api.delete(`/products/${id}`);
+export const getCategories   = ()         => api.get("/products/categories");
+export const createCategory  = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
 
 // REMITOS
 export const getRemitos    = (from, to) =>

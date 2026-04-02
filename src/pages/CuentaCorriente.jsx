@@ -3,7 +3,7 @@ import {
   searchCustomers, getCustomer,
   createCustomer, updateCustomer, deleteCustomer,
   getCuentaCorrienteCliente, getCuentaCorrienteGeneral,
-  registrarPagoCC, agregarSaldoCC,
+  registrarPagoCC, agregarSaldoCC, registrarCobranzaCC,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
@@ -57,13 +57,15 @@ function TabIndividual() {
   const [loadingCC,  setLoadingCC]  = useState(false);
   const [viewCC,     setViewCC]     = useState(false);   // false = ficha cliente, true = cuenta corriente
 
-  // Modales de pago y saldo
-  const [modalPago,   setModalPago]   = useState(false);
-  const [modalSaldo,  setModalSaldo]  = useState(false);
-  const [formPago,    setFormPago]    = useState({ monto:"", concepto:"" });
-  const [formSaldo,   setFormSaldo]   = useState({ monto:"", concepto:"" });
-  const [savingPago,  setSavingPago]  = useState(false);
-  const [savingSaldo, setSavingSaldo] = useState(false);
+  // Modales de pago y cobranza
+  const [modalPago,      setModalPago]      = useState(false);
+  const [modalCobranza,  setModalCobranza]  = useState(false);
+  const [formPago,       setFormPago]       = useState({ monto:"", concepto:"" });
+  const [formCobranza,   setFormCobranza]   = useState({ monto:"", concepto:"", metodo_pago:"Efectivo" });
+  const [savingPago,     setSavingPago]     = useState(false);
+  const [savingCobranza, setSavingCobranza] = useState(false);
+
+  const METODOS_COBRANZA = ["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"];
 
   const listRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
@@ -149,17 +151,23 @@ function TabIndividual() {
     setSavingPago(false);
   };
 
-  const handleSaldo = async () => {
-    const monto = Number(formSaldo.monto);
+  const handleCobranza = async () => {
+    const monto = Number(formCobranza.monto);
     if (!monto || monto <= 0) { addToast("Monto inválido", "error"); return; }
-    setSavingSaldo(true);
+    if (!formCobranza.metodo_pago) { addToast("Seleccioná un método de pago", "error"); return; }
+    setSavingCobranza(true);
     try {
-      await agregarSaldoCC(selected.id, { monto, concepto: formSaldo.concepto || "Saldo a favor" });
-      addToast("Saldo agregado", "success");
-      setModalSaldo(false); setFormSaldo({ monto:"", concepto:"" });
+      await registrarCobranzaCC(selected.id, {
+        monto,
+        concepto:    formCobranza.concepto || "Cobranza",
+        metodo_pago: formCobranza.metodo_pago,
+      });
+      addToast("Cobranza registrada", "success");
+      setModalCobranza(false);
+      setFormCobranza({ monto:"", concepto:"", metodo_pago:"Efectivo" });
       loadCC(selected.id);
-    } catch (err) { addToast(err.response?.data?.message || "Error agregando saldo", "error"); }
-    setSavingSaldo(false);
+    } catch (err) { addToast(err.response?.data?.message || "Error registrando cobranza", "error"); }
+    setSavingCobranza(false);
   };
 
   // Formulario cliente
@@ -278,7 +286,7 @@ function TabIndividual() {
                 </>
               ) : viewCC && selected ? (
                 <>
-                  <button className="btn btn-primary btn-sm" onClick={() => setModalSaldo(true)}>+ Saldo a favor</button>
+                  <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>+ Registrar cobranza</button>
                   <button className="btn btn-ghost btn-sm"   onClick={() => setModalPago(true)}>Registrar pago</button>
                 </>
               ) : (
@@ -386,15 +394,16 @@ function TabIndividual() {
                   ) : (
                     <div style={{ display:"flex", flexDirection:"column", gap:1 }}>
                       {/* Header */}
-                      <div style={{ display:"grid", gridTemplateColumns:"120px 1fr 130px 80px", gap:12, padding:"8px 12px", background:"var(--bg3)", borderRadius:"6px 6px 0 0", borderBottom:"2px solid var(--border)" }}>
-                        {["Fecha","Concepto","Monto","Tipo"].map((h) => (
+                      <div style={{ display:"grid", gridTemplateColumns:"120px 1fr 150px 130px 80px", gap:12, padding:"8px 12px", background:"var(--bg3)", borderRadius:"6px 6px 0 0", borderBottom:"2px solid var(--border)" }}>
+                        {["Fecha","Concepto","Método","Monto","Tipo"].map((h) => (
                           <div key={h} style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</div>
                         ))}
                       </div>
                       {cc.movimientos.map((m) => (
-                        <div key={m.id} style={{ display:"grid", gridTemplateColumns:"120px 1fr 130px 80px", gap:12, padding:"11px 12px", borderBottom:"1px solid var(--border)", alignItems:"center", background:"var(--bg)" }}>
+                        <div key={m.id} style={{ display:"grid", gridTemplateColumns:"120px 1fr 150px 130px 80px", gap:12, padding:"11px 12px", borderBottom:"1px solid var(--border)", alignItems:"center", background:"var(--bg)" }}>
                           <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
                           <span style={{ fontSize:13 }}>{m.concepto || "—"}</span>
+                          <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>{m.metodo_pago || "—"}</span>
                           <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color: m.tipo === "debito" ? "var(--danger)" : "var(--success)" }}>
                             {m.tipo === "debito" ? "+" : "−"}{fmtARS(m.monto)}
                           </span>
@@ -553,32 +562,51 @@ function TabIndividual() {
         </div>
       )}
 
-      {/* Modal: Agregar saldo a favor */}
-      {modalSaldo && (
-        <div className="modal-overlay" onClick={() => setModalSaldo(false)}>
-          <div className="modal" style={{ maxWidth:400 }} onClick={(e) => e.stopPropagation()}>
+      {/* Modal: Registrar cobranza */}
+      {modalCobranza && (
+        <div className="modal-overlay" onClick={() => setModalCobranza(false)}>
+          <div className="modal" style={{ maxWidth:420 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Agregar saldo a favor — {selected?.name}</span>
-              <button className="modal-close" onClick={() => setModalSaldo(false)}>✕</button>
+              <span className="modal-title">Registrar cobranza — {selected?.name}</span>
+              <button className="modal-close" onClick={() => setModalCobranza(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ display:"flex", flexDirection:"column", gap:14 }}>
               <div className="input-group">
                 <label className="input-label">Monto ($)</label>
-                <input className="input" type="number" min="0" value={formSaldo.monto}
-                  onChange={(e) => setFormSaldo((p) => ({ ...p, monto: e.target.value }))}
+                <input className="input" type="number" min="0" value={formCobranza.monto}
+                  onChange={(e) => setFormCobranza((p) => ({ ...p, monto: e.target.value }))}
                   placeholder="0.00" autoFocus />
               </div>
               <div className="input-group">
-                <label className="input-label">Concepto</label>
-                <input className="input" value={formSaldo.concepto}
-                  onChange={(e) => setFormSaldo((p) => ({ ...p, concepto: e.target.value }))}
-                  placeholder="Devolución, acreditación, etc." />
+                <label className="input-label">Método de cobro</label>
+                <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
+                  {METODOS_COBRANZA.map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => setFormCobranza((p) => ({ ...p, metodo_pago: m }))}
+                      style={{
+                        padding:"7px 16px", borderRadius:6, border:"1px solid var(--border)",
+                        cursor:"pointer", fontSize:13, fontFamily:"var(--font-mono)",
+                        background: formCobranza.metodo_pago === m ? "var(--accent)"     : "var(--bg3)",
+                        color:      formCobranza.metodo_pago === m ? "#fff"              : "var(--text-muted)",
+                        fontWeight: formCobranza.metodo_pago === m ? 700                 : 400,
+                        transition:"all 0.13s",
+                      }}
+                    >{m}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="input-group">
+                <label className="input-label">Concepto (opcional)</label>
+                <input className="input" value={formCobranza.concepto}
+                  onChange={(e) => setFormCobranza((p) => ({ ...p, concepto: e.target.value }))}
+                  placeholder="Cobranza, seña, etc." />
               </div>
             </div>
             <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setModalSaldo(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleSaldo} disabled={savingSaldo}>
-                {savingSaldo ? "Guardando..." : "Agregar saldo"}
+              <button className="btn btn-ghost" onClick={() => setModalCobranza(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={handleCobranza} disabled={savingCobranza}>
+                {savingCobranza ? "Guardando..." : "Registrar cobranza"}
               </button>
             </div>
           </div>

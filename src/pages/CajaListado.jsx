@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { searchCustomers, createComprobante, deleteComprobante, getListadoCaja, getCashMovements } from "../utils/api";
+import { searchCustomers, createComprobante, deleteComprobante, getListadoCaja, getCashMovements, getCobranzasCC } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
@@ -16,6 +16,52 @@ const METODOS_PAGO = ["Efectivo","Cta Cte","Tarjeta","Banco","Mercado Pago","Che
 const today   = () => new Date().toISOString().slice(0, 10);
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
+
+// ── Skeleton de carga ──────────────────────────────────────────
+function SkeletonRow({ cols = 4 }) {
+  return (
+    <tr>
+      {Array.from({ length: cols }).map((_, i) => (
+        <td key={i} style={{ padding:"10px 12px" }}>
+          <div style={{
+            height: 14,
+            borderRadius: 4,
+            background: "linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%)",
+            backgroundSize: "200% 100%",
+            animation: "shimmer 1.4s infinite",
+            width: i === 1 ? "70%" : i === 0 ? "40%" : "55%",
+          }} />
+        </td>
+      ))}
+    </tr>
+  );
+}
+
+function SkeletonCard({ rows = 5, cols = 4, title = "" }) {
+  return (
+    <div className="card" style={{ marginBottom: 24 }}>
+      <style>{`
+        @keyframes shimmer {
+          0%   { background-position: 200% 0; }
+          100% { background-position: -200% 0; }
+        }
+      `}</style>
+      <div className="card-header">
+        <span className="card-title">{title}</span>
+        <div style={{ width: 28, height: 20, borderRadius: 10, background: "var(--bg3)", animation: "shimmer 1.4s infinite", backgroundSize: "200% 100%", backgroundImage: "linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%)" }} />
+      </div>
+      <div className="table-wrap">
+        <table>
+          <tbody>
+            {Array.from({ length: rows }).map((_, i) => (
+              <SkeletonRow key={i} cols={cols} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Hook para el modal de presupuestar una nota de pedido
@@ -392,6 +438,7 @@ export default function CajaListado() {
   const [notasPedido,  setNotasPedido]  = useState([]);
   const [remitos,      setRemitos]      = useState([]);
   const [cashMovs,     setCashMovs]     = useState([]);
+  const [cobranzas,    setCobranzas]    = useState([]);
 
   const { addToast, ToastContainer } = useToast();
   const vendedores = useVendedores();
@@ -401,14 +448,16 @@ export default function CajaListado() {
   async function load() {
     setLoading(true);
     try {
-      const [{ data }, cashRes] = await Promise.all([
+      const [{ data }, cashRes, cobranzasRes] = await Promise.all([
         getListadoCaja(from, to),
         getCashMovements(from, to),
+        getCobranzasCC(from, to),
       ]);
       setPresupuestos(data.presupuestos || []);
       setNotasPedido(data.notasPedido  || []);
       setRemitos(data.remitos          || []);
       setCashMovs(cashRes.data         || []);
+      setCobranzas(cobranzasRes.data   || []);
     } catch { addToast("Error cargando listado", "error"); }
     setLoading(false);
   }
@@ -455,6 +504,21 @@ export default function CajaListado() {
   const totalEntradas = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
   const totalSalidas  = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
 
+  // Cobranzas por método (para resumen de caja)
+  const METODOS_COBRANZA_MAP = {
+    "Efectivo":  "Efectivo",
+    "Cheque":    "Cheques",
+    "Depósito":  "Por Banco",
+    "Tarjeta":   "Tarjeta",
+    "Mercpago":  "Mercado Pago",
+  };
+  const cobranzasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+  cobranzas.forEach((c) => {
+    const col = METODOS_COBRANZA_MAP[c.metodo_pago] || "Efectivo";
+    cobranzasPorMetodo[col] = (cobranzasPorMetodo[col] || 0) + Number(c.monto || 0);
+  });
+  const totalCobranzas = cobranzas.reduce((a, c) => a + Number(c.monto || 0), 0);
+
   const handleDeleteNota = async (id) => {
     if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
     try {
@@ -480,9 +544,18 @@ export default function CajaListado() {
         <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>HASTA</span>
         <input className="input" type="date" value={to}   onChange={(e) => setTo(e.target.value)}   style={{ width:140 }} />
         <button className="btn btn-ghost" onClick={load}>Filtrar</button>
-        {loading && <span style={{ fontSize:13, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>Cargando...</span>}
       </div>
 
+      {/* ── LOADING SKELETON ─────────────────────────────────── */}
+      {loading ? (
+        <>
+          <SkeletonCard title="Presupuestos"               rows={4} cols={6} />
+          <SkeletonCard title="Reservas (Notas de Pedido)" rows={3} cols={4} />
+          <SkeletonCard title="Cobranzas en PESOS"         rows={3} cols={8} />
+          <SkeletonCard title="Remitos"                    rows={3} cols={5} />
+        </>
+      ) : (
+        <>
       {/* ── SECCIÓN 1: PRESUPUESTOS ───────────────────────────── */}
       <div className="card" style={{ marginBottom:24 }}>
         <div className="card-header">
@@ -604,7 +677,88 @@ export default function CajaListado() {
         )}
       </div>
 
-      {/* ── SECCIÓN 3: REMITOS ────────────────────────────────── */}
+      {/* ── SECCIÓN 3: COBRANZAS ─────────────────────────────── */}
+      <div className="card" style={{ marginBottom:24 }}>
+        <div className="card-header">
+          <span className="card-title">Cobranzas en PESOS</span>
+          <span className="badge badge-info">{cobranzas.length}</span>
+        </div>
+
+        {cobranzas.length === 0 ? (
+          <div className="empty">Sin cobranzas en este período</div>
+        ) : (
+          <>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th>Ajustes</th>
+                    <th style={{ textAlign:"right" }}>Efectivo</th>
+                    <th style={{ textAlign:"right" }}>Cheques</th>
+                    <th style={{ textAlign:"right" }}>Depósitos</th>
+                    <th style={{ textAlign:"right" }}>Tarjeta</th>
+                    <th style={{ textAlign:"right" }}>Mercpago</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cobranzas.map((c) => (
+                    <tr key={c.id}>
+                      <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.created_at)}</td>
+                      <td>
+                        <div style={{ fontSize:14, fontWeight:500 }}>{c.customer_name || "—"}</div>
+                        {c.concepto && c.concepto !== "Cobranza" && (
+                          <div style={{ fontSize:12, color:"var(--text-dim)" }}>{c.concepto}</div>
+                        )}
+                      </td>
+                      <td style={{ fontSize:12, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
+                        {c.order_id ? (
+                          <span style={{ color:"var(--accent)", cursor:"pointer" }}>{c.order_id.slice(-5)}</span>
+                        ) : "—"}
+                      </td>
+                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        {c.metodo_pago === "Efectivo"  ? `$${fmt(c.monto)}` : ""}
+                      </td>
+                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        {c.metodo_pago === "Cheque"    ? `$${fmt(c.monto)}` : ""}
+                      </td>
+                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        {c.metodo_pago === "Depósito"  ? `$${fmt(c.monto)}` : ""}
+                      </td>
+                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        {c.metodo_pago === "Tarjeta"   ? `$${fmt(c.monto)}` : ""}
+                      </td>
+                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        {c.metodo_pago === "Mercpago"  ? `$${fmt(c.monto)}` : ""}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {/* Totales por método */}
+            <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
+              {["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"].map((met) => {
+                const total = cobranzas.filter((c) => c.metodo_pago === met).reduce((a, c) => a + Number(c.monto || 0), 0);
+                if (!total) return null;
+                return (
+                  <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:130 }}>
+                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
+                    <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color:"var(--accent)" }}>${fmt(total)}</div>
+                  </div>
+                );
+              })}
+              <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
+                <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total Cobranzas</div>
+                <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>${fmt(totalCobranzas)}</div>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* ── SECCIÓN 4: REMITOS ────────────────────────────────── */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">Remitos</span>
@@ -648,7 +802,7 @@ export default function CajaListado() {
         )}
       </div>
 
-      {/* ── SECCIÓN 4: RESUMEN DE CAJA ───────────────────────── */}
+      {/* ── SECCIÓN 5: RESUMEN DE CAJA ───────────────────────── */}
       <div className="card" style={{ marginTop:24 }}>
         <div className="card-header">
           <span className="card-title">Resumen de Caja</span>
@@ -678,6 +832,15 @@ export default function CajaListado() {
                 <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)" }}>${fmt(totalVentas)}</td>
               </tr>
               <tr style={{ borderBottom:"1px solid var(--border)" }}>
+                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Cobranzas</td>
+                {METODOS_COLS.map((m) => (
+                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: cobranzasPorMetodo[m] ? "var(--success)" : "var(--text-dim)" }}>
+                    {cobranzasPorMetodo[m] ? `$${fmt(cobranzasPorMetodo[m])}` : "—"}
+                  </td>
+                ))}
+                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--success)" }}>${fmt(totalCobranzas)}</td>
+              </tr>
+              <tr style={{ borderBottom:"1px solid var(--border)" }}>
                 <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Entradas por Caja</td>
                 {METODOS_COLS.map((m) => (
                   <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: entradasPorMetodo[m] ? "var(--success)" : "var(--text-dim)" }}>
@@ -699,6 +862,8 @@ export default function CajaListado() {
           </table>
         </div>
       </div>
+        </>  
+      )}
     </>
   );
 }

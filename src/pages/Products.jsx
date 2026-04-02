@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
 const EMPTY_FORM = {
   name: "", code: "", barcode: "", box_code: "", description: "",
-  category_id: "", active: true, cost: "", tasa_iva: "", despacho: "",
+  category_id: "", active: true, costo_usd: "", tasa_iva: "", despacho: "",
   aduana: "", origen: "", qxb: "", fecha: "", video_url: "",
-  price_1: "", price_2: "", price_3: "", price_4: "", price_5: "",
 };
+
+const FMTARS = (v) => v != null ? `$${Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—";
+const FMTUSD = (v) => v != null ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—";
 
 const WAREHOUSES_DEFAULT = [
   "Alfred","Saldo","Oficina ML","Camarin",
@@ -142,6 +144,60 @@ export default function Products() {
   const listRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
+  // ── Categorías ────────────────────────────────────────────────────────────
+  const [categories,       setCategories]       = useState([]);
+  const [catInput,         setCatInput]         = useState("");
+  const [catDropdownOpen,  setCatDropdownOpen]  = useState(false);
+  const [creatingCat,      setCreatingCat]      = useState(false);
+  const catRef = useRef(null);
+
+  useEffect(() => {
+    getCategories().then(({ data }) => setCategories(data || [])).catch(() => {});
+  }, []);
+
+  // Cerrar dropdown al hacer click afuera
+  useEffect(() => {
+    const handler = (e) => {
+      if (catRef.current && !catRef.current.contains(e.target)) setCatDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filteredCats = categories.filter((c) =>
+    c.name.toLowerCase().includes(catInput.toLowerCase())
+  );
+  const showCreateOption = catInput.trim() && !categories.some(
+    (c) => c.name.toLowerCase() === catInput.trim().toLowerCase()
+  );
+
+  const selectCategory = (cat) => {
+    setForm((prev) => ({ ...prev, category_id: cat.id }));
+    setCatInput(cat.name);
+    setCatDropdownOpen(false);
+  };
+
+  const handleCreateCategory = async () => {
+    if (!catInput.trim()) return;
+    setCreatingCat(true);
+    try {
+      const { data: newCat } = await createCategory(catInput.trim());
+      setCategories((prev) => [...prev, newCat].sort((a, b) => a.name.localeCompare(b.name)));
+      selectCategory(newCat);
+      addToast(`Categoría "${newCat.name}" creada`, "success");
+    } catch {
+      addToast("Error creando categoría", "error");
+    }
+    setCreatingCat(false);
+  };
+
+  const openCategoryPicker = () => {
+    setCatInput(form.category_id
+      ? (categories.find((c) => c.id === form.category_id)?.name || "")
+      : "");
+    setCatDropdownOpen(true);
+  };
+
   const EMPTY_IMGS = [
     { file: null, preview: null, existingKey: null },
     { file: null, preview: null, existingKey: null },
@@ -224,14 +280,13 @@ export default function Products() {
   const openNew = () => {
     setForm(EMPTY_FORM);
     setImgSlots(EMPTY_IMGS);
+    setCatInput("");
     setModal("new");
   };
 
   // ── Abrir modal editar ────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
-    const prices  = selected.prices || selected.product_prices || [];
-    const getPrice = (type) => prices.find((p) => p.price_type === type)?.price || "";
     setForm({
       name:        selected.name        || "",
       code:        selected.code        || "",
@@ -240,7 +295,7 @@ export default function Products() {
       description: selected.description || "",
       category_id: selected.category_id || "",
       active:      selected.active      ?? true,
-      cost:        getPrice("costo")    || selected.cost || "",
+      costo_usd:   selected.costo_usd   || "",
       tasa_iva:    selected.tasa_iva    || "",
       despacho:    selected.despacho    || "",
       aduana:      selected.aduana      || "",
@@ -248,11 +303,6 @@ export default function Products() {
       qxb:         selected.qxb         || "",
       fecha:       selected.fecha || selected.created_at?.slice(0,10) || "",
       video_url:   selected.video_url   || "",
-      price_1:     getPrice("precio_1") || "",
-      price_2:     getPrice("precio_2") || "",
-      price_3:     getPrice("precio_3") || "",
-      price_4:     getPrice("precio_4") || "",
-      price_5:     getPrice("precio_5") || "",
     });
 
     // Cargar imágenes desde el array images de la API — guardar la key para poder conservarla
@@ -262,6 +312,7 @@ export default function Products() {
       { file: null, preview: imgs[1]?.url || null, existingKey: imgs[1]?.key || null },
       { file: null, preview: imgs[2]?.url || null, existingKey: imgs[2]?.key || null },
     ]);
+    setCatInput(selected.category_name || categories.find((c) => c.id === selected.category_id)?.name || "");
     setModal("edit");
   };
 
@@ -325,7 +376,8 @@ export default function Products() {
   const getCost  = () => getPrice("costo") || (selected?.cost ? { price: selected.cost } : null);
 
   const totalStock    = stock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
-  const totalReserved = stock.reduce((a, s) => a + (Number(s.reserved) || 0), 0);
+  // stock_reserva viene directo del backend (suma de todos los productos en Notas de Pedido)
+  const totalReserved = selected?.stock_reserva || 0;
 
   const stockRows = stock.length > 0
     ? stock.map((s) => ({ name: s.warehouse?.name || s.warehouse_name || s.warehouse_id, qty: s.quantity, res: s.reserved ?? 0 }))
@@ -443,29 +495,64 @@ export default function Products() {
 
                       {/* Precios compactos — tabla inline */}
                       <div style={{ flex:1 }}>
-                        <LBL>Precios</LBL>
+                        <LBL>Precios {selected.costo_usd ? `(cotización: $${FMT(selected.cotizacion_dolar)})` : ""}</LBL>
                         <div style={{ border:"1px solid var(--border)", borderRadius:7, overflow:"hidden", background:"var(--bg2)" }}>
+                          {/* Header columnas */}
+                          <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                            <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
+                            <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
+                            <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
+                          </div>
                           {/* Costo */}
                           {(() => {
-                            const c = getCost();
+                            const costoUsd   = selected.costo_usd   ? Number(selected.costo_usd)   : null;
+                            const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                            // ARS = costo_usd * cotizacion (calculado en el front, sin depender del backend)
+                            const costoArs = costoUsd != null && cotizacion != null
+                              ? costoUsd * cotizacion
+                              : (() => { const c = getCost(); return c ? Number(c.price) : null; })();
+                            const costoUsdShow = costoUsd;
                             return (
-                              <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
+                              <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
                                 <span style={{ fontSize:11, color:"var(--danger)", fontWeight:500 }}>Costo</span>
-                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)" }}>
-                                  {c ? `$${FMT(c.price)}` : "—"}
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)", textAlign:"right" }}>
+                                  {costoArs != null ? FMTARS(costoArs) : "—"}
+                                </span>
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                  {costoUsdShow != null ? FMTUSD(costoUsdShow) : "—"}
                                 </span>
                               </div>
                             );
                           })()}
                           {/* Precios 1-5 */}
                           {[1,2,3,4,5].map((n, idx) => {
-                            const p = getPrice(`precio_${n}`);
+                            const p      = getPrice(`precio_${n}`);
                             const isLast = idx === 4;
+
+                            // El backend devuelve price en ARS y price_usd en USD — usarlos directamente.
+                            // Si hay price_usd, el precio ya viene bien calculado desde costo_usd + porcentaje.
+                            // Fallback: si solo hay price (precios manuales viejos sin costo_usd),
+                            // mostrarlo como ARS y calcular USD dividiendo por cotización.
+                            const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+
+                            let arsVal = null;
+                            let usdVal = null;
+
+                            if (p) {
+                              arsVal = p.price     != null ? Number(p.price)     : null;
+                              usdVal = p.price_usd != null ? Number(p.price_usd)
+                                     : (arsVal != null && cotizacion) ? arsVal / cotizacion
+                                     : null;
+                            }
+
                             return (
-                              <div key={n} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: p ? "var(--accent-light)" : "transparent" }}>
+                              <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: (arsVal != null) ? "var(--accent-light)" : "transparent" }}>
                                 <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
-                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: p ? 700 : 400, color: p ? "var(--accent)" : "var(--text-dim)" }}>
-                                  {p ? `$${FMT(p.price)}` : "—"}
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign:"right" }}>
+                                  {arsVal != null ? FMTARS(arsVal) : "—"}
+                                </span>
+                                <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                  {usdVal != null ? FMTUSD(usdVal) : "—"}
                                 </span>
                               </div>
                             );
@@ -540,11 +627,18 @@ export default function Products() {
                 <div style={{ width:280, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--sidebar-stock-bg, #f0f6ff)" }}>
                   <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"space-between", background:"var(--accent)", flexShrink:0 }}>
                     <span style={{ fontSize:11, fontWeight:600, color:"#fff", textTransform:"uppercase", letterSpacing:"0.06em" }}>Stock por depósito</span>
-                    {stock.length > 0 && (
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"#fff", background:"rgba(255,255,255,0.2)", padding:"1px 8px", borderRadius:4 }}>
-                        {FMTN(totalStock)}
-                      </span>
-                    )}
+                    <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                      {totalReserved > 0 && (
+                        <span style={{ fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, color:"#fff", background:"rgba(255,200,0,0.35)", padding:"1px 8px", borderRadius:4, border:"1px solid rgba(255,200,0,0.5)" }}>
+                          R:{FMTN(totalReserved)}
+                        </span>
+                      )}
+                      {stock.length > 0 && (
+                        <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"#fff", background:"rgba(255,255,255,0.2)", padding:"1px 8px", borderRadius:4 }}>
+                          {FMTN(totalStock)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div style={{ flex:1, overflowY:"auto" }}>
                     {stockRows.map((row, i) => {
@@ -552,7 +646,7 @@ export default function Products() {
                       const isPos  = hasQty && row.qty > 0;
                       const isNeg  = hasQty && row.qty < 0;
                       return (
-                        <div key={row.name} style={{
+                        <div key={`${row.name}-${i}`} style={{
                           display:"flex", alignItems:"center", justifyContent:"space-between",
                           padding:"8px 14px", borderBottom:"1px solid var(--border)",
                           background: isPos ? "rgba(37,99,235,0.04)" : "transparent",
@@ -577,8 +671,14 @@ export default function Products() {
                   </div>
                   {stock.length > 0 && (
                     <div style={{ padding:"10px 14px", borderTop:"2px solid var(--accent)", background:"var(--accent-light)", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                      <span style={{ fontSize:11, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Total</span>
+                      <span style={{ fontSize:11, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Total stock</span>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)" }}>{FMTN(totalStock)}</span>
+                    </div>
+                  )}
+                  {totalReserved > 0 && (
+                    <div style={{ padding:"8px 14px", borderTop:"1px solid var(--border)", background:"rgba(255,200,0,0.08)", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                      <span style={{ fontSize:11, fontWeight:600, color:"#b45309", textTransform:"uppercase", letterSpacing:"0.04em" }}>En reserva</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"#b45309" }}>{FMTN(totalReserved)}</span>
                     </div>
                   )}
                   {VAL(selected.punto_pedido) != null && (
@@ -728,23 +828,13 @@ export default function Products() {
 
           {/* Precios */}
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
-          <div className="grid-2">
-            <div className="input-group">
-              <label className="input-label">Costo</label>
-              <input className="input" type="number" value={form.cost} onChange={f("cost")} placeholder="0.00" />
-            </div>
-            <div className="input-group">
-              <label className="input-label">Tasa IVA (%)</label>
-              <input className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21" />
-            </div>
+          <div className="input-group">
+            <label className="input-label">Costo en USD</label>
+            <input className="input" type="number" value={form.costo_usd} onChange={f("costo_usd")} placeholder="0.00" />
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:8 }}>
-            {[1,2,3,4,5].map((n) => (
-              <div className="input-group" key={n}>
-                <label className="input-label">Precio #{n}</label>
-                <input className="input" type="number" value={form[`price_${n}`]} onChange={f(`price_${n}`)} placeholder="0.00" />
-              </div>
-            ))}
+          <div className="input-group">
+            <label className="input-label">Tasa IVA (%)</label>
+            <input className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21" />
           </div>
 
           <hr className="divider" />
@@ -767,8 +857,70 @@ export default function Products() {
               <input className="input" value={form.origen} onChange={f("origen")} placeholder="China, Brasil..." />
             </div>
             <div className="input-group">
-              <label className="input-label">Categoría ID</label>
-              <input className="input" value={form.category_id} onChange={f("category_id")} placeholder="UUID" />
+              <label className="input-label">Categoría</label>
+              <div ref={catRef} style={{ position:"relative" }}>
+                <div style={{ display:"flex", gap:6 }}>
+                  <input
+                    className="input"
+                    value={catInput}
+                    placeholder="Buscar o crear categoría..."
+                    onChange={(e) => { setCatInput(e.target.value); setCatDropdownOpen(true); }}
+                    onFocus={openCategoryPicker}
+                    style={{ flex:1 }}
+                  />
+                  {form.category_id && (
+                    <button
+                      title="Quitar categoría"
+                      onClick={() => { setForm((p) => ({ ...p, category_id: "" })); setCatInput(""); }}
+                      style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"0 10px", cursor:"pointer", color:"var(--text-muted)", fontSize:13, flexShrink:0 }}
+                    >✕</button>
+                  )}
+                </div>
+
+                {catDropdownOpen && (
+                  <div style={{
+                    position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:200,
+                    background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:7,
+                    boxShadow:"0 4px 16px rgba(0,0,0,0.18)", maxHeight:200, overflowY:"auto",
+                  }}>
+                    {filteredCats.length === 0 && !showCreateOption && (
+                      <div style={{ padding:"12px 14px", fontSize:12, color:"var(--text-dim)" }}>Sin resultados</div>
+                    )}
+                    {filteredCats.map((cat) => (
+                      <div
+                        key={cat.id}
+                        onClick={() => selectCategory(cat)}
+                        style={{
+                          padding:"9px 14px", fontSize:13, cursor:"pointer",
+                          color: form.category_id === cat.id ? "var(--accent)" : "var(--text)",
+                          background: form.category_id === cat.id ? "var(--accent-light)" : "transparent",
+                          fontWeight: form.category_id === cat.id ? 600 : 400,
+                          borderBottom:"1px solid var(--border)",
+                        }}
+                        onMouseEnter={(e) => { if (form.category_id !== cat.id) e.currentTarget.style.background = "var(--bg3)"; }}
+                        onMouseLeave={(e) => { if (form.category_id !== cat.id) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        {cat.name}
+                      </div>
+                    ))}
+                    {showCreateOption && (
+                      <div
+                        onClick={handleCreateCategory}
+                        style={{
+                          padding:"9px 14px", fontSize:13, cursor: creatingCat ? "default" : "pointer",
+                          color:"var(--accent)", display:"flex", alignItems:"center", gap:8,
+                          opacity: creatingCat ? 0.6 : 1,
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-light)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
+                      >
+                        <span style={{ fontSize:16, lineHeight:1 }}>+</span>
+                        {creatingCat ? "Creando..." : `Crear "${catInput.trim()}"`}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
