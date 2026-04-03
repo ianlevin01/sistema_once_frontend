@@ -254,7 +254,7 @@ export default function Comprobantes() {
                   <div className="items-list">
                     {selected.items.map((it, i) => (
                       <div key={i} className="item-row">
-                        <span className="item-name">{it.product_id}</span>
+                        <span className="item-name">{it.product_name || it.product_code || it.product_id}</span>
                         <span className="item-qty">×{it.quantity}</span>
                         <span className="item-price">${Number(it.unit_price).toLocaleString("es-AR")}</span>
                       </div>

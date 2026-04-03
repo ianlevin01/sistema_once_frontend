@@ -478,11 +478,12 @@ export default function CajaListado() {
   const metodoKey = (m) => {
     if (!m) return "Efectivo";
     const l = m.toLowerCase();
-    if (l.includes("banco"))        return "Por Banco";
-    if (l.includes("tarjeta"))      return "Tarjeta";
+    if (l.includes("banco"))                          return "Por Banco";
+    if (l.includes("tarjeta"))                        return "Tarjeta";
     if (l.includes("cta") || l.includes("corriente")) return "Cta Cte";
-    if (l.includes("mercado"))      return "Mercado Pago";
-    if (l.includes("cheque"))       return "Cheques";
+    if (l.includes("mercado"))                        return "Mercado Pago";
+    if (l.includes("cheque"))                         return "Cheques";
+    // "Contado", "Efectivo" y cualquier otro → Efectivo
     return "Efectivo";
   };
 
@@ -494,7 +495,9 @@ export default function CajaListado() {
 
   const entradasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   const salidasPorMetodo  = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
-  cashMovs.forEach((mv) => {
+  // Solo movimientos manuales de caja (sin reference_id que indicaría cobranza de cta cte)
+  const cashMovsManuales = cashMovs.filter((mv) => !mv.reference_id);
+  cashMovsManuales.forEach((mv) => {
     const col = metodoKey(mv.source);
     if (mv.type === "ingreso") entradasPorMetodo[col] = (entradasPorMetodo[col] || 0) + Number(mv.amount || 0);
     else                       salidasPorMetodo[col]  = (salidasPorMetodo[col]  || 0) + Number(mv.amount || 0);
@@ -803,65 +806,76 @@ export default function CajaListado() {
       </div>
 
       {/* ── SECCIÓN 5: RESUMEN DE CAJA ───────────────────────── */}
-      <div className="card" style={{ marginTop:24 }}>
-        <div className="card-header">
-          <span className="card-title">Resumen de Caja</span>
-          <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
-            {from === to ? from : `${from} al ${to}`}
-          </span>
-        </div>
-        <div style={{ overflowX:"auto" }}>
-          <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
-            <thead>
-              <tr style={{ background:"var(--bg3)", borderBottom:"2px solid var(--border)" }}>
-                <th style={{ padding:"10px 16px", textAlign:"left", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", width:180 }}></th>
-                {METODOS_COLS.map((m) => (
-                  <th key={m} style={{ padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>{m}</th>
-                ))}
-                <th style={{ padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em" }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderBottom:"1px solid var(--border)" }}>
-                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Total ventas</td>
-                {METODOS_COLS.map((m) => (
-                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: ventasPorMetodo[m] ? "var(--text)" : "var(--text-dim)" }}>
-                    {ventasPorMetodo[m] ? `$${fmt(ventasPorMetodo[m])}` : "—"}
-                  </td>
-                ))}
-                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)" }}>${fmt(totalVentas)}</td>
-              </tr>
-              <tr style={{ borderBottom:"1px solid var(--border)" }}>
-                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Cobranzas</td>
-                {METODOS_COLS.map((m) => (
-                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: cobranzasPorMetodo[m] ? "var(--success)" : "var(--text-dim)" }}>
-                    {cobranzasPorMetodo[m] ? `$${fmt(cobranzasPorMetodo[m])}` : "—"}
-                  </td>
-                ))}
-                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--success)" }}>${fmt(totalCobranzas)}</td>
-              </tr>
-              <tr style={{ borderBottom:"1px solid var(--border)" }}>
-                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Entradas por Caja</td>
-                {METODOS_COLS.map((m) => (
-                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: entradasPorMetodo[m] ? "var(--success)" : "var(--text-dim)" }}>
-                    {entradasPorMetodo[m] ? `$${fmt(entradasPorMetodo[m])}` : "—"}
-                  </td>
-                ))}
-                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--success)" }}>${fmt(totalEntradas)}</td>
-              </tr>
-              <tr style={{ borderBottom:"2px solid var(--border)" }}>
-                <td style={{ padding:"11px 16px", fontWeight:600, color:"var(--text)" }}>Salidas por Caja</td>
-                {METODOS_COLS.map((m) => (
-                  <td key={m} style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", color: salidasPorMetodo[m] ? "var(--danger)" : "var(--text-dim)" }}>
-                    {salidasPorMetodo[m] ? `-$${fmt(salidasPorMetodo[m])}` : "—"}
-                  </td>
-                ))}
-                <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--danger)" }}>-${fmt(totalSalidas)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {(() => {
+        // Efectivo resultante = ventas efectivo + cobranzas efectivo + entradas efectivo - salidas efectivo
+        const efectivoResultante =
+          (ventasPorMetodo["Efectivo"]    || 0)
+        + (cobranzasPorMetodo["Efectivo"] || 0)
+        + (entradasPorMetodo["Efectivo"]  || 0)
+        - (salidasPorMetodo["Efectivo"]   || 0);
+
+        const thStyle = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
+        const tdVal   = (val, color) => ({
+          padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13,
+          color: val ? color || "var(--text)" : "var(--text-dim)",
+        });
+        const tdLabel = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
+
+        const rows = [
+          { label:"Total ventas",      data: ventasPorMetodo,    color:"var(--text)",    sign:"",  total: totalVentas,    totalColor:"var(--accent)" },
+          { label:"Total Cobranzas",   data: cobranzasPorMetodo, color:"var(--success)", sign:"",  total: totalCobranzas, totalColor:"var(--success)" },
+          { label:"Salidas por Caja",  data: salidasPorMetodo,   color:"var(--danger)",  sign:"-", total: totalSalidas,   totalColor:"var(--danger)" },
+          { label:"Entradas por Caja", data: entradasPorMetodo,  color:"var(--success)", sign:"",  total: totalEntradas,  totalColor:"var(--success)" },
+        ];
+
+        return (
+          <div className="card" style={{ marginTop:24 }}>
+            <div className="card-header">
+              <span className="card-title">Resumen de Caja</span>
+              <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                {from === to ? from : `${from} al ${to}`}
+              </span>
+            </div>
+            <div style={{ overflowX:"auto" }}>
+              <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                <thead>
+                  <tr style={{ background:"var(--bg3)", borderBottom:"2px solid var(--border)" }}>
+                    <th style={{ padding:"10px 16px", textAlign:"left", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:180 }}></th>
+                    {METODOS_COLS.map((m) => <th key={m} style={thStyle}>{m}</th>)}
+                    <th style={{ ...thStyle, color:"var(--accent)" }}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(({ label, data, color, sign, total, totalColor }) => (
+                    <tr key={label} style={{ borderBottom:"1px solid var(--border)" }}>
+                      <td style={tdLabel}>{label}</td>
+                      {METODOS_COLS.map((m) => (
+                        <td key={m} style={tdVal(data[m], color)}>
+                          {data[m] ? `${sign}$${fmt(data[m])}` : "—"}
+                        </td>
+                      ))}
+                      <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color: totalColor }}>
+                        {sign}${fmt(total)}
+                      </td>
+                    </tr>
+                  ))}
+
+                  {/* Fila efectivo resultante */}
+                  <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
+                    <td style={{ ...tdLabel, color:"var(--accent)", fontSize:14 }}>Efectivo Resultante</td>
+                    <td style={{ padding:"13px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, fontSize:16, color: efectivoResultante >= 0 ? "var(--success)" : "var(--danger)" }}>
+                      ${fmt(efectivoResultante)}
+                    </td>
+                    {/* Celdas vacías para las otras columnas */}
+                    {METODOS_COLS.slice(1).map((m) => <td key={m} />)}
+                    <td />
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })()}
         </>  
       )}
     </>
