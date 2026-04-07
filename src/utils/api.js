@@ -4,21 +4,66 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api",
 });
 
-// VENDEDORES
-export const getVendedores       = ()         => api.get("/vendedores");
-export const getVendedoresActivos = ()        => api.get("/vendedores/activos");
-export const createVendedor      = (data)     => api.post("/vendedores", data);
-export const updateVendedor      = (id, data) => api.put(`/vendedores/${id}`, data);
-export const deleteVendedor      = (id)       => api.delete(`/vendedores/${id}`);
+// ── Interceptor: adjuntar JWT automáticamente ─────────────────
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("auth_token");
+  if (token) config.headers.Authorization = `Bearer ${token}`;
+  return config;
+});
 
-// CUSTOMERS
+// ── Interceptor: si el servidor devuelve 401, limpiar sesión ──
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401) {
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("auth_user");
+      window.location.href = "/login";
+    }
+    return Promise.reject(err);
+  }
+);
+
+// ── AUTH ──────────────────────────────────────────────────────
+export const login  = (password) => api.post("/auth/login", { password });
+export const logout = () => {
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("auth_user");
+};
+
+// ── USUARIOS DEL SISTEMA ──────────────────────────────────────
+export const getUsers    = ()           => api.get("/users");
+export const createUser  = (data)       => api.post("/users", data);
+export const updateUser  = (id, data)   => api.put(`/users/${id}`, data);
+export const deleteUser  = (id)         => api.delete(`/users/${id}`);
+
+// ── WAREHOUSES ────────────────────────────────────────────────
+export const getWarehouses = () => api.get("/comprobantes/warehouses");
+
+// ── VENDEDORES ────────────────────────────────────────────────
+export const getVendedores        = ()         => api.get("/vendedores");
+export const getVendedoresActivos = ()         => api.get("/vendedores/activos");
+export const createVendedor       = (data)     => api.post("/vendedores", data);
+export const updateVendedor       = (id, data) => api.put(`/vendedores/${id}`, data);
+export const deleteVendedor       = (id)       => api.delete(`/vendedores/${id}`);
+
+// ── CUSTOMERS ─────────────────────────────────────────────────
 export const searchCustomers = (name) => api.get(`/customers/search?name=${name}`);
 export const getCustomer     = (id)   => api.get(`/customers/${id}`);
 export const createCustomer  = (data) => api.post("/customers", data);
 export const updateCustomer  = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer  = (id)   => api.delete(`/customers/${id}`);
 
-// CUENTA CORRIENTE
+// ── PROVEEDORES ───────────────────────────────────────────────
+export const searchProveedores      = (q)         => api.get(`/proveedores/search?q=${encodeURIComponent(q)}`);
+export const getProveedor           = (id)        => api.get(`/proveedores/${id}`);
+export const getProveedores         = ()          => api.get("/proveedores");
+export const createProveedor        = (data)      => api.post("/proveedores", data);
+export const updateProveedor        = (id, data)  => api.put(`/proveedores/${id}`, data);
+export const deleteProveedor        = (id)        => api.delete(`/proveedores/${id}`);
+export const getCCProveedor         = (id)        => api.get(`/proveedores/${id}/cuenta-corriente`);
+
+// ── CUENTA CORRIENTE (clientes) ───────────────────────────────
 export const getCuentaCorrienteGeneral  = ()         => api.get("/cuenta-corriente");
 export const getCuentaCorrienteCliente  = (id)       => api.get(`/cuenta-corriente/cliente/${id}`);
 export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/pago`, data);
@@ -26,7 +71,7 @@ export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corrie
 export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/cobranza`, data);
 export const getCobranzasCC             = (from, to) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : ""}`);
 
-// PRODUCTS
+// ── PRODUCTS ──────────────────────────────────────────────────
 export const searchProducts  = (name)     => api.get(`/products/search?name=${name}`);
 export const getProduct      = (id)       => api.get(`/products/${id}`);
 export const createProduct   = (data)     => api.post("/products", data);
@@ -35,37 +80,39 @@ export const deleteProduct   = (id)       => api.delete(`/products/${id}`);
 export const getCategories   = ()         => api.get("/products/categories");
 export const createCategory  = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
 
-// REMITOS
+// ── REMITOS ───────────────────────────────────────────────────
 export const getRemitos    = (from, to) =>
   api.get(`/remitos${from && to ? `?from=${from}&to=${to}` : ""}`);
 export const getRemito     = (id)   => api.get(`/remitos/${id}`);
 export const createRemito  = (data) => api.post("/remitos", data);
 export const deleteRemito  = (id)   => api.delete(`/remitos/${id}`);
 
-// COMPROBANTES
-export const getComprobantes  = (from, to) =>
+// ── COMPROBANTES ──────────────────────────────────────────────
+export const getComprobantes   = (from, to) =>
   api.get(`/comprobantes${from && to ? `?from=${from}&to=${to}` : ""}`);
-export const getComprobante   = (id)   => api.get(`/comprobantes/${id}`);
+export const getComprobante    = (id)   => api.get(`/comprobantes/${id}`);
 export const createComprobante = (data) => api.post("/comprobantes", data);
 export const deleteComprobante = (id)   => api.delete(`/comprobantes/${id}`);
+export const getLastSalePrice  = (customer_id, product_id) =>
+  api.get(`/comprobantes/last-price?customer_id=${customer_id}&product_id=${product_id}`);
 
-// CAJA LISTADO (presupuestos + notas de pedido + remitos agrupados)
+// ── CAJA LISTADO ──────────────────────────────────────────────
 export const getListadoCaja = (from, to) =>
   api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : ""}`);
 
-// CASH
-export const getCashMovements  = (from, to) =>
+// ── CASH ──────────────────────────────────────────────────────
+export const getCashMovements   = (from, to) =>
   api.get(`/cash${from && to ? `?from=${from}&to=${to}` : ""}`);
-export const getCashMovement   = (id)   => api.get(`/cash/${id}`);
+export const getCashMovement    = (id)   => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 
-// WEB ORDERS
-export const getWebOrders         = (params)      => api.get("/web-orders", { params });
-export const getWebOrder          = (id)          => api.get(`/web-orders/${id}`);
-export const createWebOrder       = (data)        => api.post("/web-orders", data);
-export const updateWebOrder       = (id, data)    => api.put(`/web-orders/${id}`, data);
-export const deleteWebOrder       = (id)          => api.delete(`/web-orders/${id}`);
-export const setWebOrderColor     = (id, color)   => api.patch(`/web-orders/${id}/color`, { color });
+// ── WEB ORDERS ────────────────────────────────────────────────
+export const getWebOrders         = (params)        => api.get("/web-orders", { params });
+export const getWebOrder          = (id)            => api.get(`/web-orders/${id}`);
+export const createWebOrder       = (data)          => api.post("/web-orders", data);
+export const updateWebOrder       = (id, data)      => api.put(`/web-orders/${id}`, data);
+export const deleteWebOrder       = (id)            => api.delete(`/web-orders/${id}`);
+export const setWebOrderColor     = (id, color)     => api.patch(`/web-orders/${id}/color`, { color });
 export const setWebOrderReservado = (id, reservado) => api.patch(`/web-orders/${id}/reservado`, { reservado });
 
 export default api;

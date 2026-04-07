@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../utils/useAuth";
 
 const NAV = [
   {
@@ -10,11 +11,11 @@ const NAV = [
       {
         label: "Caja", icon: "💰",
         submenu: [
-          { to: "/caja",          label: "Imputaciones" },
-          { to: "/caja/listado",  label: "Listado"      },
+          { to: "/caja",         label: "Imputaciones" },
+          { to: "/caja/listado", label: "Listado"      },
         ],
       },
-      { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
+      { to: "/pedidos-web", label: "Pedidos Web", icon: "🌐" },
     ],
   },
   {
@@ -28,21 +29,23 @@ const NAV = [
   {
     section: "Sistema",
     items: [
+      { to: "/usuarios",    label: "Usuarios",       icon: "👥" },
       { to: "/configuracion", label: "Configuración", icon: "⚙️" },
     ],
   },
 ];
 
 const PAGE_TITLES = {
-  "/comprobantes":      "Comprobantes",
-  "/remitos":           "Remitos",
-  "/caja":              "Caja · Imputaciones",
-  "/caja/listado":      "Caja · Listado",
-  "/pedidos-web":       "Pedidos Web",
-  "/cuenta-corriente":  "Cuenta Corriente",
-  "/productos":         "Productos",
-  "/vendedores":        "Vendedores",
-  "/configuracion":     "Configuración de Precios",
+  "/comprobantes":     "Comprobantes",
+  "/remitos":          "Remitos",
+  "/caja":             "Caja · Imputaciones",
+  "/caja/listado":     "Caja · Listado",
+  "/pedidos-web":      "Pedidos Web",
+  "/cuenta-corriente": "Cuenta Corriente",
+  "/productos":        "Productos",
+  "/vendedores":       "Vendedores",
+  "/usuarios":         "Usuarios del Sistema",
+  "/configuracion":    "Configuración de Precios",
 };
 
 function CajaNavItem({ item, location }) {
@@ -60,25 +63,17 @@ function CajaNavItem({ item, location }) {
         <span className="icon">{item.icon}</span>
         <span className="link-label">{item.label}</span>
         <span style={{
-          marginLeft: "auto",
-          fontSize: 10,
-          opacity: 0.5,
+          marginLeft: "auto", fontSize: 10, opacity: 0.5,
           transform: open ? "rotate(90deg)" : "rotate(0deg)",
-          transition: "transform 0.15s",
-          paddingRight: 4,
+          transition: "transform 0.15s", paddingRight: 4,
         }}>▶</span>
       </div>
-
       {open && (
         <div style={{ paddingLeft: 16 }}>
           {item.submenu.map((sub) => (
             <NavLink
-              key={sub.to}
-              to={sub.to}
-              end
-              className={({ isActive }) =>
-                "sidebar-link" + (isActive ? " active" : "")
-              }
+              key={sub.to} to={sub.to} end
+              className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
               style={{ fontSize: 13 }}
             >
               <span className="link-label">{sub.label}</span>
@@ -91,8 +86,15 @@ function CajaNavItem({ item, location }) {
 }
 
 export default function Layout({ children }) {
-  const location = useLocation();
+  const location  = useLocation();
+  const navigate  = useNavigate();
+  const { user, logout } = useAuth();
   const title = PAGE_TITLES[location.pathname] || "Sistema";
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
 
   return (
     <div className="layout">
@@ -116,11 +118,8 @@ export default function Layout({ children }) {
                   <CajaNavItem key={item.label} item={item} location={location} />
                 ) : (
                   <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                      "sidebar-link" + (isActive ? " active" : "")
-                    }
+                    key={item.to} to={item.to}
+                    className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
                     title={item.label}
                   >
                     <span className="icon">{item.icon}</span>
@@ -131,22 +130,57 @@ export default function Layout({ children }) {
             </div>
           ))}
         </nav>
+
+        {/* Usuario logueado al fondo del sidebar */}
+        {user && (
+          <div style={{
+            padding: "12px 16px", borderTop: "1px solid var(--border)",
+            background: "var(--bg3)", flexShrink: 0,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>
+              {user.name}
+            </div>
+            {user.warehouse_name && (
+              <div style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
+                🏭 {user.warehouse_name}
+              </div>
+            )}
+            <button
+              onClick={handleLogout}
+              style={{
+                width: "100%", padding: "5px 0", fontSize: 11, cursor: "pointer",
+                background: "transparent", border: "1px solid var(--border)",
+                borderRadius: 4, color: "var(--text-dim)", fontFamily: "var(--font-mono)",
+                textTransform: "uppercase", letterSpacing: "0.06em",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--danger)"; e.currentTarget.style.color = "var(--danger)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-dim)"; }}
+            >
+              Salir
+            </button>
+          </div>
+        )}
       </aside>
 
       <div className="main">
         <header className="topbar">
           <span className="topbar-title">{title}</span>
-          <div className="topbar-actions">
+          <div className="topbar-actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            {user?.warehouse_name && (
+              <span style={{
+                fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-dim)",
+                background: "var(--bg3)", padding: "4px 10px",
+                borderRadius: "var(--radius)", border: "1px solid var(--border)",
+              }}>
+                🏭 {user.warehouse_name}
+              </span>
+            )}
             <span style={{
-              fontSize: 12,
-              fontFamily: "var(--font-mono)",
-              color: "var(--text-dim)",
-              background: "var(--bg3)",
-              padding: "4px 10px",
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--border)",
+              fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-dim)",
+              background: "var(--bg3)", padding: "4px 10px",
+              borderRadius: "var(--radius)", border: "1px solid var(--border)",
             }}>
-              {new Date().toLocaleDateString("es-AR", { weekday:"short", day:"numeric", month:"short", year:"numeric" })}
+              {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
             </span>
           </div>
         </header>
