@@ -55,13 +55,15 @@ export const updateCustomer  = (id, data) => api.put(`/customers/${id}`, data);
 export const deleteCustomer  = (id)   => api.delete(`/customers/${id}`);
 
 // ── PROVEEDORES ───────────────────────────────────────────────
-export const searchProveedores      = (q)         => api.get(`/proveedores/search?q=${encodeURIComponent(q)}`);
-export const getProveedor           = (id)        => api.get(`/proveedores/${id}`);
-export const getProveedores         = ()          => api.get("/proveedores");
-export const createProveedor        = (data)      => api.post("/proveedores", data);
-export const updateProveedor        = (id, data)  => api.put(`/proveedores/${id}`, data);
-export const deleteProveedor        = (id)        => api.delete(`/proveedores/${id}`);
-export const getCCProveedor         = (id)        => api.get(`/proveedores/${id}/cuenta-corriente`);
+export const searchProveedores         = (q)         => api.get(`/proveedores/search?q=${encodeURIComponent(q)}`);
+export const getProveedor              = (id)        => api.get(`/proveedores/${id}`);
+export const getProveedores            = ()          => api.get("/proveedores");
+export const createProveedor           = (data)      => api.post("/proveedores", data);
+export const updateProveedor           = (id, data)  => api.put(`/proveedores/${id}`, data);
+export const deleteProveedor           = (id)        => api.delete(`/proveedores/${id}`);
+export const getCCProveedor            = (id)        => api.get(`/proveedores/${id}/cuenta-corriente`);
+export const registrarPagoProveedor    = (id, data)  => api.post(`/proveedores/${id}/pago`, data);
+export const registrarCobranzaProveedor = (id, data) => api.post(`/proveedores/${id}/cobranza`, data);
 
 // ── CUENTA CORRIENTE (clientes) ───────────────────────────────
 export const getCuentaCorrienteGeneral  = ()         => api.get("/cuenta-corriente");

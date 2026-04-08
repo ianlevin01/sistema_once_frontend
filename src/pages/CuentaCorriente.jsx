@@ -3,10 +3,12 @@ import {
   searchCustomers, getCustomer,
   createCustomer, updateCustomer, deleteCustomer,
   getCuentaCorrienteCliente, getCuentaCorrienteGeneral,
-  registrarPagoCC, agregarSaldoCC, registrarCobranzaCC,
+  registrarPagoCC, registrarCobranzaCC,
   searchProveedores, getProveedor,
   createProveedor, updateProveedor, deleteProveedor,
   getCCProveedor,
+  registrarPagoProveedor, registrarCobranzaProveedor,
+  getProveedores,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
@@ -45,17 +47,16 @@ const ROW = ({ label, value, mono }) => (
 );
 
 // ════════════════════════════════════════════════════════════
-// PANEL GENÉRICO: buscar entidad (cliente o proveedor) + ficha + cta cte
+// PANEL GENÉRICO
 // ════════════════════════════════════════════════════════════
 function EntityPanel({
-  mode,           // "cliente" | "proveedor"
-  searchFn,       // función de búsqueda
-  getFn,          // getCustomer / getProveedor
+  mode,
+  searchFn,
+  getFn,
   createFn,
   updateFn,
   deleteFn,
-  getCCFn,        // getCuentaCorrienteCliente / getCCProveedor
-  registrarPagoFn,
+  getCCFn,
   registrarCobranzaFn,
   emptyForm,
   addToast,
@@ -71,15 +72,12 @@ function EntityPanel({
   const [form,          setForm]          = useState(emptyForm);
   const [saving,        setSaving]        = useState(false);
 
-  const [cc,         setCC]         = useState(null);
-  const [loadingCC,  setLoadingCC]  = useState(false);
-  const [viewCC,     setViewCC]     = useState(false);
+  const [cc,        setCC]        = useState(null);
+  const [loadingCC, setLoadingCC] = useState(false);
+  const [viewCC,    setViewCC]    = useState(false);
 
-  const [modalPago,      setModalPago]      = useState(false);
   const [modalCobranza,  setModalCobranza]  = useState(false);
-  const [formPago,       setFormPago]       = useState({ monto:"", concepto:"" });
   const [formCobranza,   setFormCobranza]   = useState({ monto:"", concepto:"", metodo_pago:"Efectivo" });
-  const [savingPago,     setSavingPago]     = useState(false);
   const [savingCobranza, setSavingCobranza] = useState(false);
 
   const METODOS_COBRANZA = ["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"];
@@ -153,19 +151,6 @@ function EntityPanel({
 
   const handleVerCC = () => { setViewCC(true); if (!cc) loadCC(selected.id); };
 
-  const handlePago = async () => {
-    const monto = Number(formPago.monto);
-    if (!monto || monto <= 0) { addToast("Monto inválido", "error"); return; }
-    setSavingPago(true);
-    try {
-      await registrarPagoFn(selected.id, { monto, concepto: formPago.concepto || "Pago" });
-      addToast("Pago registrado", "success");
-      setModalPago(false); setFormPago({ monto:"", concepto:"" });
-      loadCC(selected.id);
-    } catch (err) { addToast(err.response?.data?.message || "Error registrando pago", "error"); }
-    setSavingPago(false);
-  };
-
   const handleCobranza = async () => {
     const monto = Number(formCobranza.monto);
     if (!monto || monto <= 0) { addToast("Monto inválido", "error"); return; }
@@ -201,10 +186,10 @@ function EntityPanel({
         addToast(`${label} creado`, "success");
         setEditing(false); setIsNew(false);
         if (query) {
-          const r  = await searchFn(query);
+          const r = await searchFn(query);
           setResults(Array.isArray(r) ? r : r.data);
         }
-        const det  = await getFn(data.id);
+        const det = await getFn(data.id);
         setSelected(det.data || det);
       } else {
         await updateFn(selected.id, form);
@@ -236,30 +221,41 @@ function EntityPanel({
 
   // ── Render cuenta corriente ──────────────────────────────────
   const renderCC = () => {
-    if (loadingCC) return <div style={{ padding:40, textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Cargando...</div>;
+    if (loadingCC) return (
+      <div style={{ padding:40, textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Cargando...</div>
+    );
 
-    // getCCProveedor devuelve { cuenta, movimientos }; getCuentaCorrienteCliente devuelve { saldo, movimientos }
-    const cuenta     = cc?.cuenta || cc;
+    const cuenta      = cc?.cuenta || cc;
     const movimientos = cc?.movimientos || cuenta?.movimientos || [];
     const saldo       = Number(cuenta?.saldo || 0);
 
-    if (!cuenta) return <div style={{ padding:40, textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Sin cuenta corriente</div>;
+    if (!cuenta) return (
+      <div style={{ padding:40, textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Sin cuenta corriente</div>
+    );
+
+    // Para clientes: saldo positivo = debe; negativo = saldo a favor
+    // Para proveedores: saldo positivo = les debemos (saldo a favor del proveedor)
+    const esProveedor  = mode === "proveedor";
+    const saldoColor   = esProveedor
+      ? (saldo > 0 ? "var(--danger)" : "var(--success)")
+      : (saldo > 0 ? "var(--danger)" : "var(--success)");
+    const saldoLabel   = esProveedor
+      ? (saldo > 0 ? "Le debemos" : "Sin deuda")
+      : (saldo > 0 ? "Debe" : "Saldo a favor");
 
     return (
       <div>
-        {/* Saldo */}
         <div style={{ display:"flex", gap:16, marginBottom:28 }}>
           <div style={{ flex:1, background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:8, padding:"18px 22px" }}>
             <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
               Saldo en pesos
             </div>
-            <div style={{ fontSize:28, fontFamily:"var(--font-mono)", fontWeight:800, color: saldo >= 0 ? "var(--danger)" : "var(--success)" }}>
-              {fmtARS(saldo)}
+            <div style={{ fontSize:28, fontFamily:"var(--font-mono)", fontWeight:800, color: saldoColor }}>
+              {fmtARS(Math.abs(saldo))}
             </div>
-            <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:4 }}>{saldo >= 0 ? "Debe" : "Saldo a favor"}</div>
+            <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:4 }}>{saldoLabel}</div>
           </div>
         </div>
-        {/* Movimientos */}
         <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:12 }}>
           Movimientos ({movimientos.length})
         </div>
@@ -281,7 +277,7 @@ function EntityPanel({
                   {m.tipo === "debito" ? "+" : "−"}{fmtARS(m.monto)}
                 </span>
                 <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`}>
-                  {m.tipo === "debito" ? "Débito" : "Pago"}
+                  {m.tipo === "debito" ? "Débito" : esProveedor ? "Crédito" : "Pago"}
                 </span>
               </div>
             ))}
@@ -307,8 +303,14 @@ function EntityPanel({
                 <span style={{ fontSize:14, fontWeight:600, color:"var(--text)" }}>{selected.name}</span>
                 {selected.type && <span className="badge badge-info">{selected.type}</span>}
                 <div style={{ marginLeft:16, display:"flex", gap:4 }}>
-                  <button onClick={() => setViewCC(false)} style={{ fontSize:12, padding:"4px 12px", borderRadius:4, border:"1px solid var(--border)", cursor:"pointer", background: !viewCC ? "var(--accent)" : "transparent", color: !viewCC ? "#fff" : "var(--text-muted)" }}>Ficha</button>
-                  <button onClick={handleVerCC} style={{ fontSize:12, padding:"4px 12px", borderRadius:4, border:"1px solid var(--border)", cursor:"pointer", background: viewCC ? "var(--accent)" : "transparent", color: viewCC ? "#fff" : "var(--text-muted)" }}>Cta Cte</button>
+                  <button onClick={() => setViewCC(false)}
+                    style={{ fontSize:12, padding:"4px 12px", borderRadius:4, border:"1px solid var(--border)", cursor:"pointer",
+                      background: !viewCC ? "var(--accent)" : "transparent",
+                      color:      !viewCC ? "#fff" : "var(--text-muted)" }}>Ficha</button>
+                  <button onClick={handleVerCC}
+                    style={{ fontSize:12, padding:"4px 12px", borderRadius:4, border:"1px solid var(--border)", cursor:"pointer",
+                      background: viewCC ? "var(--accent)" : "transparent",
+                      color:      viewCC ? "#fff" : "var(--text-muted)" }}>Cta Cte</button>
                 </div>
               </div>
             ) : (
@@ -324,10 +326,10 @@ function EntityPanel({
                 <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</button>
               </>
             ) : viewCC && selected ? (
-              <>
-                <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>+ Registrar cobranza</button>
-                <button className="btn btn-ghost btn-sm"   onClick={() => setModalPago(true)}>Registrar pago</button>
-              </>
+              /* ── Solo UN botón en la vista de cta cte ── */
+              <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
+                {mode === "proveedor" ? "Registrar pago" : "+ Registrar cobranza"}
+              </button>
             ) : (
               <>
                 <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>
@@ -404,7 +406,6 @@ function EntityPanel({
           ) : loadingDetail ? (
             <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:200, color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Cargando...</div>
           ) : viewCC ? renderCC() : (
-            /* Ficha */
             <div style={{ display:"flex", gap:32 }}>
               <div style={{ flex:1 }}>
                 <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:14 }}>Datos</div>
@@ -448,7 +449,7 @@ function EntityPanel({
           <div className="search-bar">
             <span className="search-icon">🔍</span>
             <input
-              placeholder={`Nombre o CUIT...`}
+              placeholder="Nombre o CUIT..."
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               autoFocus
@@ -502,40 +503,14 @@ function EntityPanel({
         )}
       </div>
 
-      {/* Modal pago */}
-      {modalPago && (
-        <div className="modal-overlay" onClick={() => setModalPago(false)}>
-          <div className="modal" style={{ maxWidth:400 }} onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="modal-title">Registrar pago — {selected?.name}</span>
-              <button className="modal-close" onClick={() => setModalPago(false)}>✕</button>
-            </div>
-            <div className="modal-body" style={{ display:"flex", flexDirection:"column", gap:14 }}>
-              <div className="input-group">
-                <label className="input-label">Monto ($)</label>
-                <input className="input" type="number" min="0" value={formPago.monto}
-                  onChange={(e) => setFormPago((p) => ({ ...p, monto: e.target.value }))} autoFocus />
-              </div>
-              <div className="input-group">
-                <label className="input-label">Concepto</label>
-                <input className="input" value={formPago.concepto}
-                  onChange={(e) => setFormPago((p) => ({ ...p, concepto: e.target.value }))} placeholder="Pago..." />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-ghost" onClick={() => setModalPago(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handlePago} disabled={savingPago}>{savingPago ? "Registrando..." : "Registrar pago"}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal cobranza */}
+      {/* Modal cobranza / pago (único modal, adaptado por modo) */}
       {modalCobranza && (
         <div className="modal-overlay" onClick={() => setModalCobranza(false)}>
           <div className="modal" style={{ maxWidth:420 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <span className="modal-title">Registrar cobranza — {selected?.name}</span>
+              <span className="modal-title">
+                {mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"} — {selected?.name}
+              </span>
               <button className="modal-close" onClick={() => setModalCobranza(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ display:"flex", flexDirection:"column", gap:14 }}>
@@ -545,7 +520,7 @@ function EntityPanel({
                   onChange={(e) => setFormCobranza((p) => ({ ...p, monto: e.target.value }))} autoFocus />
               </div>
               <div className="input-group">
-                <label className="input-label">Método de cobro</label>
+                <label className="input-label">Método de pago</label>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {METODOS_COBRANZA.map((m) => (
                     <button key={m} onClick={() => setFormCobranza((p) => ({ ...p, metodo_pago: m }))}
@@ -560,12 +535,15 @@ function EntityPanel({
               <div className="input-group">
                 <label className="input-label">Concepto (opcional)</label>
                 <input className="input" value={formCobranza.concepto}
-                  onChange={(e) => setFormCobranza((p) => ({ ...p, concepto: e.target.value }))} placeholder="Cobranza, seña, etc." />
+                  onChange={(e) => setFormCobranza((p) => ({ ...p, concepto: e.target.value }))}
+                  placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."} />
               </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setModalCobranza(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={handleCobranza} disabled={savingCobranza}>{savingCobranza ? "Guardando..." : "Registrar cobranza"}</button>
+              <button className="btn btn-primary" onClick={handleCobranza} disabled={savingCobranza}>
+                {savingCobranza ? "Guardando..." : mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"}
+              </button>
             </div>
           </div>
         </div>
@@ -575,74 +553,167 @@ function EntityPanel({
 }
 
 // ════════════════════════════════════════════════════════════
-// TAB GENERAL (clientes)
+// TAB GENERAL — clientes Y proveedores
 // ════════════════════════════════════════════════════════════
 function TabGeneral() {
-  const [cuentas, setCuentas] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
+  const [cuentasClientes,    setCuentasClientes]    = useState([]);
+  const [cuentasProveedores, setCuentasProveedores] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [search,   setSearch]   = useState("");
+  const [vista,    setVista]    = useState("clientes"); // "clientes" | "proveedores"
   const { addToast, ToastContainer } = useToast();
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      try { const { data } = await getCuentaCorrienteGeneral(); setCuentas(data); }
-      catch { addToast("Error cargando cuentas corrientes", "error"); }
+      try {
+        // Clientes: endpoint ya existente
+        const { data: dataClientes } = await getCuentaCorrienteGeneral();
+        setCuentasClientes(dataClientes);
+
+        // Proveedores: cargamos todos y filtramos los que tienen CC con saldo != 0
+        // (si querés todos usa getProveedores y muestra saldo 0 donde no exista CC)
+        const { data: proveedores } = await getProveedores();
+        // Para cada proveedor traemos su CC (en paralelo, máx 20 a la vez)
+        const chunks = [];
+        for (let i = 0; i < proveedores.length; i += 20) chunks.push(proveedores.slice(i, i + 20));
+        const provConCC = [];
+        for (const chunk of chunks) {
+          const results = await Promise.allSettled(
+            chunk.map(async (p) => {
+              try {
+                const res = await getCCProveedor(p.id);
+                const cc  = res.data?.cuenta || res.data || null;
+                return { ...p, saldo: Number(cc?.saldo || 0) };
+              } catch {
+                return { ...p, saldo: 0 };
+              }
+            })
+          );
+          results.forEach((r) => { if (r.status === "fulfilled") provConCC.push(r.value); });
+        }
+        setCuentasProveedores(provConCC);
+      } catch { addToast("Error cargando cuentas corrientes", "error"); }
       setLoading(false);
     })();
   }, []);
 
-  const filtered = cuentas.filter((c) => !search.trim() || c.customer_name?.toLowerCase().includes(search.toLowerCase()));
-  const totalDeuda = filtered.reduce((a, c) => a + Math.max(0, Number(c.saldo || c.saldo_ars || 0)), 0);
+  const filteredClientes = cuentasClientes.filter(
+    (c) => !search.trim() || c.customer_name?.toLowerCase().includes(search.toLowerCase())
+  );
+  const filteredProveedores = cuentasProveedores.filter(
+    (p) => !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const totalDeudaClientes    = filteredClientes.reduce((a, c) => a + Math.max(0, Number(c.saldo || c.saldo_ars || 0)), 0);
+  const totalDeudaProveedores = filteredProveedores.reduce((a, p) => a + Math.max(0, Number(p.saldo || 0)), 0);
 
   return (
     <>
       <ToastContainer />
+
+      {/* Stats */}
       <div className="stats-row" style={{ marginBottom:20 }}>
         <div className="stat-card">
-          <div className="stat-label">Cuentas activas</div>
-          <div className="stat-value accent">{filtered.length}</div>
+          <div className="stat-label">Clientes con saldo</div>
+          <div className="stat-value accent">{filteredClientes.filter((c) => Number(c.saldo||0) > 0).length}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Deuda total ARS</div>
-          <div className="stat-value danger">{fmtARS(totalDeuda)}</div>
+          <div className="stat-label">Deuda clientes ARS</div>
+          <div className="stat-value danger">{fmtARS(totalDeudaClientes)}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Proveedores con saldo</div>
+          <div className="stat-value accent">{filteredProveedores.filter((p) => Number(p.saldo||0) > 0).length}</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-label">Deuda proveedores ARS</div>
+          <div className="stat-value danger">{fmtARS(totalDeudaProveedores)}</div>
         </div>
       </div>
-      <div className="search-bar" style={{ marginBottom:16, maxWidth:360 }}>
-        <span className="search-icon">🔍</span>
-        <input placeholder="Filtrar por nombre..." value={search} onChange={(e) => setSearch(e.target.value)} />
-        {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:14, padding:"0 4px" }}>✕</button>}
-      </div>
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">Todas las cuentas corrientes</span>
-          <span className="badge badge-info">{filtered.length}</span>
+
+      {/* Controles */}
+      <div style={{ display:"flex", gap:10, marginBottom:16, alignItems:"center", flexWrap:"wrap" }}>
+        <div style={{ display:"flex", gap:4 }}>
+          {[["clientes","👤 Clientes"],["proveedores","🏢 Proveedores"]].map(([key, lbl]) => (
+            <button key={key} onClick={() => setVista(key)}
+              style={{ padding:"6px 16px", fontSize:13, cursor:"pointer", borderRadius:"var(--radius)",
+                border:"1px solid var(--border)",
+                background: vista === key ? "var(--accent)" : "var(--bg2)",
+                color:      vista === key ? "#fff"          : "var(--text-muted)",
+              }}>{lbl}</button>
+          ))}
         </div>
-        {loading ? <div className="empty">Cargando...</div> : filtered.length === 0 ? <div className="empty">Sin cuentas corrientes</div> : (
-          <div className="table-wrap">
-            <table>
-              <thead><tr><th>Cliente</th><th style={{ textAlign:"right" }}>Saldo ARS</th><th>Último débito</th><th>Último pago</th></tr></thead>
-              <tbody>
-                {filtered.map((c) => {
-                  const saldo = Number(c.saldo || c.saldo_ars || 0);
-                  const color = saldo > 0 ? "var(--danger)" : saldo < 0 ? "var(--success)" : "var(--text-dim)";
-                  return (
-                    <tr key={c.id}>
-                      <td>
-                        <div style={{ fontSize:13, fontWeight:500 }}>{c.customer_name}</div>
-                        {c.customer_document && <div style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>{c.customer_document}</div>}
-                      </td>
-                      <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color }}>{fmtARS(saldo)}</td>
-                      <td style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.ultimo_debito)}</td>
-                      <td style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.ultimo_pago)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div className="search-bar" style={{ maxWidth:320 }}>
+          <span className="search-icon">🔍</span>
+          <input placeholder="Filtrar por nombre..." value={search} onChange={(e) => setSearch(e.target.value)} />
+          {search && <button onClick={() => setSearch("")} style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:14, padding:"0 4px" }}>✕</button>}
+        </div>
+      </div>
+
+      {loading ? (
+        <div style={{ padding:40, textAlign:"center", color:"var(--text-dim)", fontFamily:"var(--font-mono)", fontSize:12 }}>Cargando...</div>
+      ) : vista === "clientes" ? (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Cuentas corrientes — Clientes</span>
+            <span className="badge badge-info">{filteredClientes.length}</span>
           </div>
-        )}
-      </div>
+          {filteredClientes.length === 0 ? <div className="empty">Sin cuentas corrientes</div> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Cliente</th><th style={{ textAlign:"right" }}>Saldo ARS</th><th>Último débito</th><th>Último pago</th></tr></thead>
+                <tbody>
+                  {filteredClientes.map((c) => {
+                    const saldo = Number(c.saldo || c.saldo_ars || 0);
+                    const color = saldo > 0 ? "var(--danger)" : saldo < 0 ? "var(--success)" : "var(--text-dim)";
+                    return (
+                      <tr key={c.id}>
+                        <td>
+                          <div style={{ fontSize:13, fontWeight:500 }}>{c.customer_name}</div>
+                          {c.customer_document && <div style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>{c.customer_document}</div>}
+                        </td>
+                        <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color }}>{fmtARS(saldo)}</td>
+                        <td style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.ultimo_debito)}</td>
+                        <td style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.ultimo_pago)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">Cuentas corrientes — Proveedores</span>
+            <span className="badge badge-info">{filteredProveedores.length}</span>
+          </div>
+          {filteredProveedores.length === 0 ? <div className="empty">Sin proveedores</div> : (
+            <div className="table-wrap">
+              <table>
+                <thead><tr><th>Proveedor</th><th>CUIT</th><th style={{ textAlign:"right" }}>Saldo ARS</th><th>Estado</th></tr></thead>
+                <tbody>
+                  {filteredProveedores.map((p) => {
+                    const saldo = Number(p.saldo || 0);
+                    const color = saldo > 0 ? "var(--danger)" : saldo < 0 ? "var(--success)" : "var(--text-dim)";
+                    const label = saldo > 0 ? "Le debemos" : saldo < 0 ? "A nuestro favor" : "Sin saldo";
+                    return (
+                      <tr key={p.id}>
+                        <td style={{ fontSize:13, fontWeight:500 }}>{p.name}</td>
+                        <td style={{ fontSize:12, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>{p.document || "—"}</td>
+                        <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color }}>{fmtARS(Math.abs(saldo))}</td>
+                        <td><span style={{ fontSize:11, fontFamily:"var(--font-mono)", color, background: saldo !== 0 ? "var(--bg3)" : "transparent", padding:"2px 8px", borderRadius:4, border: saldo !== 0 ? `1px solid ${color}` : "none" }}>{label}</span></td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
@@ -655,15 +726,14 @@ export default function CuentaCorriente() {
   const { addToast, ToastContainer } = useToast();
 
   const TABS = [
-    { key:"clientes",   label:"👤 Clientes"   },
-    { key:"proveedores",label:"🏢 Proveedores" },
-    { key:"general",    label:"📋 General"     },
+    { key:"clientes",    label:"👤 Clientes"    },
+    { key:"proveedores", label:"🏢 Proveedores"  },
+    { key:"general",     label:"📋 General"      },
   ];
 
   return (
     <>
       <ToastContainer />
-      {/* Tabs */}
       <div style={{ display:"flex", gap:4, marginBottom:24 }}>
         {TABS.map(({ key, label }) => (
           <button key={key} onClick={() => setTab(key)}
@@ -687,7 +757,6 @@ export default function CuentaCorriente() {
           updateFn={updateCustomer}
           deleteFn={deleteCustomer}
           getCCFn={getCuentaCorrienteCliente}
-          registrarPagoFn={registrarPagoCC}
           registrarCobranzaFn={registrarCobranzaCC}
           emptyForm={EMPTY_CLIENTE}
           addToast={addToast}
@@ -703,8 +772,7 @@ export default function CuentaCorriente() {
           updateFn={updateProveedor}
           deleteFn={deleteProveedor}
           getCCFn={getCCProveedor}
-          registrarPagoFn={(id, data) => fetch(`/api/proveedores/${id}/pago`, { method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("auth_token")}`}, body:JSON.stringify(data) })}
-          registrarCobranzaFn={(id, data) => fetch(`/api/proveedores/${id}/cobranza`, { method:"POST", headers:{"Content-Type":"application/json", Authorization:`Bearer ${localStorage.getItem("auth_token")}`}, body:JSON.stringify(data) })}
+          registrarCobranzaFn={registrarCobranzaProveedor}
           emptyForm={EMPTY_PROVEEDOR}
           addToast={addToast}
         />
