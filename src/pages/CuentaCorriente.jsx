@@ -277,7 +277,7 @@ function EntityPanel({
                   {m.tipo === "debito" ? "+" : "−"}{fmtARS(m.monto)}
                 </span>
                 <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`}>
-                  {m.tipo === "debito" ? "Débito" : esProveedor ? "Crédito" : "Pago"}
+                  {m.tipo === "debito" ? "Débito" : esProveedor ? "Acreditado" : "Pago"}
                 </span>
               </div>
             ))}
