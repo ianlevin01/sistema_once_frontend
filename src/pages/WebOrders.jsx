@@ -2,7 +2,10 @@ import { useState, useEffect, useRef } from "react";
 import { useToast } from "../utils/useToast";
 import api, { searchCustomers, createComprobante } from "../utils/api";
 import { useVendedores } from "../utils/useVendedores";
+import { useAuth } from "../utils/useAuth";
 import ProductSearchBar from "../components/ProductSearchBar";
+// Al principio de WebOrders.jsx, agregá este import:
+import { calcGanancia, getTasa } from "../utils/calcGanancia";
 
 const COLORS = [
   { value:"pending", label:"Sin marcar",  bg:"var(--bg3)",           border:"var(--border)",  text:"var(--text-muted)" },
@@ -39,6 +42,8 @@ export default function WebOrders() {
   const [form,     setForm]     = useState(null);
   const [saving,   setSaving]   = useState(false);
   const { addToast, ToastContainer } = useToast();
+  const { user } = useAuth();
+const isVendedor = user?.role === "vendedor";
 
   // ── Estado del modal de presupuestar ──────────────────────────
   const [presModal,    setPresModal]    = useState(false);
@@ -568,51 +573,50 @@ export default function WebOrders() {
           ) : (
             <>
               {/* Header detalle */}
-              <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>
-                    PEDIDO #{selected.numero}
-                  </span>
-                  <button onClick={() => setSelected(null)}
-                    style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:18 }}>✕</button>
-                </div>
+<div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
+  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
+      PEDIDO #{selected.numero}
+    </span>
+    <button onClick={() => setSelected(null)}
+      style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 18 }}>✕</button>
+  </div>
 
-                {/* Acciones */}
-                <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
-                  <button className={`btn btn-sm ${selected.reservado ? "btn-primary" : "btn-ghost"}`}
-                    onClick={() => toggleReservado(selected.id, selected.reservado)}>
-                    {selected.reservado ? "🔒 Reservado" : "🔓 Reservar"}
-                  </button>
-                  <button className="btn btn-ghost btn-sm" onClick={openEdit}>✏️ Editar</button>
-                  <button className="btn btn-ghost btn-sm" onClick={printPDF}>🖨️ PDF</button>
-                  <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(selected.id)}>🗑️</button>
-                </div>
-
-                {/* Botón presupuestar */}
-                <div style={{ marginTop:10 }}>
-                  <button className="btn btn-primary btn-sm" onClick={presupuestar}
-                    style={{ width:"100%", fontSize:13 }}>
-                    → Presupuestar
-                  </button>
-                </div>
-
-                {/* Colores */}
-                <div style={{ display:"flex", gap:5, marginTop:10 }}>
-                  {COLORS.map((c) => (
-                    <div key={c.value} onClick={() => setColor(selected.id, c.value)}
-                      style={{ flex:1, padding:"4px 0", textAlign:"center", borderRadius:4, cursor:"pointer", fontSize:10,
-                        background: selected.color===c.value ? c.bg : "transparent",
-                        border: `1px solid ${selected.color===c.value ? c.border : "var(--border)"}`,
-                        color: selected.color===c.value ? c.text : "var(--text-dim)",
-                        fontFamily:"var(--font-mono)", transition:"all 0.15s",
-                      }}>
-                      {c.label}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Cuerpo detalle / form edición */}
+  {/* Acciones — solo para no-vendedores */}
+  {!isVendedor && (
+    <>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+        <button className={`btn btn-sm ${selected.reservado ? "btn-primary" : "btn-ghost"}`}
+          onClick={() => toggleReservado(selected.id, selected.reservado)}>
+          {selected.reservado ? "🔒 Reservado" : "🔓 Reservar"}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={openEdit}>✏️ Editar</button>
+        <button className="btn btn-ghost btn-sm" onClick={printPDF}>🖨️ PDF</button>
+        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(selected.id)}>🗑️</button>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <button className="btn btn-primary btn-sm" onClick={presupuestar}
+          style={{ width: "100%", fontSize: 13 }}>
+          → Presupuestar
+        </button>
+      </div>
+      <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
+        {COLORS.map((c) => (
+          <div key={c.value} onClick={() => setColor(selected.id, c.value)}
+            style={{
+              flex: 1, padding: "4px 0", textAlign: "center", borderRadius: 4, cursor: "pointer", fontSize: 10,
+              background: selected.color === c.value ? c.bg : "transparent",
+              border: `1px solid ${selected.color === c.value ? c.border : "var(--border)"}`,
+              color: selected.color === c.value ? c.text : "var(--text-dim)",
+              fontFamily: "var(--font-mono)", transition: "all 0.15s",
+            }}>
+            {c.label}
+          </div>
+        ))}
+      </div>
+    </>
+  )}
+</div>
               <div style={{ flex:1, overflowY:"auto", padding:"16px 18px" }}>
                 {editing ? (
                   /* FORM EDICIÓN */
@@ -716,6 +720,37 @@ export default function WebOrders() {
                         </table>
                       </div>
                     )}
+                    {/* Ganancia del vendedor — solo visible para vendedor */}
+                     {isVendedor && (() => {
+  const items = selected.items || [];
+  const pctV  = Number(user?.pct_vendedor ?? 0);
+
+  const gananciaBruta = items.reduce((acc, it) => {
+    const precioVenta  = Number(it.unit_price || 0);
+    const precio1Aprox = pctV > 0 ? precioVenta / (1 + pctV / 100) : precioVenta;
+    return acc + (precioVenta - precio1Aprox) * it.quantity;
+  }, 0);
+
+  const tramo       = getTasa(gananciaBruta);
+  const gananciaReal = gananciaBruta * (tramo.tasa / 100);
+
+  return (
+    <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--success-dim)", border: "1px solid var(--success)", borderRadius: 8 }}>
+      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--success)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
+        Tu ganancia en este pedido
+      </div>
+      <div style={{ fontSize: 11, color: "var(--success)", opacity: 0.8, marginBottom: 6 }}>
+        {tramo.label} → {tramo.tasa}% de ${gananciaBruta.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: "var(--success)", opacity: 0.7 }}>({pctV}% de margen)</span>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 800, color: "var(--success)" }}>
+          ${gananciaReal.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
+        </div>
+      </div>
+    </div>
+  );
+})()}
                     <div style={{ marginTop:12, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>
                       {new Date(selected.created_at).toLocaleString("es-AR")}
                     </div>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../utils/useAuth";
 
-const NAV = [
+const NAV_ADMIN = [
   {
     section: "Operaciones",
     items: [
@@ -29,7 +29,24 @@ const NAV = [
   {
     section: "Sistema",
     items: [
-      { to: "/usuarios",    label: "Usuarios",       icon: "👥" },
+      { to: "/usuarios",      label: "Usuarios",      icon: "👥" },
+      { to: "/configuracion", label: "Configuración", icon: "⚙️" },
+    ],
+  },
+];
+
+const NAV_VENDEDOR = [
+  {
+    section: "Ventas",
+    items: [
+      { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
+      { to: "/productos",    label: "Productos",    icon: "🏷️" },
+      { to: "/calculadora",  label: "Calculadora",  icon: "🧮" },  // ← nuevo
+    ],
+  },
+  {
+    section: "Mi cuenta",
+    items: [
       { to: "/configuracion", label: "Configuración", icon: "⚙️" },
     ],
   },
@@ -45,7 +62,7 @@ const PAGE_TITLES = {
   "/productos":        "Productos",
   "/vendedores":       "Vendedores",
   "/usuarios":         "Usuarios del Sistema",
-  "/configuracion":    "Configuración de Precios",
+  "/configuracion":    "Configuración",
 };
 
 function CajaNavItem({ item, location }) {
@@ -86,9 +103,12 @@ function CajaNavItem({ item, location }) {
 }
 
 export default function Layout({ children }) {
-  const location  = useLocation();
-  const navigate  = useNavigate();
+  const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  const isVendedor = user?.role === "vendedor";
+  const NAV = isVendedor ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
 
   const handleLogout = () => {
@@ -131,12 +151,22 @@ export default function Layout({ children }) {
           ))}
         </nav>
 
-        {/* Usuario logueado al fondo del sidebar */}
         {user && (
           <div style={{
             padding: "12px 16px", borderTop: "1px solid var(--border)",
             background: "var(--bg3)", flexShrink: 0,
           }}>
+            {/* Badge de rol para vendedor */}
+            {isVendedor && (
+              <div style={{
+                fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--accent)",
+                background: "var(--accent-light)", border: "1px solid var(--accent)",
+                borderRadius: 3, padding: "2px 7px", marginBottom: 6,
+                display: "inline-block", textTransform: "uppercase", letterSpacing: "0.06em",
+              }}>
+                Vendedor
+              </div>
+            )}
             <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>
               {user.name}
             </div>
