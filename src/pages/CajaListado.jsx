@@ -5,7 +5,7 @@ import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { printComprobantePDF } from "../utils/printDoc";
 
-// ── Constantes ─────────────────────────────────────────────────────────────────
+// ── Constantes ────────────────────────────────────────────────
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
 const PRECIO_LBL = {
@@ -17,59 +17,63 @@ const today   = () => new Date().toISOString().slice(0, 10);
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
 
-// ── API helpers ────────────────────────────────────────────────────────────────
-async function searchProveedores(q) {
-  const res = await fetch(`/api/proveedores/search?q=${encodeURIComponent(q)}`);
-  if (!res.ok) throw new Error("Error buscando proveedores");
+// ── API helpers directos (sin axios para no romper auth en fetch) ─
+async function fetchWithAuth(url) {
+  const token = localStorage.getItem("auth_token");
+  const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new Error(`Error ${res.status}`);
   return res.json();
+}
+async function searchProveedores(q) {
+  return fetchWithAuth(`/api/proveedores/search?q=${encodeURIComponent(q)}`);
 }
 async function getWarehouses() {
-  const res = await fetch("/api/comprobantes/warehouses");
-  if (!res.ok) throw new Error("Error cargando depósitos");
-  return res.json();
+  return fetchWithAuth("/api/comprobantes/warehouses");
 }
 async function getLastPrice(customerId, productId) {
-  const res = await fetch(`/api/comprobantes/last-price?customer_id=${customerId}&product_id=${productId}`);
-  if (!res.ok) return null;
-  return res.json();
+  return fetchWithAuth(`/api/comprobantes/last-price?customer_id=${customerId}&product_id=${productId}`)
+    .catch(() => null);
+}
+// Trae TODAS las reservas (sin filtro de fecha)
+async function getAllNotas() {
+  return fetchWithAuth("/api/comprobantes?tipo=Nota de Pedido");
 }
 
-// ── Skeleton ───────────────────────────────────────────────────────────────────
+// ── Skeleton ──────────────────────────────────────────────────
 function SkeletonRow({ cols = 4 }) {
   return (
     <tr>
       {Array.from({ length: cols }).map((_, i) => (
         <td key={i} style={{ padding:"10px 12px" }}>
           <div style={{
-            height: 14, borderRadius: 4,
-            background: "linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%)",
-            backgroundSize: "200% 100%",
-            animation: "shimmer 1.4s infinite",
-            width: i === 1 ? "70%" : i === 0 ? "40%" : "55%",
+            height:14, borderRadius:4,
+            background:"linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%)",
+            backgroundSize:"200% 100%", animation:"shimmer 1.4s infinite",
+            width: i===1 ? "70%" : i===0 ? "40%" : "55%",
           }} />
         </td>
       ))}
     </tr>
   );
 }
-function SkeletonCard({ rows = 5, cols = 4, title = "" }) {
+function SkeletonCard({ rows=5, cols=4, title="" }) {
   return (
-    <div className="card" style={{ marginBottom: 24 }}>
+    <div className="card" style={{ marginBottom:24 }}>
       <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
       <div className="card-header">
         <span className="card-title">{title}</span>
-        <div style={{ width:28, height:20, borderRadius:10, background:"var(--bg3)", animation:"shimmer 1.4s infinite", backgroundSize:"200% 100%", backgroundImage:"linear-gradient(90deg, var(--bg3) 25%, var(--border) 50%, var(--bg3) 75%)" }} />
+        <div style={{ width:28, height:20, borderRadius:10, background:"var(--bg3)", animation:"shimmer 1.4s infinite", backgroundSize:"200% 100%", backgroundImage:"linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%)" }} />
       </div>
       <div className="table-wrap"><table><tbody>
-        {Array.from({ length: rows }).map((_, i) => <SkeletonRow key={i} cols={cols} />)}
+        {Array.from({ length:rows }).map((_,i) => <SkeletonRow key={i} cols={cols} />)}
       </tbody></table></div>
     </div>
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Hook del modal de presupuestar (desde Nota de Pedido)
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Hook modal presupuestar
+// ─────────────────────────────────────────────────────────────
 function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const [open,      setOpen]      = useState(false);
   const [source,    setSource]    = useState(null);
@@ -88,21 +92,15 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const [itemDesc,  setItemDesc]  = useState("");
   const [saving,    setSaving]    = useState(false);
   const [originalItems, setOriginalItems] = useState([]);
-
-  // Proveedor / Warehouse (para Reposicion en este modal)
   const [provQuery,   setProvQuery]   = useState("");
   const [provResults, setProvResults] = useState([]);
   const [provSel,     setProvSel]     = useState(null);
   const [warehouses,  setWarehouses]  = useState([]);
   const [warehouseId, setWarehouseId] = useState("");
-
-  // Último precio
-  const [lastPrice, setLastPrice] = useState(null);
-
+  const [lastPrice,   setLastPrice]   = useState(null);
   const qtyRef = useRef(null);
   const esReposicion = tipo === "Reposicion";
 
-  // Búsqueda clientes
   useEffect(() => {
     if (!open || !custQuery.trim() || esReposicion) { setCustRes([]); return; }
     const t = setTimeout(async () => {
@@ -111,23 +109,20 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
     return () => clearTimeout(t);
   }, [custQuery, open, esReposicion]);
 
-  // Búsqueda proveedores
   useEffect(() => {
     if (!open || !provQuery.trim() || !esReposicion) { setProvResults([]); return; }
     const t = setTimeout(async () => {
-      try { const data = await searchProveedores(provQuery); setProvResults(data); } catch {}
+      try { setProvResults(await searchProveedores(provQuery)); } catch {}
     }, 300);
     return () => clearTimeout(t);
   }, [provQuery, open, esReposicion]);
 
-  // Cargar warehouses al cambiar a Reposicion
   useEffect(() => {
     if (esReposicion && open && warehouses.length === 0) {
       getWarehouses().then(setWarehouses).catch(() => {});
     }
   }, [esReposicion, open]);
 
-  // Precio del producto
   useEffect(() => {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
@@ -145,25 +140,21 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   const openFor = (order) => {
     setSource(order);
     const itemsPre = (order.items || []).map((i) => ({
-      product_id: i.product_id || null,
-      code: i.code || "",
-      name: i.name || i.description || "",
+      product_id:  i.product_id || null,
+      code:        i.code || "",
+      name:        i.name || i.description || "",
       description: i.name || i.description || "",
-      quantity: i.quantity,
-      unit_price: Number(i.unit_price || 0),
+      quantity:    i.quantity,
+      unit_price:  Number(i.unit_price || 0),
     }));
     setOriginalItems(itemsPre);
     setItems(itemsPre);
-    setCustSel(order.customer_id ? { id: order.customer_id, name: order.customer_name } : null);
+    setCustSel(order.customer_id ? { id:order.customer_id, name:order.customer_name } : null);
     setCustQuery(order.customer_name || "");
-    setTipo("Presupuesto");
-    setPayMethod("Contado");
-    setPriceType("precio_1");
-    setVendedor(order.vendedor || "");
-    setTexto(order.texto_libre || "");
+    setTipo("Presupuesto"); setPayMethod("Contado"); setPriceType("precio_1");
+    setVendedor(order.vendedor || ""); setTexto(order.texto_libre || "");
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
-    setProvSel(null); setProvQuery(""); setWarehouseId("");
-    setLastPrice(null);
+    setProvSel(null); setProvQuery(""); setWarehouseId(""); setLastPrice(null);
     setOpen(true);
   };
 
@@ -179,53 +170,48 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   };
 
   const confirmItem = () => {
-    if (!prodSel)                          { addToast("Seleccioná un producto", "error"); return; }
-    if (!itemQty || Number(itemQty) <= 0)  { addToast("Ingresá una cantidad válida", "error"); return; }
+    if (!prodSel)                         { addToast("Seleccioná un producto","error"); return; }
+    if (!itemQty || Number(itemQty) <= 0) { addToast("Ingresá una cantidad válida","error"); return; }
     setItems((prev) => [...prev, {
-      product_id: prodSel.id, code: prodSel.code || "", name: prodSel.name,
-      description: itemDesc || prodSel.name, quantity: Number(itemQty), unit_price: Number(itemPrice) || 0,
+      product_id:  prodSel.id, code:prodSel.code||"", name:prodSel.name,
+      description: itemDesc||prodSel.name, quantity:Number(itemQty), unit_price:Number(itemPrice)||0,
     }]);
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc(""); setLastPrice(null);
   };
 
-  const removeItem = (i) => setItems((prev) => prev.filter((_, idx) => idx !== i));
-  const totalCalc = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
+  const removeItem  = (i) => setItems((prev) => prev.filter((_,idx) => idx !== i));
+  const totalCalc   = items.reduce((a,it) => a + it.quantity * it.unit_price, 0);
 
   const handleCreate = async () => {
     if (esReposicion) {
-      if (!provSel)     { addToast("Seleccioná un proveedor", "error"); return; }
-      if (!warehouseId) { addToast("Seleccioná el depósito de destino", "error"); return; }
+      if (!provSel)     { addToast("Seleccioná un proveedor","error"); return; }
+      if (!warehouseId) { addToast("Seleccioná el depósito","error"); return; }
     } else {
-      if (!custSel)     { addToast("Seleccioná un cliente", "error"); return; }
+      if (!custSel) { addToast("Seleccioná un cliente","error"); return; }
     }
-    if (items.length === 0) { addToast("Agregá al menos un producto", "error"); return; }
+    if (items.length === 0) { addToast("Agregá al menos un producto","error"); return; }
     setSaving(true);
     try {
-      const currentIds  = new Set(items.map((i) => i.product_id).filter(Boolean));
+      const currentIds   = new Set(items.map((i) => i.product_id).filter(Boolean));
       const removedItems = originalItems.filter((oi) => oi.product_id && !currentIds.has(oi.product_id));
-
       await createComprobante({
         customer_id:    esReposicion ? null : custSel.id,
         supplier_id:    esReposicion ? provSel.id : null,
         warehouse_id:   esReposicion ? warehouseId : null,
         user_id:        null,
         payment_method: payMethod,
-        tipo, vendedor, price_type: priceType, texto_libre: texto,
+        tipo, vendedor, price_type:priceType, texto_libre:texto,
         source_nota_id: source?.id || null,
         removed_items:  removedItems,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
-
-      addToast("Presupuesto creado", "success");
+      addToast("Presupuesto creado","success");
       if (removedItems.length > 0) {
-        addToast(`Se creó una nueva Nota de Pedido con ${removedItems.length} producto${removedItems.length > 1 ? "s" : ""} eliminado${removedItems.length > 1 ? "s" : ""}`, "info");
+        addToast(`Nueva Nota de Pedido con ${removedItems.length} producto${removedItems.length>1?"s":""} eliminado${removedItems.length>1?"s":""}`, "info");
       }
       setOpen(false);
-      onSuccess && onSuccess();
-    } catch (err) {
-      addToast("Error creando presupuesto", "error");
-      console.error(err);
-    }
+      onSuccess?.();
+    } catch { addToast("Error creando presupuesto","error"); }
     setSaving(false);
   };
 
@@ -239,17 +225,15 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
     items, removeItem, prodSel, handleProdSelect,
     itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
     confirmItem, totalCalc, saving, handleCreate,
-    qtyRef, vendedores, originalItems, lastPrice,
-    esReposicion,
+    qtyRef, vendedores, originalItems, lastPrice, esReposicion,
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Modal de presupuestar
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Modal de presupuestar (sin cambios funcionales)
+// ─────────────────────────────────────────────────────────────
 function PresModal({ m }) {
   if (!m.open) return null;
-
   const currentIds = new Set(m.items.map((i) => i.product_id).filter(Boolean));
   const removedNow = m.originalItems.filter((oi) => oi.product_id && !currentIds.has(oi.product_id));
 
@@ -259,30 +243,26 @@ function PresModal({ m }) {
         style={{ maxWidth:900, width:"96vw", maxHeight:"92vh", overflow:"hidden", display:"flex", flexDirection:"column" }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
         <div className="modal-header" style={{ flexShrink:0 }}>
-          <span className="modal-title">🧾 Presupuestar — {m.source?.customer_name || "—"}</span>
+          <span className="modal-title">🧾 Presupuestar — {m.source?.customer_name||"—"}</span>
           <button className="modal-close" onClick={() => m.setOpen(false)}>✕</button>
         </div>
 
-        {/* Aviso items eliminados */}
         {removedNow.length > 0 && (
           <div style={{ padding:"10px 18px", background:"rgba(240,160,0,0.12)", borderBottom:"1px solid rgba(240,160,0,0.3)", flexShrink:0 }}>
             <span style={{ fontSize:12, color:"var(--accent)", fontFamily:"var(--font-mono)" }}>
-              ⚠️ {removedNow.length} producto{removedNow.length > 1 ? "s eliminados" : " eliminado"} →
-              se creará una nueva Nota de Pedido con {removedNow.map((i) => i.name || i.description).join(", ")}
+              ⚠️ {removedNow.length} producto{removedNow.length>1?"s eliminados":" eliminado"} →
+              nueva Nota con {removedNow.map((i) => i.name||i.description).join(", ")}
             </span>
           </div>
         )}
 
         <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
-
-          {/* ── Columna izquierda ── */}
+          {/* Columna izquierda */}
           <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
             {/* Tipo */}
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
-              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo de comprobante</div>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
               {["Presupuesto","Devolucion","Reposicion"].map((t) => (
                 <div key={t} onClick={() => m.setTipo(t)}
                   style={{ padding:"7px 10px", borderRadius:4, cursor:"pointer", marginBottom:3, fontSize:13,
@@ -294,12 +274,11 @@ function PresModal({ m }) {
               ))}
             </div>
 
-            {/* Cliente o Proveedor */}
+            {/* Cliente/Proveedor */}
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
                 {m.esReposicion ? "Proveedor" : "Cliente"}
               </div>
-
               {m.esReposicion ? (
                 m.provSel ? (
                   <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -310,16 +289,15 @@ function PresModal({ m }) {
                   <>
                     <div className="search-bar" style={{ height:36 }}>
                       <span className="search-icon">🔍</span>
-                      <input placeholder="Nombre o CUIT..." value={m.provQuery}
-                        onChange={(e) => m.setProvQuery(e.target.value)} style={{ fontSize:12 }} />
+                      <input placeholder="Nombre o CUIT..." value={m.provQuery} onChange={(e) => m.setProvQuery(e.target.value)} style={{ fontSize:12 }} />
                     </div>
                     {m.provResults.length > 0 && (
                       <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:6 }}>
                         {m.provResults.map((p) => (
                           <div key={p.id} onClick={() => m.selectProv(p)}
                             style={{ padding:"8px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                            onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
                             {p.name}
                           </div>
                         ))}
@@ -337,16 +315,15 @@ function PresModal({ m }) {
                   <>
                     <div className="search-bar" style={{ height:36 }}>
                       <span className="search-icon">🔍</span>
-                      <input placeholder="Nombre o CUIT..." value={m.custQuery}
-                        onChange={(e) => m.setCustQuery(e.target.value)} style={{ fontSize:12 }} />
+                      <input placeholder="Nombre o CUIT..." value={m.custQuery} onChange={(e) => m.setCustQuery(e.target.value)} style={{ fontSize:12 }} />
                     </div>
                     {m.custRes.length > 0 && (
                       <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:6 }}>
                         {m.custRes.map((c) => (
                           <div key={c.id} onClick={() => m.selectCust(c)}
                             style={{ padding:"8px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                            onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
                             {c.name}
                           </div>
                         ))}
@@ -361,7 +338,7 @@ function PresModal({ m }) {
             <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
               {m.esReposicion && (
                 <div className="input-group">
-                  <label className="input-label" style={{ fontSize:10 }}>Depósito de destino</label>
+                  <label className="input-label" style={{ fontSize:10 }}>Depósito destino</label>
                   <select className="select" value={m.warehouseId} onChange={(e) => m.setWarehouseId(e.target.value)} style={{ fontSize:12 }}>
                     <option value="">— seleccionar —</option>
                     {m.warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -395,20 +372,16 @@ function PresModal({ m }) {
               </div>
             </div>
 
-            {/* Botones */}
             <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
-              <button className="btn btn-primary" onClick={m.handleCreate} disabled={m.saving}
-                style={{ width:"100%", fontSize:13, padding:"10px" }}>
+              <button className="btn btn-primary" onClick={m.handleCreate} disabled={m.saving} style={{ width:"100%", fontSize:13, padding:"10px" }}>
                 {m.saving ? "Guardando..." : "✓ Cerrar presupuesto"}
               </button>
               <button className="btn btn-ghost" onClick={() => m.setOpen(false)} style={{ width:"100%", fontSize:13 }}>Cancelar</button>
             </div>
           </div>
 
-          {/* ── Panel central: items ── */}
+          {/* Panel central */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-            {/* Lista de items */}
             <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
               {m.items.length === 0 ? (
                 <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:10 }}>
@@ -422,13 +395,13 @@ function PresModal({ m }) {
                       <div key={h} style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</div>
                     ))}
                   </div>
-                  {m.items.map((it, i) => (
+                  {m.items.map((it,i) => (
                     <div key={i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 70px 110px 30px", gap:10, padding:"10px 0", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)" }}>{it.code||"—"}</span>
                       <span style={{ fontSize:13 }}>{it.description||it.name}</span>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>×{it.quantity}</span>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"var(--accent)", textAlign:"right" }}>
-                        ${(it.quantity * it.unit_price).toLocaleString("es-AR")}
+                        ${(it.quantity*it.unit_price).toLocaleString("es-AR")}
                       </span>
                       <button onClick={() => m.removeItem(i)} style={{ background:"none", border:"none", color:"var(--danger)", cursor:"pointer", fontSize:16 }}>✕</button>
                     </div>
@@ -457,7 +430,6 @@ function PresModal({ m }) {
                     </span>
                     <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
                   </div>
-                  {/* Último precio */}
                   {m.lastPrice && m.custSel && !m.esReposicion && (
                     <div style={{ marginTop:5, padding:"5px 10px", background:"rgba(255,200,0,0.08)", border:"1px solid rgba(255,200,0,0.25)", borderRadius:5, fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-muted)", display:"flex", gap:10, alignItems:"center" }}>
                       <span style={{ color:"rgba(255,200,0,0.8)" }}>⏱</span>
@@ -472,7 +444,7 @@ function PresModal({ m }) {
                 <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", whiteSpace:"nowrap" }}>Descripción:</div>
                 <input className="input" style={{ flex:1, fontSize:13, height:34 }} placeholder="Enter si no modifica"
                   value={m.itemDesc} onChange={(e) => m.setItemDesc(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
+                  onKeyDown={(e) => { if (e.key==="Enter") m.confirmItem(); }} />
               </div>
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
@@ -483,17 +455,15 @@ function PresModal({ m }) {
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
                   <input ref={m.qtyRef} className="input"
                     style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
-                    placeholder="0" value={m.itemQty}
-                    onChange={(e) => m.setItemQty(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
+                    placeholder="0" value={m.itemQty} onChange={(e) => m.setItemQty(e.target.value)}
+                    onKeyDown={(e) => { if (e.key==="Enter") m.confirmItem(); }} />
                 </div>
                 <div style={{ flex:"0 0 110px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Precio</div>
                   <input className="input"
                     style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
-                    placeholder="0.00" value={m.itemPrice}
-                    onChange={(e) => m.setItemPrice(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") m.confirmItem(); }} />
+                    placeholder="0.00" value={m.itemPrice} onChange={(e) => m.setItemPrice(e.target.value)}
+                    onKeyDown={(e) => { if (e.key==="Enter") m.confirmItem(); }} />
                 </div>
                 <button className="btn btn-primary" onClick={m.confirmItem}
                   style={{ height:38, fontSize:13, padding:"0 16px", flexShrink:0 }}>
@@ -508,16 +478,106 @@ function PresModal({ m }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Componente principal CajaListado
-// ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// Helpers para secciones de cobranzas
+// ─────────────────────────────────────────────────────────────
+const METODOS_LABEL = ["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"];
+
+function SeccionCobranzas({ cobranzas, divisa }) {
+  const filtered = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === divisa);
+  if (filtered.length === 0) return null;
+
+  const titulo    = divisa === "USD" ? "Cobranzas en DÓLARES" : "Cobranzas en PESOS";
+  const fmtVal    = (n) => divisa === "USD"
+    ? `USD ${Number(n||0).toLocaleString("es-AR",{minimumFractionDigits:2})}`
+    : `$${fmt(n)}`;
+  // Para USD mostramos monto_original; para ARS mostramos monto
+  const getMontoDisplay = (c) => divisa === "USD"
+    ? Number(c.monto_original ?? c.monto ?? 0)
+    : Number(c.monto ?? 0);
+
+  const totalPorMetodo = METODOS_LABEL.reduce((acc, m) => {
+    acc[m] = filtered.filter((c) => c.metodo_pago === m).reduce((a, c) => a + getMontoDisplay(c), 0);
+    return acc;
+  }, {});
+  const total = filtered.reduce((a, c) => a + getMontoDisplay(c), 0);
+
+  return (
+    <div className="card" style={{ marginBottom:24 }}>
+      <div className="card-header">
+        <span className="card-title">{titulo}</span>
+        <span className="badge badge-info">{filtered.length}</span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Cliente</th><th>Concepto</th>
+              <th style={{ textAlign:"right" }}>Efectivo</th>
+              <th style={{ textAlign:"right" }}>Cheque</th>
+              <th style={{ textAlign:"right" }}>Depósito</th>
+              <th style={{ textAlign:"right" }}>Tarjeta</th>
+              <th style={{ textAlign:"right" }}>Mercpago</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((c) => {
+              const monto = getMontoDisplay(c);
+              return (
+                <tr key={c.id}>
+                  <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.created_at)}</td>
+                  <td>
+                    <div style={{ fontSize:14, fontWeight:500 }}>{c.customer_name||"—"}</div>
+                    {c.concepto && c.concepto !== "Cobranza" && (
+                      <div style={{ fontSize:12, color:"var(--text-dim)" }}>{c.concepto}</div>
+                    )}
+                  </td>
+                  <td style={{ fontSize:12, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
+                    {c.order_id ? <span style={{ color:"var(--accent)" }}>{c.order_id.slice(-5)}</span> : "—"}
+                  </td>
+                  {METODOS_LABEL.map((met) => (
+                    <td key={met} style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                      {c.metodo_pago === met ? fmtVal(monto) : ""}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {/* Totales por método */}
+      <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
+        {METODOS_LABEL.map((met) => {
+          const t = totalPorMetodo[met];
+          if (!t) return null;
+          return (
+            <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:130 }}>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color:"var(--accent)" }}>{fmtVal(t)}</div>
+            </div>
+          );
+        })}
+        <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total {divisa}</div>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>{fmtVal(total)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Componente principal
+// ─────────────────────────────────────────────────────────────
 export default function CajaListado() {
   const [from, setFrom] = useState(today());
   const [to,   setTo]   = useState(today());
   const [loading, setLoading] = useState(false);
 
   const [presupuestos, setPresupuestos] = useState([]);
-  const [notasPedido,  setNotasPedido]  = useState([]);
+  const [reposiciones, setReposiciones] = useState([]);
+  const [notasPedido,  setNotasPedido]  = useState([]);  // SIEMPRE todas
   const [remitos,      setRemitos]      = useState([]);
   const [cashMovs,     setCashMovs]     = useState([]);
   const [cobranzas,    setCobranzas]    = useState([]);
@@ -529,30 +589,44 @@ export default function CajaListado() {
   async function load() {
     setLoading(true);
     try {
-      const [{ data }, cashRes, cobranzasRes] = await Promise.all([
+      const [listadoRes, cashRes, cobranzasRes, notasRes] = await Promise.all([
         getListadoCaja(from, to),
         getCashMovements(from, to),
         getCobranzasCC(from, to),
+        // Notas siempre sin filtro de fecha
+        fetchWithAuth("/api/comprobantes").then((d) =>
+          (Array.isArray(d) ? d : []).filter((o) =>
+            o.tipo === "Nota de Pedido" || o.tipo === "Nota de Pedido Web"
+          )
+        ).catch(() => []),
       ]);
+
+      const data = listadoRes.data;
       setPresupuestos(data.presupuestos || []);
-      setNotasPedido(data.notasPedido  || []);
       setRemitos(data.remitos          || []);
       setCashMovs(cashRes.data         || []);
       setCobranzas(cobranzasRes.data   || []);
-    } catch { addToast("Error cargando listado", "error"); }
+
+      // Reposiciones: vienen en presupuestos pero con tipo "Reposicion"
+      // Las traemos del listado general de comprobantes filtrado por fecha
+      const todos = Array.isArray(data.presupuestos) ? [] : [];
+      // El endpoint getListadoCaja no devuelve reposiciones — las pedimos por separado
+      const reposRes = await fetchWithAuth(
+        `/api/comprobantes?from=${from}&to=${to}`
+      ).then((d) => (Array.isArray(d) ? d : []).filter((o) => o.tipo === "Reposicion"))
+       .catch(() => []);
+      setReposiciones(reposRes);
+
+      // Notas: las que vienen del back ya son todas (sin filtro)
+      setNotasPedido(notasRes);
+
+    } catch { addToast("Error cargando listado","error"); }
     setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
 
-  // Totales
-  const totalesPago  = presupuestos.reduce((acc, p) => {
-    const met = p.payment_method || "Sin método";
-    acc[met] = (acc[met] || 0) + Number(p.total || 0);
-    return acc;
-  }, {});
-  const totalGeneral = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
-
+  // ── Totales para resumen de caja ─────────────────────────────
   const METODOS_COLS = ["Efectivo","Cta Cte","Tarjeta","Por Banco","Mercado Pago","Cheques"];
   const metodoKey = (m) => {
     if (!m) return "Efectivo";
@@ -581,34 +655,34 @@ export default function CajaListado() {
     else                       salidasPorMetodo[col]  = (salidasPorMetodo[col]  || 0) + Number(mv.amount || 0);
   });
 
-  const totalVentas   = Object.values(ventasPorMetodo).reduce((a, v) => a + v, 0);
-  const totalEntradas = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
-  const totalSalidas  = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
-
+  // Para el resumen de caja, cobranzas solo en ARS
+  const cobranzasARS = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "ARS");
   const METODOS_COBRANZA_MAP = {
-    "Efectivo": "Efectivo", "Cheque": "Cheques", "Depósito": "Por Banco",
-    "Tarjeta":  "Tarjeta",  "Mercpago": "Mercado Pago",
+    "Efectivo":"Efectivo","Cheque":"Cheques","Depósito":"Por Banco",
+    "Tarjeta":"Tarjeta","Mercpago":"Mercado Pago",
   };
   const cobranzasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
-  cobranzas.forEach((c) => {
+  cobranzasARS.forEach((c) => {
     const col = METODOS_COBRANZA_MAP[c.metodo_pago] || "Efectivo";
     cobranzasPorMetodo[col] = (cobranzasPorMetodo[col] || 0) + Number(c.monto || 0);
   });
-  const totalCobranzas = cobranzas.reduce((a, c) => a + Number(c.monto || 0), 0);
+
+  const totalVentas    = Object.values(ventasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalEntradas  = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalSalidas   = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalCobranzas = cobranzasARS.reduce((a, c) => a + Number(c.monto || 0), 0);
+  const totalPres      = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
 
   const handleDeleteNota = async (id) => {
     if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
     try {
       await deleteComprobante(id);
       setNotasPedido((prev) => prev.filter((n) => n.id !== id));
-      addToast("Eliminado", "success");
-    } catch { addToast("Error eliminando", "error"); }
+      addToast("Eliminado","success");
+    } catch { addToast("Error eliminando","error"); }
   };
 
-  const printNotaPDF       = (nota) => printComprobantePDF(nota);
-  const printPresupuestoPDF = (p)   => printComprobantePDF(p);
-
-  // ── RENDER ──────────────────────────────────────────────────────────────────
+  // ── RENDER ───────────────────────────────────────────────────
   return (
     <>
       <ToastContainer />
@@ -625,22 +699,20 @@ export default function CajaListado() {
 
       {loading ? (
         <>
-          <SkeletonCard title="Presupuestos"               rows={4} cols={6} />
-          <SkeletonCard title="Reservas (Notas de Pedido)" rows={3} cols={4} />
-          <SkeletonCard title="Cobranzas en PESOS"         rows={3} cols={8} />
-          <SkeletonCard title="Remitos"                    rows={3} cols={5} />
+          <SkeletonCard title="Presupuestos"     rows={4} cols={6} />
+          <SkeletonCard title="Reposiciones"     rows={3} cols={5} />
+          <SkeletonCard title="Cobranzas"        rows={3} cols={8} />
+          <SkeletonCard title="Remitos"          rows={3} cols={5} />
         </>
       ) : (
         <>
-          {/* ── SECCIÓN 1: PRESUPUESTOS ── */}
-          <div className="card" style={{ marginBottom:24 }}>
-            <div className="card-header">
-              <span className="card-title">Presupuestos</span>
-              <span className="badge badge-info">{presupuestos.length}</span>
-            </div>
-            {presupuestos.length === 0 ? (
-              <div className="empty">Sin presupuestos en este período</div>
-            ) : (
+          {/* ── PRESUPUESTOS ── */}
+          {presupuestos.length > 0 && (
+            <div className="card" style={{ marginBottom:24 }}>
+              <div className="card-header">
+                <span className="card-title">Presupuestos</span>
+                <span className="badge badge-info">{presupuestos.length}</span>
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -655,40 +727,45 @@ export default function CajaListado() {
                       <tr key={p.id}>
                         <td>
                           <span className="badge badge-accent" style={{
-                            background: p.tipo === "Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
-                            color:      p.tipo === "Presupuesto Web" ? "var(--success)" : undefined,
-                            border:     p.tipo === "Presupuesto Web" ? "1px solid var(--success)" : undefined,
+                            background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
+                            color:      p.tipo==="Presupuesto Web" ? "var(--success)"         : undefined,
+                            border:     p.tipo==="Presupuesto Web" ? "1px solid var(--success)":undefined,
                           }}>
-                            {p.tipo || "Presupuesto"}
+                            {p.tipo||"Presupuesto"}
                           </span>
                         </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(p.created_at)}</td>
-                        <td style={{ fontSize:14 }}>{p.customer_name || "—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor || "—"}</td>
+                        <td style={{ fontSize:14 }}>{p.customer_name||"—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor||"—"}</td>
                         <td>
                           <span style={{ fontSize:12, fontFamily:"var(--font-mono)", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, padding:"2px 8px" }}>
-                            {p.payment_method || "—"}
+                            {p.payment_method||"—"}
                           </span>
                         </td>
                         <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                           ${fmt(p.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printPresupuestoPDF(p)} title="Imprimir">🖨️</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(p)} title="Imprimir">🖨️</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-            {presupuestos.length > 0 && (
+              {/* Totales por método */}
               <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)" }}>
                 <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>
                   Facturación por método de pago
                 </div>
                 <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-                  {Object.entries(totalesPago).map(([met, total]) => (
+                  {Object.entries(
+                    presupuestos.reduce((acc, p) => {
+                      const met = p.payment_method || "Sin método";
+                      acc[met] = (acc[met] || 0) + Number(p.total || 0);
+                      return acc;
+                    }, {})
+                  ).map(([met, total]) => (
                     <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:140 }}>
                       <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
                       <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color:"var(--accent)" }}>${fmt(total)}</div>
@@ -696,22 +773,56 @@ export default function CajaListado() {
                   ))}
                   <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
                     <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total General</div>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>${fmt(totalGeneral)}</div>
+                    <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>${fmt(totalPres)}</div>
                   </div>
                 </div>
               </div>
-            )}
-          </div>
-
-          {/* ── SECCIÓN 2: NOTAS DE PEDIDO ── */}
-          <div className="card" style={{ marginBottom:24 }}>
-            <div className="card-header">
-              <span className="card-title">Reservas (Notas de Pedido)</span>
-              <span className="badge badge-info">{notasPedido.length}</span>
             </div>
-            {notasPedido.length === 0 ? (
-              <div className="empty">Sin notas de pedido en este período</div>
-            ) : (
+          )}
+
+          {/* ── REPOSICIONES ── */}
+          {reposiciones.length > 0 && (
+            <div className="card" style={{ marginBottom:24 }}>
+              <div className="card-header">
+                <span className="card-title">Reposiciones</span>
+                <span className="badge badge-info">{reposiciones.length}</span>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Fecha</th><th>Proveedor</th><th>Depósito</th>
+                      <th>Vendedor</th><th style={{ textAlign:"right" }}>Total</th><th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reposiciones.map((r) => (
+                      <tr key={r.id}>
+                        <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
+                        <td style={{ fontSize:14 }}>{r.supplier_name||r.customer_name||"—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.warehouse_name||"—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor||"—"}</td>
+                        <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                          ${fmt(r.total)}
+                        </td>
+                        <td>
+                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r, tipo:"Reposicion"})} title="Imprimir">🖨️</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* ── RESERVAS (notas de pedido) — SIEMPRE TODAS ── */}
+          {notasPedido.length > 0 && (
+            <div className="card" style={{ marginBottom:24 }}>
+              <div className="card-header">
+                <span className="card-title">Reservas (Notas de Pedido)</span>
+                <span className="badge badge-info">{notasPedido.length}</span>
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -721,15 +832,15 @@ export default function CajaListado() {
                     {notasPedido.map((n) => (
                       <tr key={n.id}>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(n.created_at)}</td>
-                        <td style={{ fontSize:14 }}>{n.customer_name || "—"}</td>
+                        <td style={{ fontSize:14 }}>{n.customer_name||"—"}</td>
                         <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                           ${fmt(n.total)}
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => printNotaPDF(n)} title="Imprimir">🖨️</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => presModal.openFor(n)} title="Presupuestar">→ Presupuesto</button>
-                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteNota(n.id)} title="Eliminar">🗑️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(n)} title="Imprimir">🖨️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => presModal.openFor(n)}>→ Presupuesto</button>
+                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteNota(n.id)}>🗑️</button>
                           </div>
                         </td>
                       </tr>
@@ -737,93 +848,22 @@ export default function CajaListado() {
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
-
-          {/* ── SECCIÓN 3: COBRANZAS ── */}
-          <div className="card" style={{ marginBottom:24 }}>
-            <div className="card-header">
-              <span className="card-title">Cobranzas en PESOS</span>
-              <span className="badge badge-info">{cobranzas.length}</span>
             </div>
-            {cobranzas.length === 0 ? (
-              <div className="empty">Sin cobranzas en este período</div>
-            ) : (
-              <>
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Fecha</th><th>Cliente</th><th>Ajustes</th>
-                        <th style={{ textAlign:"right" }}>Efectivo</th>
-                        <th style={{ textAlign:"right" }}>Cheques</th>
-                        <th style={{ textAlign:"right" }}>Depósitos</th>
-                        <th style={{ textAlign:"right" }}>Tarjeta</th>
-                        <th style={{ textAlign:"right" }}>Mercpago</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {cobranzas.map((c) => (
-                        <tr key={c.id}>
-                          <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.created_at)}</td>
-                          <td>
-                            <div style={{ fontSize:14, fontWeight:500 }}>{c.customer_name || "—"}</div>
-                            {c.concepto && c.concepto !== "Cobranza" && (
-                              <div style={{ fontSize:12, color:"var(--text-dim)" }}>{c.concepto}</div>
-                            )}
-                          </td>
-                          <td style={{ fontSize:12, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
-                            {c.order_id ? <span style={{ color:"var(--accent)" }}>{c.order_id.slice(-5)}</span> : "—"}
-                          </td>
-                          <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                            {c.metodo_pago === "Efectivo"  ? `$${fmt(c.monto)}` : ""}
-                          </td>
-                          <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                            {c.metodo_pago === "Cheque"    ? `$${fmt(c.monto)}` : ""}
-                          </td>
-                          <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                            {c.metodo_pago === "Depósito"  ? `$${fmt(c.monto)}` : ""}
-                          </td>
-                          <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                            {c.metodo_pago === "Tarjeta"   ? `$${fmt(c.monto)}` : ""}
-                          </td>
-                          <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                            {c.metodo_pago === "Mercpago"  ? `$${fmt(c.monto)}` : ""}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-                  {["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"].map((met) => {
-                    const total = cobranzas.filter((c) => c.metodo_pago === met).reduce((a, c) => a + Number(c.monto || 0), 0);
-                    if (!total) return null;
-                    return (
-                      <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:130 }}>
-                        <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
-                        <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color:"var(--accent)" }}>${fmt(total)}</div>
-                      </div>
-                    );
-                  })}
-                  <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total Cobranzas</div>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>${fmt(totalCobranzas)}</div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
+          )}
 
-          {/* ── SECCIÓN 4: REMITOS ── */}
-          <div className="card">
-            <div className="card-header">
-              <span className="card-title">Remitos</span>
-              <span className="badge badge-info">{remitos.length}</span>
-            </div>
-            {remitos.length === 0 ? (
-              <div className="empty">Sin remitos en este período</div>
-            ) : (
+          {/* ── COBRANZAS EN PESOS ── */}
+          <SeccionCobranzas cobranzas={cobranzas} divisa="ARS" />
+
+          {/* ── COBRANZAS EN DÓLARES ── */}
+          <SeccionCobranzas cobranzas={cobranzas} divisa="USD" />
+
+          {/* ── REMITOS ── */}
+          {remitos.length > 0 && (
+            <div className="card" style={{ marginBottom:24 }}>
+              <div className="card-header">
+                <span className="card-title">Remitos</span>
+                <span className="badge badge-info">{remitos.length}</span>
+              </div>
               <div className="table-wrap">
                 <table>
                   <thead>
@@ -833,25 +873,24 @@ export default function CajaListado() {
                     {remitos.map((r) => (
                       <tr key={r.id}>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
-                        <td style={{ fontSize:13 }}>{r.origen || "—"}</td>
-                        <td style={{ fontSize:13 }}>{r.destino || "—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor || "—"}</td>
+                        <td style={{ fontSize:13 }}>{r.origen||"—"}</td>
+                        <td style={{ fontSize:13 }}>{r.destino||"—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor||"—"}</td>
                         <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                           ${fmt(r.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm" title="Imprimir"
-                            onClick={() => printComprobantePDF({ ...r, tipo: "Remito" })}>🖨️</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r,tipo:"Remito"})}>🖨️</button>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
-          {/* ── SECCIÓN 5: RESUMEN DE CAJA ── */}
+          {/* ── RESUMEN DE CAJA (solo ARS) ── */}
           {(() => {
             const efectivoResultante =
               (ventasPorMetodo["Efectivo"]    || 0)
@@ -859,21 +898,25 @@ export default function CajaListado() {
             + (entradasPorMetodo["Efectivo"]  || 0)
             - (salidasPorMetodo["Efectivo"]   || 0);
 
-            const thStyle = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
-            const tdVal   = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color || "var(--text)" : "var(--text-dim)" });
-            const tdLabel = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
+            const thStyle  = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
+            const tdVal    = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
+            const tdLabel  = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
             const rows = [
-              { label:"Total ventas",      data: ventasPorMetodo,    color:"var(--text)",    sign:"",  total: totalVentas,    totalColor:"var(--accent)" },
-              { label:"Total Cobranzas",   data: cobranzasPorMetodo, color:"var(--success)", sign:"",  total: totalCobranzas, totalColor:"var(--success)" },
-              { label:"Salidas por Caja",  data: salidasPorMetodo,   color:"var(--danger)",  sign:"-", total: totalSalidas,   totalColor:"var(--danger)" },
-              { label:"Entradas por Caja", data: entradasPorMetodo,  color:"var(--success)", sign:"",  total: totalEntradas,  totalColor:"var(--success)" },
+              { label:"Total ventas",      data:ventasPorMetodo,    color:"var(--text)",    sign:"",  total:totalVentas,    totalColor:"var(--accent)" },
+              { label:"Total Cobranzas",   data:cobranzasPorMetodo, color:"var(--success)", sign:"",  total:totalCobranzas, totalColor:"var(--success)" },
+              { label:"Salidas por Caja",  data:salidasPorMetodo,   color:"var(--danger)",  sign:"-", total:totalSalidas,   totalColor:"var(--danger)" },
+              { label:"Entradas por Caja", data:entradasPorMetodo,  color:"var(--success)", sign:"",  total:totalEntradas,  totalColor:"var(--success)" },
             ];
+
             return (
               <div className="card" style={{ marginTop:24 }}>
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
+                  <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", padding:"2px 8px", background:"var(--bg3)", borderRadius:4, border:"1px solid var(--border)" }}>
+                    Solo ARS
+                  </span>
                   <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
-                    {from === to ? from : `${from} al ${to}`}
+                    {from===to ? from : `${from} al ${to}`}
                   </span>
                 </div>
                 <div style={{ overflowX:"auto" }}>
@@ -894,14 +937,14 @@ export default function CajaListado() {
                               {data[m] ? `${sign}$${fmt(data[m])}` : "—"}
                             </td>
                           ))}
-                          <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color: totalColor }}>
+                          <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:totalColor }}>
                             {sign}${fmt(total)}
                           </td>
                         </tr>
                       ))}
                       <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
                         <td style={{ ...tdLabel, color:"var(--accent)", fontSize:14 }}>Efectivo Resultante</td>
-                        <td style={{ padding:"13px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, fontSize:16, color: efectivoResultante >= 0 ? "var(--success)" : "var(--danger)" }}>
+                        <td style={{ padding:"13px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:800, fontSize:16, color: efectivoResultante>=0 ? "var(--success)" : "var(--danger)" }}>
                           ${fmt(efectivoResultante)}
                         </td>
                         {METODOS_COLS.slice(1).map((m) => <td key={m} />)}
