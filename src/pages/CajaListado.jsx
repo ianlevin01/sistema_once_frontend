@@ -34,7 +34,6 @@ async function getLastPrice(customerId, productId) {
   return fetchWithAuth(`/api/comprobantes/last-price?customer_id=${customerId}&product_id=${productId}`)
     .catch(() => null);
 }
-// Trae TODAS las reservas (sin filtro de fecha)
 async function getAllNotas() {
   return fetchWithAuth("/api/comprobantes?tipo=Nota de Pedido");
 }
@@ -230,7 +229,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Modal de presupuestar (sin cambios funcionales)
+// Modal de presupuestar
 // ─────────────────────────────────────────────────────────────
 function PresModal({ m }) {
   if (!m.open) return null;
@@ -260,7 +259,6 @@ function PresModal({ m }) {
         <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
           {/* Columna izquierda */}
           <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-            {/* Tipo */}
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
               {["Presupuesto","Devolucion","Reposicion"].map((t) => (
@@ -274,7 +272,6 @@ function PresModal({ m }) {
               ))}
             </div>
 
-            {/* Cliente/Proveedor */}
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
                 {m.esReposicion ? "Proveedor" : "Cliente"}
@@ -334,7 +331,6 @@ function PresModal({ m }) {
               )}
             </div>
 
-            {/* Config */}
             <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
               {m.esReposicion && (
                 <div className="input-group">
@@ -487,14 +483,15 @@ function SeccionCobranzas({ cobranzas, divisa }) {
   const filtered = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === divisa);
   if (filtered.length === 0) return null;
 
-  const titulo    = divisa === "USD" ? "Cobranzas en DÓLARES" : "Cobranzas en PESOS";
-  const fmtVal    = (n) => divisa === "USD"
+  const titulo = divisa === "USD" ? "Cobranzas en DÓLARES" : "Cobranzas en PESOS";
+  const fmtVal = (n) => divisa === "USD"
     ? `USD ${Number(n||0).toLocaleString("es-AR",{minimumFractionDigits:2})}`
     : `$${fmt(n)}`;
-  // Para USD mostramos monto_original; para ARS mostramos monto
-  const getMontoDisplay = (c) => divisa === "USD"
-    ? Number(c.monto_original ?? c.monto ?? 0)
-    : Number(c.monto ?? 0);
+
+  // ── FIX: siempre usar monto_original, que es lo que se cobró físicamente
+  // en la divisa_cobro. Como ya filtramos por divisa_cobro === divisa,
+  // monto_original es siempre el valor correcto para esa tabla.
+  const getMontoDisplay = (c) => Number(c.monto_original ?? c.monto ?? 0);
 
   const totalPorMetodo = METODOS_LABEL.reduce((acc, m) => {
     acc[m] = filtered.filter((c) => c.metodo_pago === m).reduce((a, c) => a + getMontoDisplay(c), 0);
@@ -546,7 +543,6 @@ function SeccionCobranzas({ cobranzas, divisa }) {
           </tbody>
         </table>
       </div>
-      {/* Totales por método */}
       <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)", display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
         {METODOS_LABEL.map((met) => {
           const t = totalPorMetodo[met];
@@ -577,7 +573,7 @@ export default function CajaListado() {
 
   const [presupuestos, setPresupuestos] = useState([]);
   const [reposiciones, setReposiciones] = useState([]);
-  const [notasPedido,  setNotasPedido]  = useState([]);  // SIEMPRE todas
+  const [notasPedido,  setNotasPedido]  = useState([]);
   const [remitos,      setRemitos]      = useState([]);
   const [cashMovs,     setCashMovs]     = useState([]);
   const [cobranzas,    setCobranzas]    = useState([]);
@@ -593,7 +589,6 @@ export default function CajaListado() {
         getListadoCaja(from, to),
         getCashMovements(from, to),
         getCobranzasCC(from, to),
-        // Notas siempre sin filtro de fecha
         fetchWithAuth("/api/comprobantes").then((d) =>
           (Array.isArray(d) ? d : []).filter((o) =>
             o.tipo === "Nota de Pedido" || o.tipo === "Nota de Pedido Web"
@@ -607,17 +602,11 @@ export default function CajaListado() {
       setCashMovs(cashRes.data         || []);
       setCobranzas(cobranzasRes.data   || []);
 
-      // Reposiciones: vienen en presupuestos pero con tipo "Reposicion"
-      // Las traemos del listado general de comprobantes filtrado por fecha
-      const todos = Array.isArray(data.presupuestos) ? [] : [];
-      // El endpoint getListadoCaja no devuelve reposiciones — las pedimos por separado
       const reposRes = await fetchWithAuth(
         `/api/comprobantes?from=${from}&to=${to}`
       ).then((d) => (Array.isArray(d) ? d : []).filter((o) => o.tipo === "Reposicion"))
        .catch(() => []);
       setReposiciones(reposRes);
-
-      // Notas: las que vienen del back ya son todas (sin filtro)
       setNotasPedido(notasRes);
 
     } catch { addToast("Error cargando listado","error"); }
@@ -626,7 +615,7 @@ export default function CajaListado() {
 
   useEffect(() => { load(); }, []);
 
-  // ── Totales para resumen de caja ─────────────────────────────
+  // ── Totales para resumen de caja ARS ─────────────────────────
   const METODOS_COLS = ["Efectivo","Cta Cte","Tarjeta","Por Banco","Mercado Pago","Cheques"];
   const metodoKey = (m) => {
     if (!m) return "Efectivo";
@@ -655,23 +644,34 @@ export default function CajaListado() {
     else                       salidasPorMetodo[col]  = (salidasPorMetodo[col]  || 0) + Number(mv.amount || 0);
   });
 
-  // Para el resumen de caja, cobranzas solo en ARS
-  const cobranzasARS = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "ARS");
   const METODOS_COBRANZA_MAP = {
     "Efectivo":"Efectivo","Cheque":"Cheques","Depósito":"Por Banco",
     "Tarjeta":"Tarjeta","Mercpago":"Mercado Pago",
   };
+
+  // ── Cobranzas ARS ─────────────────────────────────────────────
+  const cobranzasARS = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "ARS");
   const cobranzasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   cobranzasARS.forEach((c) => {
     const col = METODOS_COBRANZA_MAP[c.metodo_pago] || "Efectivo";
-    cobranzasPorMetodo[col] = (cobranzasPorMetodo[col] || 0) + Number(c.monto || 0);
+    // FIX: usar monto_original para ARS también
+    cobranzasPorMetodo[col] = (cobranzasPorMetodo[col] || 0) + Number(c.monto_original ?? c.monto ?? 0);
   });
 
-  const totalVentas    = Object.values(ventasPorMetodo).reduce((a, v) => a + v, 0);
-  const totalEntradas  = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
-  const totalSalidas   = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
-  const totalCobranzas = cobranzasARS.reduce((a, c) => a + Number(c.monto || 0), 0);
-  const totalPres      = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
+  // ── Cobranzas USD ─────────────────────────────────────────────
+  const cobranzasUSD = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "USD");
+  const cobranzasUSDPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
+  cobranzasUSD.forEach((c) => {
+    const col = METODOS_COBRANZA_MAP[c.metodo_pago] || "Efectivo";
+    cobranzasUSDPorMetodo[col] = (cobranzasUSDPorMetodo[col] || 0) + Number(c.monto_original ?? c.monto ?? 0);
+  });
+
+  const totalVentas       = Object.values(ventasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalEntradas     = Object.values(entradasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalSalidas      = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
+  const totalCobranzasARS = cobranzasARS.reduce((a, c) => a + Number(c.monto_original ?? c.monto ?? 0), 0);
+  const totalCobranzasUSD = cobranzasUSD.reduce((a, c) => a + Number(c.monto_original ?? c.monto ?? 0), 0);
+  const totalPres         = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
 
   const handleDeleteNota = async (id) => {
     if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
@@ -753,7 +753,6 @@ export default function CajaListado() {
                   </tbody>
                 </table>
               </div>
-              {/* Totales por método */}
               <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)" }}>
                 <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>
                   Facturación por método de pago
@@ -816,7 +815,7 @@ export default function CajaListado() {
             </div>
           )}
 
-          {/* ── RESERVAS (notas de pedido) — SIEMPRE TODAS ── */}
+          {/* ── RESERVAS (notas de pedido) ── */}
           {notasPedido.length > 0 && (
             <div className="card" style={{ marginBottom:24 }}>
               <div className="card-header">
@@ -890,7 +889,7 @@ export default function CajaListado() {
             </div>
           )}
 
-          {/* ── RESUMEN DE CAJA (solo ARS) ── */}
+          {/* ── RESUMEN DE CAJA (ARS) ── */}
           {(() => {
             const efectivoResultante =
               (ventasPorMetodo["Efectivo"]    || 0)
@@ -902,10 +901,10 @@ export default function CajaListado() {
             const tdVal    = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
             const tdLabel  = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
             const rows = [
-              { label:"Total ventas",      data:ventasPorMetodo,    color:"var(--text)",    sign:"",  total:totalVentas,    totalColor:"var(--accent)" },
-              { label:"Total Cobranzas",   data:cobranzasPorMetodo, color:"var(--success)", sign:"",  total:totalCobranzas, totalColor:"var(--success)" },
-              { label:"Salidas por Caja",  data:salidasPorMetodo,   color:"var(--danger)",  sign:"-", total:totalSalidas,   totalColor:"var(--danger)" },
-              { label:"Entradas por Caja", data:entradasPorMetodo,  color:"var(--success)", sign:"",  total:totalEntradas,  totalColor:"var(--success)" },
+              { label:"Total ventas",      data:ventasPorMetodo,    color:"var(--text)",    sign:"",  total:totalVentas,        totalColor:"var(--accent)" },
+              { label:"Total Cobranzas",   data:cobranzasPorMetodo, color:"var(--success)", sign:"",  total:totalCobranzasARS,  totalColor:"var(--success)" },
+              { label:"Salidas por Caja",  data:salidasPorMetodo,   color:"var(--danger)",  sign:"-", total:totalSalidas,        totalColor:"var(--danger)" },
+              { label:"Entradas por Caja", data:entradasPorMetodo,  color:"var(--success)", sign:"",  total:totalEntradas,       totalColor:"var(--success)" },
             ];
 
             return (
@@ -913,7 +912,7 @@ export default function CajaListado() {
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
                   <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", padding:"2px 8px", background:"var(--bg3)", borderRadius:4, border:"1px solid var(--border)" }}>
-                    Solo ARS
+                    🪙 ARS
                   </span>
                   <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
                     {from===to ? from : `${from} al ${to}`}
@@ -956,6 +955,58 @@ export default function CajaListado() {
               </div>
             );
           })()}
+
+          {/* ── RESUMEN DE CAJA (USD) ── */}
+          {cobranzasUSD.length > 0 && (() => {
+            const fmtUSD   = (n) => `USD ${Number(n||0).toLocaleString("es-AR", { minimumFractionDigits:2 })}`;
+            const thStyle  = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
+            const tdVal    = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
+            const tdLabel  = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
+            const rows = [
+              { label:"Total Cobranzas", data:cobranzasUSDPorMetodo, color:"var(--success)", sign:"", total:totalCobranzasUSD, totalColor:"var(--success)" },
+            ];
+
+            return (
+              <div className="card" style={{ marginTop:16 }}>
+                <div className="card-header">
+                  <span className="card-title">Resumen de Caja</span>
+                  <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--success)", padding:"2px 8px", background:"rgba(52,211,153,0.1)", borderRadius:4, border:"1px solid var(--success)" }}>
+                    💵 USD
+                  </span>
+                  <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                    {from===to ? from : `${from} al ${to}`}
+                  </span>
+                </div>
+                <div style={{ overflowX:"auto" }}>
+                  <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                    <thead>
+                      <tr style={{ background:"var(--bg3)", borderBottom:"2px solid var(--border)" }}>
+                        <th style={{ padding:"10px 16px", textAlign:"left", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", minWidth:180 }}></th>
+                        {METODOS_COLS.map((m) => <th key={m} style={thStyle}>{m}</th>)}
+                        <th style={{ ...thStyle, color:"var(--success)" }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rows.map(({ label, data, color, sign, total, totalColor }) => (
+                        <tr key={label} style={{ borderBottom:"1px solid var(--border)" }}>
+                          <td style={tdLabel}>{label}</td>
+                          {METODOS_COLS.map((m) => (
+                            <td key={m} style={tdVal(data[m], color)}>
+                              {data[m] ? `${sign}${fmtUSD(data[m])}` : "—"}
+                            </td>
+                          ))}
+                          <td style={{ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:totalColor }}>
+                            {sign}{fmtUSD(total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
         </>
       )}
     </>
