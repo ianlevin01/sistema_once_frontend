@@ -51,11 +51,7 @@ function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
       >
         {preview ? (
           <>
-            <img
-              src={preview}
-              alt={label}
-              style={{ width:"100%", height:"100%", objectFit:"cover" }}
-            />
+            <img src={preview} alt={label} style={{ width:"100%", height:"100%", objectFit:"cover" }} />
             <button
               onClick={(e) => { e.stopPropagation(); onClear(); }}
               title="Quitar imagen"
@@ -85,7 +81,7 @@ function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
   );
 }
 
-// ─── Galería de imágenes compacta (tira deslizable) ──────────────────────────
+// ─── Galería de imágenes compacta ─────────────────────────────────────────────
 function ImageGallery({ photos }) {
   const [active, setActive] = useState(0);
   const valid = photos.filter(Boolean);
@@ -93,7 +89,6 @@ function ImageGallery({ photos }) {
 
   return (
     <div style={{ width:130 }}>
-      {/* Imagen principal compacta */}
       <div style={{ width:130, height:120, borderRadius:7, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:5, position:"relative" }}>
         <img
           src={valid[active]}
@@ -107,8 +102,6 @@ function ImageGallery({ photos }) {
           </div>
         )}
       </div>
-
-      {/* Thumbnails */}
       {valid.length > 1 && (
         <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
           {valid.map((url, i) => (
@@ -145,20 +138,19 @@ export default function Products() {
   const listRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
-const isVendedor = user?.role === "vendedor";
+  const isVendedor = user?.role === "vendedor";
 
   // ── Categorías ────────────────────────────────────────────────────────────
-  const [categories,       setCategories]       = useState([]);
-  const [catInput,         setCatInput]         = useState("");
-  const [catDropdownOpen,  setCatDropdownOpen]  = useState(false);
-  const [creatingCat,      setCreatingCat]      = useState(false);
+  const [categories,      setCategories]      = useState([]);
+  const [catInput,        setCatInput]        = useState("");
+  const [catDropdownOpen, setCatDropdownOpen] = useState(false);
+  const [creatingCat,     setCreatingCat]     = useState(false);
   const catRef = useRef(null);
 
   useEffect(() => {
     getCategories().then(({ data }) => setCategories(data || [])).catch(() => {});
   }, []);
 
-  // Cerrar dropdown al hacer click afuera
   useEffect(() => {
     const handler = (e) => {
       if (catRef.current && !catRef.current.contains(e.target)) setCatDropdownOpen(false);
@@ -279,7 +271,6 @@ const isVendedor = user?.role === "vendedor";
 
   const slotDisplayPreview = (slot) => slot.preview || null;
 
-  // ── Abrir modal nuevo ─────────────────────────────────────────────────────
   const openNew = () => {
     setForm(EMPTY_FORM);
     setImgSlots(EMPTY_IMGS);
@@ -287,7 +278,6 @@ const isVendedor = user?.role === "vendedor";
     setModal("new");
   };
 
-  // ── Abrir modal editar ────────────────────────────────────────────────────
   const openEdit = () => {
     if (!selected) return;
     setForm({
@@ -307,8 +297,6 @@ const isVendedor = user?.role === "vendedor";
       fecha:       selected.fecha || selected.created_at?.slice(0,10) || "",
       video_url:   selected.video_url   || "",
     });
-
-    // Cargar imágenes desde el array images de la API — guardar la key para poder conservarla
     const imgs = selected.images || [];
     setImgSlots([
       { file: null, preview: imgs[0]?.url || null, existingKey: imgs[0]?.key || null },
@@ -319,29 +307,22 @@ const isVendedor = user?.role === "vendedor";
     setModal("edit");
   };
 
-  // ── Guardar ───────────────────────────────────────────────────────────────
   const handleSave = async () => {
     if (!form.name.trim()) { addToast("El nombre es obligatorio", "error"); return; }
     setSaving(true);
     try {
       const fd = new FormData();
-
       Object.entries(form).forEach(([k, v]) => {
         if (v !== "" && v !== null && v !== undefined) fd.append(k, v);
       });
-
-      // Para edición: mandar las keys existentes que se conservan (las que no se borraron)
       if (modal === "edit") {
         imgSlots.forEach((slot) => {
           if (slot.existingKey) fd.append("keepImages", slot.existingKey);
         });
       }
-
-      // Mandar archivos nuevos slot por slot con su índice
-      imgSlots.forEach((slot, idx) => {
+      imgSlots.forEach((slot) => {
         if (slot.file) fd.append("images", slot.file);
       });
-
       if (modal === "edit" && selected) {
         await updateProduct(selected.id, fd);
         const { data } = await getProduct(selected.id);
@@ -372,23 +353,30 @@ const isVendedor = user?.role === "vendedor";
   }));
 
   // ── Datos del producto seleccionado ──────────────────────────────────────
-  const prices  = selected?.prices || selected?.product_prices || [];
-  const stock   = selected?.stock  || [];
-  const costs   = selected?.costs  || selected?.product_costs  || [];
+  const prices = selected?.prices || selected?.product_prices || [];
+  const stock  = selected?.stock  || [];
+  const costs  = selected?.costs  || selected?.product_costs  || [];
   const getPrice = (type) => prices.find((p) => p.price_type === type);
   const getCost  = () => getPrice("costo") || (selected?.cost ? { price: selected.cost } : null);
 
-  const totalStock    = stock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
-  // stock_reserva viene directo del backend (suma de todos los productos en Notas de Pedido)
-  const totalReserved = selected?.stock_reserva || 0;
+  const totalStock = stock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
 
+  // Reserva total: suma de los reserved por warehouse (viene del backend)
+  // Fallback a stock_reserva global si el backend aún no devuelve reserved por fila
+  const totalReserved = stock.some((s) => s.reserved != null)
+    ? stock.reduce((a, s) => a + (Number(s.reserved) || 0), 0)
+    : (selected?.stock_reserva || 0);
+
+  // stockRows: usa stock real del backend + reserved por warehouse
   const stockRows = stock.length > 0
-    ? stock.map((s) => ({ name: s.warehouse?.name || s.warehouse_name || s.warehouse_id, qty: s.quantity, res: s.reserved ?? 0 }))
-    : WAREHOUSES_DEFAULT.map((w) => ({ name: w, qty: null, res: null }));
+    ? stock.map((s) => ({
+        name:     s.warehouse?.name || s.warehouse_name || s.warehouse_id,
+        qty:      s.quantity,
+        reserved: Number(s.reserved) || 0,   // ← reservas por depósito
+      }))
+    : WAREHOUSES_DEFAULT.map((w) => ({ name: w, qty: null, reserved: 0 }));
 
   const lastCosts = [...costs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
-
-  // ✅ Ahora lee desde el array images de la API
   const selectedPhotos = selected?.images?.length
     ? selected.images.map((img) => img.url).filter(Boolean)
     : [];
@@ -438,9 +426,7 @@ const isVendedor = user?.role === "vendedor";
                   </span>
                 </div>
               ) : (
-                <span style={{ fontSize:13, color:"var(--text-dim)" }}>
-                  Seleccioná un producto →
-                </span>
+                <span style={{ fontSize:13, color:"var(--text-dim)" }}>Seleccioná un producto →</span>
               )}
             </div>
             <div style={{ display:"flex", gap:8 }}>
@@ -452,7 +438,6 @@ const isVendedor = user?.role === "vendedor";
             </div>
           </div>
 
-          {/* Cuerpo — dos columnas fijas, sin scroll vertical en la vista principal */}
           <div style={{ flex:1, overflow:"hidden", display:"flex", flexDirection:"column" }}>
             {!selected ? (
               <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:12, color:"var(--text-dim)" }}>
@@ -464,13 +449,11 @@ const isVendedor = user?.role === "vendedor";
                 Cargando...
               </div>
             ) : (
-              /* Layout en dos columnas: izquierda datos, derecha stock */
               <div style={{ display:"flex", height:"100%", gap:0, overflow:"hidden" }}>
 
-                {/* ── COLUMNA IZQUIERDA: identificación + foto + precios + logística ── */}
+                {/* ── COLUMNA IZQUIERDA: datos ── */}
                 <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", display:"flex", flexDirection:"column", gap:14, borderRight:"1px solid var(--border)" }}>
 
-                  {/* Identificación */}
                   <section>
                     <LBL>Identificación</LBL>
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
@@ -485,118 +468,107 @@ const isVendedor = user?.role === "vendedor";
                     </div>
                   </section>
 
-                  {/* Foto + Precios en fila */}
-<section>
-  <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-    {selectedPhotos.length > 0 && (
-      <div style={{ flexShrink: 0 }}>
-        <LBL>Foto</LBL>
-        <ImageGallery photos={selectedPhotos} />
-      </div>
-    )}
+                  <section>
+                    <div style={{ display:"flex", gap:10, alignItems:"flex-start" }}>
+                      {selectedPhotos.length > 0 && (
+                        <div style={{ flexShrink:0 }}>
+                          <LBL>Foto</LBL>
+                          <ImageGallery photos={selectedPhotos} />
+                        </div>
+                      )}
+                      <div style={{ flex:1 }}>
+                        <LBL>Precios</LBL>
+                        <div style={{ border:"1px solid var(--border)", borderRadius:7, overflow:"hidden", background:"var(--bg2)" }}>
+                          {isVendedor ? (
+                            (() => {
+                              const precio1 = (() => {
+                                const p = getPrice("precio_1");
+                                return p ? Number(p.price) : null;
+                              })();
+                              const pctV = Number(user?.pct_vendedor ?? 0);
+                              const precioPublicacion = precio1 != null ? precio1 * (1 + pctV / 100) : null;
+                              const ganancia = precio1 != null && precioPublicacion != null
+                                ? (precioPublicacion - precio1) / 2
+                                : null;
+                              return (
+                                <>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                                    <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}>Precio base (costo)</span>
+                                    <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Precio de publicación</span>
+                                  </div>
+                                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", alignItems:"center", padding:"10px 10px" }}>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--danger)" }}>
+                                      {precio1 != null ? `$${precio1.toLocaleString("es-AR", { minimumFractionDigits:2 })}` : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)", textAlign:"right" }}>
+                                      {precioPublicacion != null ? `$${precioPublicacion.toLocaleString("es-AR", { minimumFractionDigits:2 })}` : "—"}
+                                    </span>
+                                  </div>
+                                  {ganancia != null && (
+                                    <div style={{ margin:"0 10px 10px", padding:"8px 10px", background:"var(--success-dim)", border:"1px solid var(--success)", borderRadius:6, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                                      <span style={{ fontSize:12, color:"var(--success)", fontWeight:600 }}>Tu ganancia estimada</span>
+                                      <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"var(--success)" }}>
+                                        ${ganancia.toLocaleString("es-AR", { minimumFractionDigits:2 })}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()
+                          ) : (
+                            <>
+                              <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
+                              </div>
+                              {(() => {
+                                const costoUsd   = selected.costo_usd ? Number(selected.costo_usd) : null;
+                                const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                                const costoArs   = costoUsd != null && cotizacion != null
+                                  ? costoUsd * cotizacion
+                                  : (() => { const c = getCost(); return c ? Number(c.price) : null; })();
+                                return (
+                                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
+                                    <span style={{ fontSize:11, color:"var(--danger)", fontWeight:500 }}>Costo</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)", textAlign:"right" }}>
+                                      {costoArs != null ? FMTARS(costoArs) : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                      {costoUsd != null ? FMTUSD(costoUsd) : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              {[1,2,3,4,5].map((n, idx) => {
+                                const p = getPrice(`precio_${n}`);
+                                const isLast = idx === 4;
+                                const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                                let arsVal = null, usdVal = null;
+                                if (p) {
+                                  arsVal = p.price     != null ? Number(p.price)     : null;
+                                  usdVal = p.price_usd != null ? Number(p.price_usd)
+                                         : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
+                                }
+                                return (
+                                  <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
+                                    <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign:"right" }}>
+                                      {arsVal != null ? FMTARS(arsVal) : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                      {usdVal != null ? FMTUSD(usdVal) : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
 
-    <div style={{ flex: 1 }}>
-      <LBL>Precios</LBL>
-      <div style={{ border: "1px solid var(--border)", borderRadius: 7, overflow: "hidden", background: "var(--bg2)" }}>
-
-        {isVendedor ? (
-          /* ── VISTA VENDEDOR: solo costo (precio_1) y precio publicación ── */
-          (() => {
-            const precio1 = (() => {
-              const p = getPrice("precio_1");
-              return p ? Number(p.price) : null;
-            })();
-            const pctV = Number(user?.pct_vendedor ?? 0);
-            const precioPublicacion = precio1 != null ? precio1 * (1 + pctV / 100) : null;
-            const ganancia = precio1 != null && precioPublicacion != null
-              ? (precioPublicacion - precio1) / 2
-              : null;
-
-            return (
-              <>
-                {/* Header columnas */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", padding: "4px 10px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-                  <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}>Precio base (costo)</span>
-                  <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Precio de publicación</span>
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", alignItems: "center", padding: "10px 10px" }}>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, color: "var(--danger)" }}>
-                    {precio1 != null ? `$${precio1.toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—"}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 15, fontWeight: 700, color: "var(--accent)", textAlign: "right" }}>
-                    {precioPublicacion != null ? `$${precioPublicacion.toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—"}
-                  </span>
-                </div>
-                {ganancia != null && (
-                  <div style={{
-                    margin: "0 10px 10px", padding: "8px 10px",
-                    background: "var(--success-dim)", border: "1px solid var(--success)",
-                    borderRadius: 6, display: "flex", justifyContent: "space-between", alignItems: "center",
-                  }}>
-                    <span style={{ fontSize: 12, color: "var(--success)", fontWeight: 600 }}>Tu ganancia estimada</span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: "var(--success)" }}>
-                      ${ganancia.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-                    </span>
-                  </div>
-                )}
-              </>
-            );
-          })()
-        ) : (
-          /* ── VISTA ADMIN: tabla completa de precios (tu código original) ── */
-          <>
-            <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", padding: "4px 10px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-              <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em" }}></span>
-              <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Pesos (ARS)</span>
-              <span style={{ fontSize: 10, color: "var(--text-dim)", fontFamily: "var(--font-mono)", textTransform: "uppercase", letterSpacing: "0.05em", textAlign: "right" }}>Dólares (USD)</span>
-            </div>
-            {(() => {
-              const costoUsd   = selected.costo_usd ? Number(selected.costo_usd) : null;
-              const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
-              const costoArs   = costoUsd != null && cotizacion != null
-                ? costoUsd * cotizacion
-                : (() => { const c = getCost(); return c ? Number(c.price) : null; })();
-              return (
-                <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", alignItems: "center", padding: "6px 10px", background: "#fff5f5", borderBottom: "1px solid rgba(220,38,38,0.12)" }}>
-                  <span style={{ fontSize: 11, color: "var(--danger)", fontWeight: 500 }}>Costo</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: "var(--danger)", textAlign: "right" }}>
-                    {costoArs != null ? FMTARS(costoArs) : "—"}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)", textAlign: "right" }}>
-                    {costoUsd != null ? FMTUSD(costoUsd) : "—"}
-                  </span>
-                </div>
-              );
-            })()}
-            {[1, 2, 3, 4, 5].map((n, idx) => {
-              const p      = getPrice(`precio_${n}`);
-              const isLast = idx === 4;
-              const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
-              let arsVal = null, usdVal = null;
-              if (p) {
-                arsVal = p.price     != null ? Number(p.price)     : null;
-                usdVal = p.price_usd != null ? Number(p.price_usd)
-                       : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
-              }
-              return (
-                <div key={n} style={{ display: "grid", gridTemplateColumns: "80px 1fr 1fr", alignItems: "center", padding: "6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
-                  <span style={{ fontSize: 11, color: "var(--text-muted)", fontWeight: 500 }}>Precio #{n}</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign: "right" }}>
-                    {arsVal != null ? FMTARS(arsVal) : "—"}
-                  </span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-muted)", textAlign: "right" }}>
-                    {usdVal != null ? FMTUSD(usdVal) : "—"}
-                  </span>
-                </div>
-              );
-            })}
-          </>
-        )}
-      </div>
-    </div>
-  </div>
-</section>
-                  {/* Logística — fila compacta */}
                   <section>
                     <LBL>Logística</LBL>
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:6 }}>
@@ -607,17 +579,15 @@ const isVendedor = user?.role === "vendedor";
                     </div>
                   </section>
 
-                  {/* Clasificación */}
                   <section>
                     <LBL>Clasificación</LBL>
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6 }}>
-                      <Field label="Categoría" value={selected.category?.name || selected.category_name || selected.category_id || "—"} />
+                      <Field label="Categoría"  value={selected.category?.name || selected.category_name || selected.category_id || "—"} />
                       <Field label="Fecha alta" value={selected.fecha || (selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : null)} mono />
-                      <Field label="Estado"    value={selected.active !== false ? "Activo" : "Inactivo"} />
+                      <Field label="Estado"     value={selected.active !== false ? "Activo" : "Inactivo"} />
                     </div>
                   </section>
 
-                  {/* Historial de costos */}
                   {lastCosts.length > 0 && (
                     <section>
                       <LBL>Historial de costos</LBL>
@@ -636,7 +606,6 @@ const isVendedor = user?.role === "vendedor";
                     </section>
                   )}
 
-                  {/* Video */}
                   {selected.video_url && (
                     <section>
                       <LBL>Video</LBL>
@@ -650,7 +619,6 @@ const isVendedor = user?.role === "vendedor";
                     </section>
                   )}
 
-                  {/* ID técnico */}
                   <section style={{ opacity:0.4, marginTop:"auto", paddingTop:4 }}>
                     <LBL>ID interno</LBL>
                     <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>{selected.id}</div>
@@ -674,11 +642,14 @@ const isVendedor = user?.role === "vendedor";
                       )}
                     </div>
                   </div>
+
                   <div style={{ flex:1, overflowY:"auto" }}>
                     {stockRows.map((row, i) => {
-                      const hasQty = row.qty !== null;
-                      const isPos  = hasQty && row.qty > 0;
-                      const isNeg  = hasQty && row.qty < 0;
+                      const hasQty  = row.qty !== null;
+                      const isPos   = hasQty && row.qty > 0;
+                      const isNeg   = hasQty && row.qty < 0;
+                      const hasRes  = row.reserved > 0;
+
                       return (
                         <div key={`${row.name}-${i}`} style={{
                           display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -686,10 +657,17 @@ const isVendedor = user?.role === "vendedor";
                           background: isPos ? "rgba(37,99,235,0.04)" : "transparent",
                         }}>
                           <span style={{ fontSize:12, color:"var(--text-muted)", flex:1 }}>{row.name}</span>
-                          <div style={{ display:"flex", gap:12, alignItems:"center" }}>
-                            {row.res !== null && row.res > 0 && (
-                              <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--warning)", background:"var(--warning-dim)", padding:"1px 6px", borderRadius:3 }}>
-                                R:{FMTN(row.res)}
+                          <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                            {/* Reservas por depósito — ahora viene del backend por warehouse */}
+                            {hasRes && (
+                              <span style={{
+                                fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700,
+                                color:"#b45309",
+                                background:"rgba(255,200,0,0.15)",
+                                border:"1px solid rgba(255,200,0,0.4)",
+                                padding:"1px 7px", borderRadius:3,
+                              }}>
+                                R:{FMTN(row.reserved)}
                               </span>
                             )}
                             <span style={{
@@ -703,6 +681,7 @@ const isVendedor = user?.role === "vendedor";
                       );
                     })}
                   </div>
+
                   {stock.length > 0 && (
                     <div style={{ padding:"10px 14px", borderTop:"2px solid var(--accent)", background:"var(--accent-light)", flexShrink:0, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                       <span style={{ fontSize:11, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.04em" }}>Total stock</span>
@@ -729,7 +708,6 @@ const isVendedor = user?.role === "vendedor";
 
         {/* ══ PANEL DERECHO — LISTA ══════════════════════════════════════════ */}
         <div style={{ width:290, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
-
           <div style={{ padding:"12px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             <div className="search-bar">
               <span className="search-icon">🔍</span>
@@ -777,7 +755,6 @@ const isVendedor = user?.role === "vendedor";
                 </div>
               );
             })}
-
             {!loadingList && results.length === 0 && query && (
               <div style={{ padding:"40px 16px", textAlign:"center", color:"var(--text-dim)", fontSize:12, lineHeight:1.8 }}>
                 Sin resultados para<br /><span style={{ color:"var(--text-muted)" }}>"{query}"</span>
@@ -810,7 +787,6 @@ const isVendedor = user?.role === "vendedor";
             </button>
           </>}
         >
-          {/* Identificación */}
           <div className="input-group">
             <label className="input-label">Nombre / Detalle *</label>
             <input className="input" value={form.name} onChange={f("name")} placeholder="Descripción del producto" />
@@ -835,18 +811,14 @@ const isVendedor = user?.role === "vendedor";
               <input className="input" type="number" value={form.qxb} onChange={f("qxb")} placeholder="36" />
             </div>
           </div>
-
           <hr className="divider" />
-
-          {/* Imágenes */}
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>
             Imágenes del producto
           </div>
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:4 }}>
             {["Foto principal", "Foto 2", "Foto 3"].map((label, i) => (
               <ImageUploadSlot
-                key={i}
-                label={label}
+                key={i} label={label}
                 file={imgSlots[i].file}
                 preview={slotDisplayPreview(imgSlots[i])}
                 onFileChange={(file) => handleImgFile(i, file)}
@@ -857,10 +829,7 @@ const isVendedor = user?.role === "vendedor";
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, color:"var(--text-dim)", marginBottom:2 }}>
             Formatos: JPG, PNG, WEBP · Arrastrá o hacé click en cada slot
           </div>
-
           <hr className="divider" />
-
-          {/* Precios */}
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
           <div className="input-group">
             <label className="input-label">Costo en USD</label>
@@ -870,10 +839,7 @@ const isVendedor = user?.role === "vendedor";
             <label className="input-label">Tasa IVA (%)</label>
             <input className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21" />
           </div>
-
           <hr className="divider" />
-
-          {/* Logística */}
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Logística</div>
           <div className="grid-2">
             <div className="input-group">
@@ -910,27 +876,14 @@ const isVendedor = user?.role === "vendedor";
                     >✕</button>
                   )}
                 </div>
-
                 {catDropdownOpen && (
-                  <div style={{
-                    position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:200,
-                    background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:7,
-                    boxShadow:"0 4px 16px rgba(0,0,0,0.18)", maxHeight:200, overflowY:"auto",
-                  }}>
+                  <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:200, background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:7, boxShadow:"0 4px 16px rgba(0,0,0,0.18)", maxHeight:200, overflowY:"auto" }}>
                     {filteredCats.length === 0 && !showCreateOption && (
                       <div style={{ padding:"12px 14px", fontSize:12, color:"var(--text-dim)" }}>Sin resultados</div>
                     )}
                     {filteredCats.map((cat) => (
-                      <div
-                        key={cat.id}
-                        onClick={() => selectCategory(cat)}
-                        style={{
-                          padding:"9px 14px", fontSize:13, cursor:"pointer",
-                          color: form.category_id === cat.id ? "var(--accent)" : "var(--text)",
-                          background: form.category_id === cat.id ? "var(--accent-light)" : "transparent",
-                          fontWeight: form.category_id === cat.id ? 600 : 400,
-                          borderBottom:"1px solid var(--border)",
-                        }}
+                      <div key={cat.id} onClick={() => selectCategory(cat)}
+                        style={{ padding:"9px 14px", fontSize:13, cursor:"pointer", color: form.category_id === cat.id ? "var(--accent)" : "var(--text)", background: form.category_id === cat.id ? "var(--accent-light)" : "transparent", fontWeight: form.category_id === cat.id ? 600 : 400, borderBottom:"1px solid var(--border)" }}
                         onMouseEnter={(e) => { if (form.category_id !== cat.id) e.currentTarget.style.background = "var(--bg3)"; }}
                         onMouseLeave={(e) => { if (form.category_id !== cat.id) e.currentTarget.style.background = "transparent"; }}
                       >
@@ -938,13 +891,8 @@ const isVendedor = user?.role === "vendedor";
                       </div>
                     ))}
                     {showCreateOption && (
-                      <div
-                        onClick={handleCreateCategory}
-                        style={{
-                          padding:"9px 14px", fontSize:13, cursor: creatingCat ? "default" : "pointer",
-                          color:"var(--accent)", display:"flex", alignItems:"center", gap:8,
-                          opacity: creatingCat ? 0.6 : 1,
-                        }}
+                      <div onClick={handleCreateCategory}
+                        style={{ padding:"9px 14px", fontSize:13, cursor: creatingCat ? "default" : "pointer", color:"var(--accent)", display:"flex", alignItems:"center", gap:8, opacity: creatingCat ? 0.6 : 1 }}
                         onMouseEnter={(e) => { e.currentTarget.style.background = "var(--accent-light)"; }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
                       >
@@ -957,12 +905,10 @@ const isVendedor = user?.role === "vendedor";
               </div>
             </div>
           </div>
-
           <div className="input-group">
             <label className="input-label">URL Video</label>
             <input className="input" value={form.video_url} onChange={f("video_url")} placeholder="https://youtube.com/..." />
           </div>
-
           <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:4 }}>
             <input type="checkbox" id="active" checked={form.active} onChange={f("active")} style={{ accentColor:"var(--accent)", width:15, height:15 }} />
             <label htmlFor="active" style={{ fontSize:13, color:"var(--text-muted)", cursor:"pointer" }}>Producto activo</label>

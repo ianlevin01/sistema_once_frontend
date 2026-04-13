@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { searchCustomers, createComprobante, deleteComprobante, getListadoCaja, getCashMovements, getCobranzasCC } from "../utils/api";
 import { useToast } from "../utils/useToast";
+import { useAuth } from "../utils/useAuth";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { printComprobantePDF } from "../utils/printDoc";
@@ -16,8 +17,9 @@ const PRECIO_LBL = {
 const today   = () => new Date().toISOString().slice(0, 10);
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
+const fmtUSD  = (n) => `USD ${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
 
-// ── API helpers directos (sin axios para no romper auth en fetch) ─
+// ── API helpers ───────────────────────────────────────────────
 async function fetchWithAuth(url) {
   const token = localStorage.getItem("auth_token");
   const res = await fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
@@ -33,9 +35,6 @@ async function getWarehouses() {
 async function getLastPrice(customerId, productId) {
   return fetchWithAuth(`/api/comprobantes/last-price?customer_id=${customerId}&product_id=${productId}`)
     .catch(() => null);
-}
-async function getAllNotas() {
-  return fetchWithAuth("/api/comprobantes?tipo=Nota de Pedido");
 }
 
 // ── Skeleton ──────────────────────────────────────────────────
@@ -73,7 +72,7 @@ function SkeletonCard({ rows=5, cols=4, title="" }) {
 // ─────────────────────────────────────────────────────────────
 // Hook modal presupuestar
 // ─────────────────────────────────────────────────────────────
-function usePresModal({ addToast, onSuccess, vendedores = [] }) {
+function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
   const [open,      setOpen]      = useState(false);
   const [source,    setSource]    = useState(null);
   const [tipo,      setTipo]      = useState("Presupuesto");
@@ -196,8 +195,8 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
       await createComprobante({
         customer_id:    esReposicion ? null : custSel.id,
         supplier_id:    esReposicion ? provSel.id : null,
-        warehouse_id:   esReposicion ? warehouseId : null,
-        user_id:        null,
+        warehouse_id:   esReposicion ? warehouseId : (user?.warehouse_id || null),
+        user_id:        user?.id || null,
         payment_method: payMethod,
         tipo, vendedor, price_type:priceType, texto_libre:texto,
         source_nota_id: source?.id || null,
@@ -228,9 +227,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [] }) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────
-// Modal de presupuestar
-// ─────────────────────────────────────────────────────────────
+// ── Modal de presupuestar (sin cambios respecto al original) ──
 function PresModal({ m }) {
   if (!m.open) return null;
   const currentIds = new Set(m.items.map((i) => i.product_id).filter(Boolean));
@@ -257,7 +254,6 @@ function PresModal({ m }) {
         )}
 
         <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
-          {/* Columna izquierda */}
           <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
@@ -376,7 +372,6 @@ function PresModal({ m }) {
             </div>
           </div>
 
-          {/* Panel central */}
           <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
               {m.items.length === 0 ? (
@@ -414,7 +409,6 @@ function PresModal({ m }) {
               )}
             </div>
 
-            {/* Barra de ingreso */}
             <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
               {m.prodSel && (
                 <div style={{ marginBottom:8 }}>
@@ -475,7 +469,113 @@ function PresModal({ m }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helpers para secciones de cobranzas
+// Sección de presupuestos — acepta un subset filtrado + divisa
+// ─────────────────────────────────────────────────────────────
+function SeccionPresupuestos({ presupuestos, divisa, onPrint }) {
+  if (presupuestos.length === 0) return null;
+
+  const esUSD   = divisa === "USD";
+  const titulo  = esUSD ? "Ventas en DÓLARES" : "Presupuestos en PESOS";
+  const badge   = esUSD
+    ? { color:"var(--success)", bg:"rgba(52,211,153,0.1)", border:"var(--success)", label:"💵 USD" }
+    : { color:"var(--accent)",  bg:"var(--accent-dim)",    border:"var(--accent)",  label:"🪙 ARS" };
+
+  const fmtVal  = (n) => esUSD ? fmtUSD(n) : `$${fmt(n)}`;
+  const total   = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
+
+  // Agrupado por método de pago para el footer
+  const porMetodo = presupuestos.reduce((acc, p) => {
+    const met = p.payment_method || "Sin método";
+    acc[met] = (acc[met] || 0) + Number(p.total || 0);
+    return acc;
+  }, {});
+
+  return (
+    <div className="card" style={{ marginBottom:24 }}>
+      <div className="card-header">
+        <span className="card-title">{titulo}</span>
+        <span className="badge badge-info">{presupuestos.length}</span>
+        <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:badge.color, padding:"2px 8px", background:badge.bg, borderRadius:4, border:`1px solid ${badge.border}` }}>
+          {badge.label}
+        </span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Tipo</th><th>Fecha</th><th>Cliente</th>
+              <th>Vendedor</th><th>Método de pago</th>
+              <th style={{ textAlign:"right" }}>Total {divisa}</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {presupuestos.map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                    <span className="badge badge-accent" style={{
+                      background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
+                      color:      p.tipo==="Presupuesto Web" ? "var(--success)"         : undefined,
+                      border:     p.tipo==="Presupuesto Web" ? "1px solid var(--success)":undefined,
+                    }}>
+                      {p.tipo || "Presupuesto"}
+                    </span>
+                    {/* Badge consumidor final */}
+                    {p.es_consumidor_final && (
+                      <span style={{ fontSize:10, fontFamily:"var(--font-mono)", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:3, padding:"1px 5px", color:"var(--text-dim)", whiteSpace:"nowrap" }}>
+                        Cons. Final
+                      </span>
+                    )}
+                  </div>
+                </td>
+                <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(p.created_at)}</td>
+                <td style={{ fontSize:14 }}>{p.customer_name || "—"}</td>
+                <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor || "—"}</td>
+                <td>
+                  <span style={{ fontSize:12, fontFamily:"var(--font-mono)", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, padding:"2px 8px" }}>
+                    {p.payment_method || "—"}
+                  </span>
+                </td>
+                <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color: esUSD ? "var(--success)" : "var(--accent)", fontSize:14 }}>
+                  {fmtVal(p.total)}
+                </td>
+                <td>
+                  <button className="btn btn-ghost btn-sm" onClick={() => onPrint(p)} title="Imprimir">🖨️</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Footer: totales por método + total general */}
+      <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)" }}>
+        <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>
+          {esUSD ? "Facturación USD por método" : "Facturación por método de pago"}
+        </div>
+        <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
+          {Object.entries(porMetodo).map(([met, subtotal]) => (
+            <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:140 }}>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color: esUSD ? "var(--success)" : "var(--accent)" }}>{fmtVal(subtotal)}</div>
+            </div>
+          ))}
+          <div style={{ marginLeft:"auto", background: esUSD ? "rgba(52,211,153,0.1)" : "var(--accent-dim)", border:`1px solid ${esUSD ? "var(--success)" : "var(--accent)"}`, borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color: esUSD ? "var(--success)" : "var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>
+              Total {divisa}
+            </div>
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color: esUSD ? "var(--success)" : "var(--accent)" }}>
+              {fmtVal(total)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helpers cobranzas
 // ─────────────────────────────────────────────────────────────
 const METODOS_LABEL = ["Efectivo","Cheque","Depósito","Tarjeta","Mercpago"];
 
@@ -487,10 +587,6 @@ function SeccionCobranzas({ cobranzas, divisa }) {
   const fmtVal = (n) => divisa === "USD"
     ? `USD ${Number(n||0).toLocaleString("es-AR",{minimumFractionDigits:2})}`
     : `$${fmt(n)}`;
-
-  // ── FIX: siempre usar monto_original, que es lo que se cobró físicamente
-  // en la divisa_cobro. Como ya filtramos por divisa_cobro === divisa,
-  // monto_original es siempre el valor correcto para esa tabla.
   const getMontoDisplay = (c) => Number(c.monto_original ?? c.monto ?? 0);
 
   const totalPorMetodo = METODOS_LABEL.reduce((acc, m) => {
@@ -564,6 +660,66 @@ function SeccionCobranzas({ cobranzas, divisa }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// Sección reposiciones
+// ─────────────────────────────────────────────────────────────
+function SeccionReposiciones({ reposiciones, divisa }) {
+  const filtered = reposiciones.filter((r) => (r.divisa || "ARS") === divisa);
+  if (filtered.length === 0) return null;
+
+  const titulo = divisa === "USD" ? "Reposiciones en DÓLARES" : "Reposiciones en PESOS";
+  const fmtVal = (n) => divisa === "USD" ? fmtUSD(n) : `$${fmt(n)}`;
+  const total  = filtered.reduce((a, r) => a + Number(r.total || 0), 0);
+
+  return (
+    <div className="card" style={{ marginBottom:24 }}>
+      <div className="card-header">
+        <span className="card-title">{titulo}</span>
+        <span className="badge badge-info">{filtered.length}</span>
+      </div>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th><th>Proveedor</th><th>Depósito</th>
+              <th>Vendedor</th><th style={{ textAlign:"right" }}>Total {divisa}</th><th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((r) => (
+              <tr key={r.id}>
+                <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
+                <td style={{ fontSize:14 }}>{r.supplier_name || r.customer_name || "—"}</td>
+                <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.warehouse_name || "—"}</td>
+                <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor || "—"}</td>
+                <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                  {fmtVal(r.total)}
+                </td>
+                <td>
+                  <button className="btn btn-ghost btn-sm"
+                    onClick={() => printComprobantePDF({ ...r, tipo:"Reposicion" })}
+                    title="Imprimir">🖨️
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div style={{ borderTop:"2px solid var(--border)", padding:"14px 20px", background:"var(--bg2)", display:"flex", justifyContent:"flex-end" }}>
+        <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>
+            Total Reposiciones {divisa}
+          </div>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:20, fontWeight:800, color:"var(--accent)" }}>
+            {fmtVal(total)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
 // Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function CajaListado() {
@@ -579,52 +735,49 @@ export default function CajaListado() {
   const [cobranzas,    setCobranzas]    = useState([]);
 
   const { addToast, ToastContainer } = useToast();
+  const { user } = useAuth();
   const vendedores = useVendedores();
-  const presModal  = usePresModal({ addToast, onSuccess: load, vendedores });
+  const presModal  = usePresModal({ addToast, onSuccess: load, vendedores, user });
 
   async function load() {
     setLoading(true);
     try {
-      const [listadoRes, cashRes, cobranzasRes, notasRes] = await Promise.all([
+      const [listadoRes, cashRes, cobranzasRes] = await Promise.all([
         getListadoCaja(from, to),
         getCashMovements(from, to),
         getCobranzasCC(from, to),
-        fetchWithAuth("/api/comprobantes").then((d) =>
-          (Array.isArray(d) ? d : []).filter((o) =>
-            o.tipo === "Nota de Pedido" || o.tipo === "Nota de Pedido Web"
-          )
-        ).catch(() => []),
       ]);
 
       const data = listadoRes.data;
-      setPresupuestos(data.presupuestos || []);
-      setRemitos(data.remitos          || []);
-      setCashMovs(cashRes.data         || []);
-      setCobranzas(cobranzasRes.data   || []);
+      setPresupuestos(data.presupuestos  || []);
+      setReposiciones(data.reposiciones  || []);
+      setNotasPedido(data.notasPedido    || []);
+      setRemitos(data.remitos            || []);
+      setCashMovs(cashRes.data           || []);
+      setCobranzas(cobranzasRes.data     || []);
 
-      const reposRes = await fetchWithAuth(
-        `/api/comprobantes?from=${from}&to=${to}`
-      ).then((d) => (Array.isArray(d) ? d : []).filter((o) => o.tipo === "Reposicion"))
-       .catch(() => []);
-      setReposiciones(reposRes);
-      setNotasPedido(notasRes);
-
-    } catch { addToast("Error cargando listado","error"); }
+    } catch { addToast("Error cargando listado", "error"); }
     setLoading(false);
   }
 
   useEffect(() => { load(); }, []);
 
-  // ── Totales para resumen de caja ARS ─────────────────────────
+  // ── Separar presupuestos por divisa ──────────────────────────
+  // ARS: divisa = 'ARS' o null/undefined
+  // USD: divisa = 'USD'
+  const presupuestosARS = presupuestos.filter((p) => !p.divisa || p.divisa === "ARS");
+  const presupuestosUSD = presupuestos.filter((p) => p.divisa === "USD");
+
+  // ── Totales resumen de caja (solo ARS) ───────────────────────
   const METODOS_COLS = ["Efectivo","Cta Cte","Tarjeta","Por Banco","Mercado Pago","Cheques"];
   const metodoKey = (m) => {
     if (!m) return "Efectivo";
     const l = m.toLowerCase();
-    if (l.includes("banco"))                          return "Por Banco";
-    if (l.includes("tarjeta"))                        return "Tarjeta";
-    if (l.includes("cta") || l.includes("corriente")) return "Cta Cte";
-    if (l.includes("mercado"))                        return "Mercado Pago";
-    if (l.includes("cheque"))                         return "Cheques";
+    if (l.includes("banco"))                           return "Por Banco";
+    if (l.includes("tarjeta"))                         return "Tarjeta";
+    if (l.includes("cta") || l.includes("corriente"))  return "Cta Cte";
+    if (l.includes("mercado"))                         return "Mercado Pago";
+    if (l.includes("cheque"))                          return "Cheques";
     return "Efectivo";
   };
 
@@ -632,7 +785,8 @@ export default function CajaListado() {
   const entradasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   const salidasPorMetodo  = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
 
-  presupuestos.forEach((p) => {
+  // Solo los presupuestos ARS van al resumen de caja ARS
+  presupuestosARS.forEach((p) => {
     const col = metodoKey(p.payment_method);
     ventasPorMetodo[col] = (ventasPorMetodo[col] || 0) + Number(p.total || 0);
   });
@@ -649,16 +803,13 @@ export default function CajaListado() {
     "Tarjeta":"Tarjeta","Mercpago":"Mercado Pago",
   };
 
-  // ── Cobranzas ARS ─────────────────────────────────────────────
   const cobranzasARS = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "ARS");
   const cobranzasPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   cobranzasARS.forEach((c) => {
     const col = METODOS_COBRANZA_MAP[c.metodo_pago] || "Efectivo";
-    // FIX: usar monto_original para ARS también
     cobranzasPorMetodo[col] = (cobranzasPorMetodo[col] || 0) + Number(c.monto_original ?? c.monto ?? 0);
   });
 
-  // ── Cobranzas USD ─────────────────────────────────────────────
   const cobranzasUSD = cobranzas.filter((c) => (c.divisa_cobro ?? "ARS") === "USD");
   const cobranzasUSDPorMetodo = METODOS_COLS.reduce((acc, m) => ({ ...acc, [m]: 0 }), {});
   cobranzasUSD.forEach((c) => {
@@ -671,15 +822,15 @@ export default function CajaListado() {
   const totalSalidas      = Object.values(salidasPorMetodo).reduce((a, v) => a + v, 0);
   const totalCobranzasARS = cobranzasARS.reduce((a, c) => a + Number(c.monto_original ?? c.monto ?? 0), 0);
   const totalCobranzasUSD = cobranzasUSD.reduce((a, c) => a + Number(c.monto_original ?? c.monto ?? 0), 0);
-  const totalPres         = presupuestos.reduce((a, p) => a + Number(p.total || 0), 0);
+  const totalPresARS      = presupuestosARS.reduce((a, p) => a + Number(p.total || 0), 0);
 
   const handleDeleteNota = async (id) => {
     if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
     try {
       await deleteComprobante(id);
       setNotasPedido((prev) => prev.filter((n) => n.id !== id));
-      addToast("Eliminado","success");
-    } catch { addToast("Error eliminando","error"); }
+      addToast("Eliminado", "success");
+    } catch { addToast("Error eliminando", "error"); }
   };
 
   // ── RENDER ───────────────────────────────────────────────────
@@ -699,137 +850,65 @@ export default function CajaListado() {
 
       {loading ? (
         <>
-          <SkeletonCard title="Presupuestos"     rows={4} cols={6} />
-          <SkeletonCard title="Reposiciones"     rows={3} cols={5} />
-          <SkeletonCard title="Cobranzas"        rows={3} cols={8} />
-          <SkeletonCard title="Remitos"          rows={3} cols={5} />
+          <SkeletonCard title="Presupuestos en Pesos" rows={4} cols={6} />
+          <SkeletonCard title="Presupuestos en Dólares" rows={2} cols={6} />
+          <SkeletonCard title="Reposiciones"  rows={3} cols={5} />
+          <SkeletonCard title="Reservas"      rows={3} cols={4} />
+          <SkeletonCard title="Cobranzas"     rows={3} cols={8} />
+          <SkeletonCard title="Remitos"       rows={3} cols={5} />
         </>
       ) : (
         <>
-          {/* ── PRESUPUESTOS ── */}
-          {presupuestos.length > 0 && (
+          {/* ── PRESUPUESTOS EN PESOS ── */}
+          <SeccionPresupuestos
+            presupuestos={presupuestosARS}
+            divisa="ARS"
+            onPrint={printComprobantePDF}
+          />
+
+          {/* ── PRESUPUESTOS EN DÓLARES ── */}
+          <SeccionPresupuestos
+            presupuestos={presupuestosUSD}
+            divisa="USD"
+            onPrint={printComprobantePDF}
+          />
+
+          {/* ── REPOSICIONES ARS ── */}
+          <SeccionReposiciones reposiciones={reposiciones} divisa="ARS" />
+
+          {/* ── REPOSICIONES USD ── */}
+          <SeccionReposiciones reposiciones={reposiciones} divisa="USD" />
+
+          {/* ── RESERVAS ── */}
+          {notasPedido.length > 0 && (
             <div className="card" style={{ marginBottom:24 }}>
               <div className="card-header">
-                <span className="card-title">Presupuestos</span>
-                <span className="badge badge-info">{presupuestos.length}</span>
+                <span className="card-title">Reservas (Notas de Pedido)</span>
+                <span className="badge badge-info">{notasPedido.length}</span>
+                <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", padding:"2px 8px", background:"var(--bg3)", borderRadius:4, border:"1px solid var(--border)" }}>
+                  Todas — sin filtro de fecha
+                </span>
               </div>
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
                       <th>Tipo</th><th>Fecha</th><th>Cliente</th>
-                      <th>Vendedor</th><th>Método de pago</th>
-                      <th style={{ textAlign:"right" }}>Total</th><th></th>
+                      <th style={{ textAlign:"right" }}>Importe</th><th>Acciones</th>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {presupuestos.map((p) => (
-                      <tr key={p.id}>
-                        <td>
-                          <span className="badge badge-accent" style={{
-                            background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
-                            color:      p.tipo==="Presupuesto Web" ? "var(--success)"         : undefined,
-                            border:     p.tipo==="Presupuesto Web" ? "1px solid var(--success)":undefined,
-                          }}>
-                            {p.tipo||"Presupuesto"}
-                          </span>
-                        </td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(p.created_at)}</td>
-                        <td style={{ fontSize:14 }}>{p.customer_name||"—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor||"—"}</td>
-                        <td>
-                          <span style={{ fontSize:12, fontFamily:"var(--font-mono)", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, padding:"2px 8px" }}>
-                            {p.payment_method||"—"}
-                          </span>
-                        </td>
-                        <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                          ${fmt(p.total)}
-                        </td>
-                        <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(p)} title="Imprimir">🖨️</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              <div style={{ borderTop:"2px solid var(--border)", padding:"16px 20px", background:"var(--bg2)" }}>
-                <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:12 }}>
-                  Facturación por método de pago
-                </div>
-                <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"center" }}>
-                  {Object.entries(
-                    presupuestos.reduce((acc, p) => {
-                      const met = p.payment_method || "Sin método";
-                      acc[met] = (acc[met] || 0) + Number(p.total || 0);
-                      return acc;
-                    }, {})
-                  ).map(([met, total]) => (
-                    <div key={met} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 16px", textAlign:"center", minWidth:140 }}>
-                      <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>{met}</div>
-                      <div style={{ fontFamily:"var(--font-mono)", fontSize:18, fontWeight:800, color:"var(--accent)" }}>${fmt(total)}</div>
-                    </div>
-                  ))}
-                  <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total General</div>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>${fmt(totalPres)}</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ── REPOSICIONES ── */}
-          {reposiciones.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
-              <div className="card-header">
-                <span className="card-title">Reposiciones</span>
-                <span className="badge badge-info">{reposiciones.length}</span>
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Fecha</th><th>Proveedor</th><th>Depósito</th>
-                      <th>Vendedor</th><th style={{ textAlign:"right" }}>Total</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {reposiciones.map((r) => (
-                      <tr key={r.id}>
-                        <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
-                        <td style={{ fontSize:14 }}>{r.supplier_name||r.customer_name||"—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.warehouse_name||"—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.vendedor||"—"}</td>
-                        <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
-                          ${fmt(r.total)}
-                        </td>
-                        <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r, tipo:"Reposicion"})} title="Imprimir">🖨️</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* ── RESERVAS (notas de pedido) ── */}
-          {notasPedido.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
-              <div className="card-header">
-                <span className="card-title">Reservas (Notas de Pedido)</span>
-                <span className="badge badge-info">{notasPedido.length}</span>
-              </div>
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr><th>Fecha</th><th>Cliente</th><th style={{ textAlign:"right" }}>Importe</th><th>Acciones</th></tr>
                   </thead>
                   <tbody>
                     {notasPedido.map((n) => (
                       <tr key={n.id}>
+                        <td>
+                          <span className="badge badge-accent" style={{
+                            background: n.tipo==="Nota de Pedido Web" ? "rgba(100,200,100,0.15)" : undefined,
+                            color:      n.tipo==="Nota de Pedido Web" ? "var(--success)"         : undefined,
+                            border:     n.tipo==="Nota de Pedido Web" ? "1px solid var(--success)":undefined,
+                          }}>
+                            {n.tipo === "Nota de Pedido Web" ? "Web" : "Manual"}
+                          </span>
+                        </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(n.created_at)}</td>
                         <td style={{ fontSize:14 }}>{n.customer_name||"—"}</td>
                         <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
@@ -879,7 +958,7 @@ export default function CajaListado() {
                           ${fmt(r.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r,tipo:"Remito"})}>🖨️</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r, tipo:"Remito"})}>🖨️</button>
                         </td>
                       </tr>
                     ))}
@@ -897,14 +976,14 @@ export default function CajaListado() {
             + (entradasPorMetodo["Efectivo"]  || 0)
             - (salidasPorMetodo["Efectivo"]   || 0);
 
-            const thStyle  = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
-            const tdVal    = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
-            const tdLabel  = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
+            const thStyle = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
+            const tdVal   = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
+            const tdLabel = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
             const rows = [
-              { label:"Total ventas",      data:ventasPorMetodo,    color:"var(--text)",    sign:"",  total:totalVentas,        totalColor:"var(--accent)" },
-              { label:"Total Cobranzas",   data:cobranzasPorMetodo, color:"var(--success)", sign:"",  total:totalCobranzasARS,  totalColor:"var(--success)" },
-              { label:"Salidas por Caja",  data:salidasPorMetodo,   color:"var(--danger)",  sign:"-", total:totalSalidas,        totalColor:"var(--danger)" },
-              { label:"Entradas por Caja", data:entradasPorMetodo,  color:"var(--success)", sign:"",  total:totalEntradas,       totalColor:"var(--success)" },
+              { label:"Total ventas ARS",  data:ventasPorMetodo,    color:"var(--text)",    sign:"",  total:totalVentas,       totalColor:"var(--accent)"  },
+              { label:"Total Cobranzas",   data:cobranzasPorMetodo, color:"var(--success)", sign:"",  total:totalCobranzasARS, totalColor:"var(--success)" },
+              { label:"Salidas por Caja",  data:salidasPorMetodo,   color:"var(--danger)",  sign:"-", total:totalSalidas,      totalColor:"var(--danger)"  },
+              { label:"Entradas por Caja", data:entradasPorMetodo,  color:"var(--success)", sign:"",  total:totalEntradas,     totalColor:"var(--success)" },
             ];
 
             return (
@@ -958,14 +1037,12 @@ export default function CajaListado() {
 
           {/* ── RESUMEN DE CAJA (USD) ── */}
           {cobranzasUSD.length > 0 && (() => {
-            const fmtUSD   = (n) => `USD ${Number(n||0).toLocaleString("es-AR", { minimumFractionDigits:2 })}`;
-            const thStyle  = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
-            const tdVal    = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
-            const tdLabel  = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
+            const thStyle = { padding:"10px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" };
+            const tdVal   = (val, color) => ({ padding:"11px 12px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: val ? color||"var(--text)" : "var(--text-dim)" });
+            const tdLabel = { padding:"11px 16px", fontWeight:700, fontSize:13, color:"var(--text)", whiteSpace:"nowrap" };
             const rows = [
-              { label:"Total Cobranzas", data:cobranzasUSDPorMetodo, color:"var(--success)", sign:"", total:totalCobranzasUSD, totalColor:"var(--success)" },
+              { label:"Total Cobranzas USD", data:cobranzasUSDPorMetodo, color:"var(--success)", sign:"", total:totalCobranzasUSD, totalColor:"var(--success)" },
             ];
-
             return (
               <div className="card" style={{ marginTop:16 }}>
                 <div className="card-header">
@@ -1006,7 +1083,6 @@ export default function CajaListado() {
               </div>
             );
           })()}
-
         </>
       )}
     </>

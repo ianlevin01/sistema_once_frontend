@@ -41,7 +41,7 @@ const NAV_VENDEDOR = [
     items: [
       { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
       { to: "/productos",    label: "Productos",    icon: "🏷️" },
-      { to: "/calculadora",  label: "Calculadora",  icon: "🧮" },  // ← nuevo
+      { to: "/calculadora",  label: "Calculadora",  icon: "🧮" },
     ],
   },
   {
@@ -152,26 +152,39 @@ export default function Layout({ children }) {
         </nav>
 
         {user && (
+          // ── Footer del sidebar ──────────────────────────────────────────
+          // min-width: 0 + overflow: hidden evitan que el contenido
+          // se expanda y aplaste el sidebar cuando está colapsado.
           <div style={{
-            padding: "12px 16px", borderTop: "1px solid var(--border)",
-            background: "var(--bg3)", flexShrink: 0,
+            padding: "12px 16px",
+            borderTop: "1px solid var(--border)",
+            background: "var(--bg3)",
+            flexShrink: 0,
+            minWidth: 0,
+            overflow: "hidden",
           }}>
-            {/* Badge de rol para vendedor */}
             {isVendedor && (
               <div style={{
                 fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--accent)",
                 background: "var(--accent-light)", border: "1px solid var(--accent)",
                 borderRadius: 3, padding: "2px 7px", marginBottom: 6,
                 display: "inline-block", textTransform: "uppercase", letterSpacing: "0.06em",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
               }}>
                 Vendedor
               </div>
             )}
-            <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2 }}>
+            <div style={{
+              fontSize: 12, fontWeight: 600, color: "var(--text)", marginBottom: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>
               {user.name}
             </div>
             {user.warehouse_name && (
-              <div style={{ fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", marginBottom: 8 }}>
+              <div style={{
+                fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)", marginBottom: 8,
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              }}>
                 🏭 {user.warehouse_name}
               </div>
             )}
@@ -182,6 +195,7 @@ export default function Layout({ children }) {
                 background: "transparent", border: "1px solid var(--border)",
                 borderRadius: 4, color: "var(--text-dim)", fontFamily: "var(--font-mono)",
                 textTransform: "uppercase", letterSpacing: "0.06em",
+                whiteSpace: "nowrap", overflow: "hidden",
               }}
               onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--danger)"; e.currentTarget.style.color = "var(--danger)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-dim)"; }}

@@ -4,7 +4,6 @@ import api, { searchCustomers, createComprobante } from "../utils/api";
 import { useVendedores } from "../utils/useVendedores";
 import { useAuth } from "../utils/useAuth";
 import ProductSearchBar from "../components/ProductSearchBar";
-// Al principio de WebOrders.jsx, agregá este import:
 import { calcGanancia, getTasa } from "../utils/calcGanancia";
 
 const COLORS = [
@@ -22,14 +21,334 @@ const PRECIO_LBL = {
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
 
-const extractPrice = (product, priceType) => {
-  const prices = product?.prices || product?.product_prices || [];
-  const found  = prices.find((p) => p.price_type === priceType);
-  return found ? Number(found.price) : 0;
-};
-
 const today = () => new Date().toISOString().slice(0, 10);
 
+// ─────────────────────────────────────────────────────────────
+// Modal de EDICIÓN — misma estructura visual que PresModal
+// Recibe el pedido a editar y callbacks
+// ─────────────────────────────────────────────────────────────
+function EditModal({ order, onClose, onSaved, addToast }) {
+  const vendedores = useVendedores();
+
+  // Campos del pedido (datos de cliente y observaciones)
+  const [customerName,  setCustomerName]  = useState(order.customer_name  || "");
+  const [customerEmail, setCustomerEmail] = useState(order.customer_email || "");
+  const [customerPhone, setCustomerPhone] = useState(order.customer_phone || "");
+  const [customerCity,  setCustomerCity]  = useState(order.customer_city  || "");
+  const [observaciones, setObservaciones] = useState(order.observaciones  || "");
+
+  // Items editables
+  const [items,     setItems]     = useState(
+    (order.items || []).map((i) => ({ ...i }))
+  );
+
+  // Producto nuevo a agregar
+  const [prodSel,   setProdSel]   = useState(null);
+  const [itemQty,   setItemQty]   = useState("");
+  const [itemPrice, setItemPrice] = useState("");
+  const [itemDesc,  setItemDesc]  = useState("");
+  const [priceType, setPriceType] = useState("precio_1");
+
+  const [saving, setSaving] = useState(false);
+  const qtyRef = useRef(null);
+
+  // Cuando cambia tipo de precio, actualiza precio del producto seleccionado
+  useEffect(() => {
+    if (prodSel) {
+      const prices = prodSel?.prices || prodSel?.product_prices || [];
+      const found  = prices.find((p) => p.price_type === priceType);
+      setItemPrice(found ? String(Number(found.price)) : "");
+    }
+  }, [priceType, prodSel]);
+
+  const handleProdSelect = ({ product, price }) => {
+    setProdSel(product);
+    setItemDesc(product.name);
+    setItemPrice(price > 0 ? String(price) : "");
+    setTimeout(() => qtyRef.current?.focus(), 50);
+  };
+
+  const confirmItem = () => {
+    if (!prodSel)                         { addToast("Seleccioná un producto", "error"); return; }
+    if (!itemQty || Number(itemQty) <= 0) { addToast("Ingresá una cantidad válida", "error"); return; }
+    setItems((prev) => [...prev, {
+      product_id:  prodSel.id,
+      code:        prodSel.code || "",
+      name:        prodSel.name,
+      description: itemDesc || prodSel.name,
+      quantity:    Number(itemQty),
+      unit_price:  Number(itemPrice) || 0,
+    }]);
+    setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
+  };
+
+  const updateItem = (i, key, val) =>
+    setItems((prev) => prev.map((it, idx) => idx === i ? { ...it, [key]: val } : it));
+  const removeItem = (i) =>
+    setItems((prev) => prev.filter((_, idx) => idx !== i));
+
+  const totalCalc = items.reduce((a, it) => a + Number(it.quantity) * Number(it.unit_price), 0);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.put(`/web-orders/${order.id}`, {
+        customer_name:  customerName,
+        customer_email: customerEmail,
+        customer_phone: customerPhone,
+        customer_city:  customerCity,
+        observaciones,
+        items,
+      });
+      addToast("Pedido actualizado", "success");
+      onSaved(data);
+      onClose();
+    } catch {
+      addToast("Error guardando", "error");
+    }
+    setSaving(false);
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div
+        className="modal"
+        style={{ maxWidth:900, width:"96vw", maxHeight:"92vh", overflow:"hidden", display:"flex", flexDirection:"column" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="modal-header" style={{ flexShrink:0 }}>
+          <span className="modal-title">✏️ Editar pedido — {order.customer_name}</span>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+
+        <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
+
+          {/* ── Columna izquierda: datos del cliente ── */}
+          <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            <div style={{ padding:"12px 14px 10px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
+              <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.08em", fontWeight:700 }}>
+                Datos del cliente
+              </div>
+            </div>
+
+            {/* Campos — scroll interno */}
+            <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
+              {[
+                ["Nombre",   customerName,  setCustomerName],
+                ["Email",    customerEmail, setCustomerEmail],
+                ["Teléfono", customerPhone, setCustomerPhone],
+                ["Ciudad",   customerCity,  setCustomerCity],
+              ].map(([label, val, setter]) => (
+                <div className="input-group" key={label}>
+                  <label className="input-label">{label}</label>
+                  <input
+                    className="input"
+                    value={val}
+                    onChange={(e) => setter(e.target.value)}
+                    style={{ fontSize:12 }}
+                  />
+                </div>
+              ))}
+              <div className="input-group">
+                <label className="input-label">Observaciones</label>
+                <textarea
+                  className="input"
+                  value={observaciones}
+                  onChange={(e) => setObservaciones(e.target.value)}
+                  rows={3}
+                  style={{ fontSize:12, resize:"vertical" }}
+                />
+              </div>
+
+              {/* Tipo de precio para agregar productos */}
+              <div className="input-group" style={{ marginTop:8 }}>
+                <label className="input-label">Precio al agregar</label>
+                <select className="select" value={priceType} onChange={(e) => setPriceType(e.target.value)} style={{ fontSize:12 }}>
+                  {PRECIOS.map((p) => <option key={p} value={p}>{PRECIO_LBL[p]}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Botones — siempre al fondo */}
+            <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleSave}
+                disabled={saving}
+                style={{ width:"100%", fontSize:13, padding:"10px" }}
+              >
+                {saving ? "Guardando..." : "✓ Guardar cambios"}
+              </button>
+              <button
+                className="btn btn-ghost"
+                onClick={onClose}
+                style={{ width:"100%", fontSize:13 }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+
+          {/* ── Panel central: items ── */}
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+            {/* Lista de items */}
+            <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
+              {items.length === 0 ? (
+                <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:10 }}>
+                  <span style={{ fontSize:40 }}>📦</span>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12 }}>Sin productos</span>
+                </div>
+              ) : (
+                <>
+                  {/* Headers */}
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 80px 100px 90px 30px", gap:8, padding:"0 0 8px", borderBottom:"2px solid var(--border)", marginBottom:4 }}>
+                    {["Código","Descripción","Cant.","Precio","Total",""].map((h) => (
+                      <div key={h} style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</div>
+                    ))}
+                  </div>
+
+                  {/* Filas editables */}
+                  {items.map((it, i) => (
+                    <div key={i} style={{ display:"grid", gridTemplateColumns:"80px 1fr 80px 100px 90px 30px", gap:8, padding:"8px 0", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
+                      {/* Código */}
+                      <input
+                        className="input"
+                        style={{ fontFamily:"var(--font-mono)", fontSize:11, height:30, color:"var(--accent)" }}
+                        value={it.code || ""}
+                        onChange={(e) => updateItem(i, "code", e.target.value)}
+                      />
+                      {/* Nombre */}
+                      <input
+                        className="input"
+                        style={{ fontSize:12, height:30 }}
+                        value={it.name || ""}
+                        onChange={(e) => updateItem(i, "name", e.target.value)}
+                      />
+                      {/* Cantidad */}
+                      <input
+                        className="input"
+                        type="number"
+                        style={{ fontSize:12, fontFamily:"var(--font-mono)", textAlign:"center", height:30 }}
+                        value={it.quantity}
+                        onChange={(e) => updateItem(i, "quantity", e.target.value)}
+                      />
+                      {/* Precio unit */}
+                      <input
+                        className="input"
+                        type="number"
+                        style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--accent)", height:30 }}
+                        value={it.unit_price || 0}
+                        onChange={(e) => updateItem(i, "unit_price", e.target.value)}
+                      />
+                      {/* Total fila */}
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--accent)", textAlign:"right" }}>
+                        ${(Number(it.quantity) * Number(it.unit_price || 0)).toLocaleString("es-AR")}
+                      </span>
+                      {/* Eliminar */}
+                      <button
+                        onClick={() => removeItem(i)}
+                        style={{ background:"none", border:"none", color:"var(--danger)", cursor:"pointer", fontSize:16 }}
+                      >✕</button>
+                    </div>
+                  ))}
+
+                  {/* Total general */}
+                  <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16, paddingTop:12, borderTop:"2px solid var(--border)" }}>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
+                      <div style={{ fontSize:26, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
+                        ${totalCalc.toLocaleString("es-AR")}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ── Barra para agregar producto nuevo ── */}
+            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
+
+              {/* Chip producto seleccionado */}
+              {prodSel && (
+                <div style={{ marginBottom:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
+                  <span style={{ fontSize:13, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{prodSel.name}</span>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700, flexShrink:0 }}>
+                    ${Number(itemPrice||0).toLocaleString("es-AR")}
+                  </span>
+                  <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
+                </div>
+              )}
+
+              {/* Descripción editable */}
+              <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
+                <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
+                <input
+                  className="input"
+                  style={{ flex:1, fontSize:13, height:34 }}
+                  placeholder="Enter si no modifica"
+                  value={itemDesc}
+                  onChange={(e) => setItemDesc(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }}
+                />
+              </div>
+
+              {/* Fila principal */}
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
+                <div style={{ flex:2, minWidth:0 }}>
+                  <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Código o descripción</div>
+                  <ProductSearchBar
+                    priceType={priceType}
+                    onSelect={handleProdSelect}
+                    autoFocus={!prodSel}
+                    dropUp
+                  />
+                </div>
+                <div style={{ flex:"0 0 100px" }}>
+                  <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Cantidad</div>
+                  <input
+                    ref={qtyRef}
+                    className="input"
+                    style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
+                    placeholder="0"
+                    value={itemQty}
+                    onChange={(e) => setItemQty(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }}
+                  />
+                </div>
+                <div style={{ flex:"0 0 110px" }}>
+                  <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Precio</div>
+                  <input
+                    className="input"
+                    style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
+                    placeholder="0.00"
+                    value={itemPrice}
+                    onChange={(e) => setItemPrice(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }}
+                  />
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={confirmItem}
+                  style={{ height:38, fontSize:13, padding:"0 16px", flexShrink:0 }}
+                >
+                  + Agregar
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Componente principal WebOrders
+// ─────────────────────────────────────────────────────────────
 export default function WebOrders() {
   const vendedores = useVendedores();
   const [orders,   setOrders]   = useState([]);
@@ -38,12 +357,14 @@ export default function WebOrders() {
   const [to,       setTo]       = useState(today());
   const [search,   setSearch]   = useState("");
   const [selected, setSelected] = useState(null);
-  const [editing,  setEditing]  = useState(false);
-  const [form,     setForm]     = useState(null);
+
+  // editOrder: el pedido que se está editando en el modal
+  const [editOrder, setEditOrder] = useState(null);
+
   const [saving,   setSaving]   = useState(false);
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
-const isVendedor = user?.role === "vendedor";
+  const isVendedor = user?.role === "vendedor";
 
   // ── Estado del modal de presupuestar ──────────────────────────
   const [presModal,    setPresModal]    = useState(false);
@@ -73,7 +394,6 @@ const isVendedor = user?.role === "vendedor";
     return () => clearTimeout(t);
   }, [presCustQuery, presModal]);
 
-  // ── Cuando cambia tipo de precio, actualizar precio del prod seleccionado
   useEffect(() => {
     if (presProdSel) {
       const prices = presProdSel?.prices || presProdSel?.product_prices || [];
@@ -97,7 +417,6 @@ const isVendedor = user?.role === "vendedor";
     .filter((o) => !o.tildado)
     .reduce((a, o) => a + Number(o.total || 0), 0);
 
-  // ── Cambiar color ──────────────────────────────────────────────
   const setColor = async (id, color) => {
     try {
       await api.patch(`/web-orders/${id}/color`, { color });
@@ -106,7 +425,6 @@ const isVendedor = user?.role === "vendedor";
     } catch { addToast("Error cambiando color", "error"); }
   };
 
-  // ── Reservar ───────────────────────────────────────────────────
   const toggleReservado = async (id, current) => {
     try {
       await api.patch(`/web-orders/${id}/reservado`, { reservado: !current });
@@ -116,44 +434,24 @@ const isVendedor = user?.role === "vendedor";
     } catch { addToast("Error", "error"); }
   };
 
-  // ── Abrir detalle ──────────────────────────────────────────────
   const openDetail = async (o) => {
     try {
       const { data } = await api.get(`/web-orders/${o.id}`);
-      setSelected(data); setEditing(false);
+      setSelected(data);
     } catch { addToast("Error cargando pedido", "error"); }
   };
 
-  // ── Edición ────────────────────────────────────────────────────
+  // ── Abrir modal de edición ────────────────────────────────────
   const openEdit = () => {
-    setForm({
-      customer_name:  selected.customer_name  || "",
-      customer_email: selected.customer_email || "",
-      customer_phone: selected.customer_phone || "",
-      customer_city:  selected.customer_city  || "",
-      observaciones:  selected.observaciones  || "",
-      items: (selected.items || []).map((i) => ({ ...i })),
-    });
-    setEditing(true);
+    if (!selected) return;
+    setEditOrder(selected);
   };
 
-  const updateItem = (i, key, val) =>
-    setForm((p) => ({ ...p, items: p.items.map((it, idx) => idx === i ? { ...it, [key]: val } : it) }));
-  const removeFormItem = (i) =>
-    setForm((p) => ({ ...p, items: p.items.filter((_, idx) => idx !== i) }));
-  const addFormItem = () =>
-    setForm((p) => ({ ...p, items: [...p.items, { code:"", name:"", quantity:1, unit_price:0 }] }));
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const { data } = await api.put(`/web-orders/${selected.id}`, form);
-      setSelected(data);
-      setOrders((prev) => prev.map((o) => o.id === data.id ? { ...o, ...data } : o));
-      setEditing(false);
-      addToast("Pedido actualizado", "success");
-    } catch { addToast("Error guardando", "error"); }
-    setSaving(false);
+  // Callback cuando se guarda desde el EditModal
+  const handleEditSaved = (updatedOrder) => {
+    setSelected(updatedOrder);
+    setOrders((prev) => prev.map((o) => o.id === updatedOrder.id ? { ...o, ...updatedOrder } : o));
+    setEditOrder(null);
   };
 
   const handleDelete = async (id) => {
@@ -166,7 +464,6 @@ const isVendedor = user?.role === "vendedor";
     } catch { addToast("Error eliminando", "error"); }
   };
 
-  // ── Presupuestar: abre modal con datos prellenados ─────────────
   const presupuestar = () => {
     if (!selected) return;
     const itemsPre = (selected.items || []).map((i) => ({
@@ -196,7 +493,6 @@ const isVendedor = user?.role === "vendedor";
     setPresModal(true);
   };
 
-  // ── Acciones dentro del modal de presupuesto ──────────────────
   const presSelectCust = (c) => { setPresCustSel(c); setPresCustQuery(""); setPresCustRes([]); };
 
   const presHandleProdSelect = ({ product, price }) => {
@@ -222,7 +518,6 @@ const isVendedor = user?.role === "vendedor";
   };
 
   const presRemoveItem = (i) => setPresItems((prev) => prev.filter((_, idx) => idx !== i));
-
   const presTotal = presItems.reduce((a, it) => a + it.quantity * it.unit_price, 0);
 
   const presHandleCreate = async () => {
@@ -248,7 +543,6 @@ const isVendedor = user?.role === "vendedor";
     setPresSaving(false);
   };
 
-  // ── PDF ────────────────────────────────────────────────────────
   const printPDF = () => {
     if (!selected) return;
     const win = window.open("", "_blank");
@@ -296,6 +590,16 @@ const isVendedor = user?.role === "vendedor";
     <>
       <ToastContainer />
 
+      {/* ── MODAL EDITAR ──────────────────────────────────────── */}
+      {editOrder && (
+        <EditModal
+          order={editOrder}
+          onClose={() => setEditOrder(null)}
+          onSaved={handleEditSaved}
+          addToast={addToast}
+        />
+      )}
+
       {/* ── MODAL PRESUPUESTAR ──────────────────────────────── */}
       {presModal && (
         <div className="modal-overlay" onClick={() => setPresModal(false)}>
@@ -308,11 +612,7 @@ const isVendedor = user?.role === "vendedor";
             </div>
 
             <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
-
-              {/* Columna izquierda: config */}
               <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-                {/* Tipo */}
                 <div style={{ padding:"14px 14px 10px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
                   <div style={{ padding:"8px 10px", borderRadius:4, fontSize:13, background:"var(--accent-dim)", color:"var(--accent)", borderLeft:"3px solid var(--accent)", fontWeight:600 }}>
@@ -320,7 +620,6 @@ const isVendedor = user?.role === "vendedor";
                   </div>
                 </div>
 
-                {/* Cliente */}
                 <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente</div>
                   {presCustSel ? (
@@ -351,7 +650,6 @@ const isVendedor = user?.role === "vendedor";
                   )}
                 </div>
 
-                {/* Config — scroll interno */}
                 <div style={{ padding:"12px 14px", flex:1, overflowY:"auto" }}>
                   <div className="input-group">
                     <label className="input-label">Método de pago</label>
@@ -379,7 +677,6 @@ const isVendedor = user?.role === "vendedor";
                   </div>
                 </div>
 
-                {/* Botones — siempre al fondo */}
                 <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
                   <button className="btn btn-primary" onClick={presHandleCreate} disabled={presSaving}
                     style={{ width:"100%", fontSize:13, padding:"10px" }}>
@@ -390,10 +687,7 @@ const isVendedor = user?.role === "vendedor";
                 </div>
               </div>
 
-              {/* Panel central: items */}
               <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden" }}>
-
-                {/* Lista de items */}
                 <div style={{ flex:1, overflowY:"auto", padding:"16px 20px" }}>
                   {presItems.length === 0 ? (
                     <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:10 }}>
@@ -431,10 +725,7 @@ const isVendedor = user?.role === "vendedor";
                   )}
                 </div>
 
-                {/* ── Barra de ingreso — dropdown abre hacia ARRIBA ── */}
                 <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 20px 14px", flexShrink:0 }}>
-
-                  {/* Chip del producto seleccionado */}
                   {presProdSel && (
                     <div style={{ marginBottom:8, padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
                       <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{presProdSel.code}</span>
@@ -445,20 +736,15 @@ const isVendedor = user?.role === "vendedor";
                       <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← cantidad</span>
                     </div>
                   )}
-
-                  {/* Descripción */}
                   <div style={{ display:"flex", gap:8, alignItems:"center", marginBottom:8 }}>
                     <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", whiteSpace:"nowrap" }}>Descripción:</div>
                     <input className="input" style={{ flex:1, fontSize:13, height:34 }} placeholder="Enter si no modifica"
                       value={presItemDesc} onChange={(e) => setPresItemDesc(e.target.value)}
                       onKeyDown={(e) => { if (e.key === "Enter") presConfirmItem(); }} />
                   </div>
-
-                  {/* Fila principal */}
                   <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                     <div style={{ flex:2, minWidth:0 }}>
                       <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>Código o descripción</div>
-                      {/* dropUp=true: el dropdown se abre hacia arriba */}
                       <ProductSearchBar
                         priceType={presPriceType}
                         onSelect={presHandleProdSelect}
@@ -573,189 +859,138 @@ const isVendedor = user?.role === "vendedor";
           ) : (
             <>
               {/* Header detalle */}
-<div style={{ padding: "14px 16px", borderBottom: "1px solid var(--border)", flexShrink: 0 }}>
-  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-    <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
-      PEDIDO #{selected.numero}
-    </span>
-    <button onClick={() => setSelected(null)}
-      style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 18 }}>✕</button>
-  </div>
+              <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>
+                    PEDIDO #{selected.numero}
+                  </span>
+                  <button onClick={() => setSelected(null)}
+                    style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:18 }}>✕</button>
+                </div>
 
-  {/* Acciones — solo para no-vendedores */}
-  {!isVendedor && (
-    <>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-        <button className={`btn btn-sm ${selected.reservado ? "btn-primary" : "btn-ghost"}`}
-          onClick={() => toggleReservado(selected.id, selected.reservado)}>
-          {selected.reservado ? "🔒 Reservado" : "🔓 Reservar"}
-        </button>
-        <button className="btn btn-ghost btn-sm" onClick={openEdit}>✏️ Editar</button>
-        <button className="btn btn-ghost btn-sm" onClick={printPDF}>🖨️ PDF</button>
-        <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(selected.id)}>🗑️</button>
-      </div>
-      <div style={{ marginTop: 10 }}>
-        <button className="btn btn-primary btn-sm" onClick={presupuestar}
-          style={{ width: "100%", fontSize: 13 }}>
-          → Presupuestar
-        </button>
-      </div>
-      <div style={{ display: "flex", gap: 5, marginTop: 10 }}>
-        {COLORS.map((c) => (
-          <div key={c.value} onClick={() => setColor(selected.id, c.value)}
-            style={{
-              flex: 1, padding: "4px 0", textAlign: "center", borderRadius: 4, cursor: "pointer", fontSize: 10,
-              background: selected.color === c.value ? c.bg : "transparent",
-              border: `1px solid ${selected.color === c.value ? c.border : "var(--border)"}`,
-              color: selected.color === c.value ? c.text : "var(--text-dim)",
-              fontFamily: "var(--font-mono)", transition: "all 0.15s",
-            }}>
-            {c.label}
-          </div>
-        ))}
-      </div>
-    </>
-  )}
-</div>
-              <div style={{ flex:1, overflowY:"auto", padding:"16px 18px" }}>
-                {editing ? (
-                  /* FORM EDICIÓN */
-                  <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>Datos del cliente</div>
-                    {[
-                      ["Nombre",    "customer_name"],
-                      ["Email",     "customer_email"],
-                      ["Teléfono",  "customer_phone"],
-                      ["Ciudad",    "customer_city"],
-                      ["Obs.",      "observaciones"],
-                    ].map(([label, key]) => (
-                      <div className="input-group" key={key} style={{ marginBottom:0 }}>
-                        <label className="input-label">{label}</label>
-                        <input className="input" value={form[key]||""} onChange={(e)=>setForm((p)=>({...p,[key]:e.target.value}))} style={{ fontSize:13 }} />
-                      </div>
-                    ))}
-                    <hr className="divider" />
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>Items</div>
-                    {form.items.map((it, i) => (
-                      <div key={i} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 12px", display:"flex", flexDirection:"column", gap:8 }}>
-                        <div style={{ display:"flex", gap:8 }}>
-                          <input className="input" style={{ width:70, fontSize:12, fontFamily:"var(--font-mono)" }}
-                            placeholder="Código" value={it.code||""} onChange={(e)=>updateItem(i,"code",e.target.value)} />
-                          <input className="input" style={{ flex:1, fontSize:13 }}
-                            placeholder="Nombre" value={it.name||""} onChange={(e)=>updateItem(i,"name",e.target.value)} />
-                          <button onClick={()=>removeFormItem(i)} style={{ background:"none", border:"none", color:"var(--danger)", cursor:"pointer", fontSize:16, flexShrink:0 }}>✕</button>
-                        </div>
-                        <div style={{ display:"flex", gap:8 }}>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", marginBottom:2 }}>CANT.</div>
-                            <input className="input" type="number" style={{ fontSize:13, fontFamily:"var(--font-mono)", textAlign:"center" }}
-                              value={it.quantity} onChange={(e)=>updateItem(i,"quantity",e.target.value)} />
-                          </div>
-                          <div style={{ flex:1 }}>
-                            <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", marginBottom:2 }}>PRECIO</div>
-                            <input className="input" type="number" style={{ fontSize:13, fontFamily:"var(--font-mono)", color:"var(--accent)" }}
-                              value={it.unit_price||0} onChange={(e)=>updateItem(i,"unit_price",e.target.value)} />
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                    <button className="btn btn-ghost btn-sm" onClick={addFormItem} style={{ width:"100%" }}>+ Agregar item</button>
-                    <div style={{ display:"flex", gap:8, marginTop:6 }}>
-                      <button className="btn btn-ghost" onClick={()=>setEditing(false)} style={{ flex:1 }}>Cancelar</button>
-                      <button className="btn btn-primary" onClick={handleSave} disabled={saving} style={{ flex:1 }}>
-                        {saving ? "Guardando..." : "Guardar"}
+                {!isVendedor && (
+                  <>
+                    <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                      <button className={`btn btn-sm ${selected.reservado ? "btn-primary" : "btn-ghost"}`}
+                        onClick={() => toggleReservado(selected.id, selected.reservado)}>
+                        {selected.reservado ? "🔒 Reservado" : "🔓 Reservar"}
+                      </button>
+                      {/* Botón editar — ahora abre el modal */}
+                      <button className="btn btn-ghost btn-sm" onClick={openEdit}>✏️ Editar</button>
+                      <button className="btn btn-ghost btn-sm" onClick={printPDF}>🖨️ PDF</button>
+                      <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(selected.id)}>🗑️</button>
+                    </div>
+                    <div style={{ marginTop:10 }}>
+                      <button className="btn btn-primary btn-sm" onClick={presupuestar}
+                        style={{ width:"100%", fontSize:13 }}>
+                        → Presupuestar
                       </button>
                     </div>
-                  </div>
-                ) : (
-                  /* VISTA DETALLE */
-                  <div>
-                    <div style={{ marginBottom:14 }}>
-                      <div style={{ fontSize:17, fontWeight:700, color:"var(--text)", marginBottom:4 }}>{selected.customer_name}</div>
-                      {selected.customer_city  && <div style={{ fontSize:13, color:"var(--text-muted)" }}>📍 {selected.customer_city}</div>}
-                      {selected.customer_phone && <div style={{ fontSize:13, color:"var(--text-muted)" }}>📞 {selected.customer_phone}</div>}
-                      {selected.customer_email && <div style={{ fontSize:13, color:"var(--text-muted)" }}>✉️ {selected.customer_email}</div>}
-                      {selected.observaciones  && (
-                        <div style={{ marginTop:8, padding:"9px 12px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, fontSize:13, color:"var(--text-muted)", lineHeight:1.5 }}>
-                          {selected.observaciones}
+                    <div style={{ display:"flex", gap:5, marginTop:10 }}>
+                      {COLORS.map((c) => (
+                        <div key={c.value} onClick={() => setColor(selected.id, c.value)}
+                          style={{
+                            flex:1, padding:"4px 0", textAlign:"center", borderRadius:4, cursor:"pointer", fontSize:10,
+                            background: selected.color === c.value ? c.bg : "transparent",
+                            border: `1px solid ${selected.color === c.value ? c.border : "var(--border)"}`,
+                            color: selected.color === c.value ? c.text : "var(--text-dim)",
+                            fontFamily:"var(--font-mono)", transition:"all 0.15s",
+                          }}>
+                          {c.label}
                         </div>
-                      )}
+                      ))}
                     </div>
-                    <hr className="divider" />
-                    <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
-                      Productos ({(selected.items||[]).length})
-                    </div>
-                    {(selected.items||[]).length === 0 ? (
-                      <div className="empty">Sin productos</div>
-                    ) : (
-                      <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                          <thead>
-                            <tr style={{ background:"var(--bg3)" }}>
-                              {["Código","Producto","Cant.","Precio"].map((h,i) => (
-                                <th key={h} style={{ padding:"6px 8px", fontFamily:"var(--font-mono)", fontSize:9, letterSpacing:"0.08em", textTransform:"uppercase", color:"var(--text-dim)", borderBottom:"1px solid var(--border)", textAlign: i>1?"right":"left" }}>{h}</th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {selected.items.map((it, i) => (
-                              <tr key={i} style={{ borderBottom: i<selected.items.length-1?"1px solid var(--border)":"none" }}>
-                                <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.code||"—"}</td>
-                                <td style={{ padding:"7px 8px", fontSize:12 }}>{it.name}</td>
-                                <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, textAlign:"right" }}>{it.quantity}</td>
-                                <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", textAlign:"right" }}>
-                                  ${Number(it.unit_price||0).toLocaleString("es-AR",{minimumFractionDigits:2})}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                          <tfoot>
-                            <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
-                              <td colSpan={3} style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-muted)", textTransform:"uppercase" }}>Total</td>
-                              <td style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color:"var(--accent)", textAlign:"right" }}>
-                                ${Number(selected.total||0).toLocaleString("es-AR",{minimumFractionDigits:2})}
-                              </td>
-                            </tr>
-                          </tfoot>
-                        </table>
+                  </>
+                )}
+              </div>
+
+              <div style={{ flex:1, overflowY:"auto", padding:"16px 18px" }}>
+                {/* VISTA DETALLE */}
+                <div>
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ fontSize:17, fontWeight:700, color:"var(--text)", marginBottom:4 }}>{selected.customer_name}</div>
+                    {selected.customer_city  && <div style={{ fontSize:13, color:"var(--text-muted)" }}>📍 {selected.customer_city}</div>}
+                    {selected.customer_phone && <div style={{ fontSize:13, color:"var(--text-muted)" }}>📞 {selected.customer_phone}</div>}
+                    {selected.customer_email && <div style={{ fontSize:13, color:"var(--text-muted)" }}>✉️ {selected.customer_email}</div>}
+                    {selected.observaciones  && (
+                      <div style={{ marginTop:8, padding:"9px 12px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, fontSize:13, color:"var(--text-muted)", lineHeight:1.5 }}>
+                        {selected.observaciones}
                       </div>
                     )}
-                    {/* Ganancia del vendedor — solo visible para vendedor */}
-                     {isVendedor && (() => {
-  const items = selected.items || [];
-  const pctV  = Number(user?.pct_vendedor ?? 0);
-
-  const gananciaBruta = items.reduce((acc, it) => {
-    const precioVenta  = Number(it.unit_price || 0);
-    const precio1Aprox = pctV > 0 ? precioVenta / (1 + pctV / 100) : precioVenta;
-    return acc + (precioVenta - precio1Aprox) * it.quantity;
-  }, 0);
-
-  const tramo       = getTasa(gananciaBruta);
-  const gananciaReal = gananciaBruta * (tramo.tasa / 100);
-
-  return (
-    <div style={{ marginTop: 12, padding: "12px 14px", background: "var(--success-dim)", border: "1px solid var(--success)", borderRadius: 8 }}>
-      <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--success)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 6 }}>
-        Tu ganancia en este pedido
-      </div>
-      <div style={{ fontSize: 11, color: "var(--success)", opacity: 0.8, marginBottom: 6 }}>
-        {tramo.label} → {tramo.tasa}% de ${gananciaBruta.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-      </div>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={{ fontSize: 11, color: "var(--success)", opacity: 0.7 }}>({pctV}% de margen)</span>
-        <div style={{ fontFamily: "var(--font-mono)", fontSize: 20, fontWeight: 800, color: "var(--success)" }}>
-          ${gananciaReal.toLocaleString("es-AR", { minimumFractionDigits: 2 })}
-        </div>
-      </div>
-    </div>
-  );
-})()}
-                    <div style={{ marginTop:12, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>
-                      {new Date(selected.created_at).toLocaleString("es-AR")}
-                    </div>
                   </div>
-                )}
+                  <hr className="divider" />
+                  <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>
+                    Productos ({(selected.items||[]).length})
+                  </div>
+                  {(selected.items||[]).length === 0 ? (
+                    <div className="empty">Sin productos</div>
+                  ) : (
+                    <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
+                      <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                        <thead>
+                          <tr style={{ background:"var(--bg3)" }}>
+                            {["Código","Producto","Cant.","Precio"].map((h,i) => (
+                              <th key={h} style={{ padding:"6px 8px", fontFamily:"var(--font-mono)", fontSize:9, letterSpacing:"0.08em", textTransform:"uppercase", color:"var(--text-dim)", borderBottom:"1px solid var(--border)", textAlign: i>1?"right":"left" }}>{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {selected.items.map((it, i) => (
+                            <tr key={i} style={{ borderBottom: i<selected.items.length-1?"1px solid var(--border)":"none" }}>
+                              <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.code||"—"}</td>
+                              <td style={{ padding:"7px 8px", fontSize:12 }}>{it.name}</td>
+                              <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, textAlign:"right" }}>{it.quantity}</td>
+                              <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", textAlign:"right" }}>
+                                ${Number(it.unit_price||0).toLocaleString("es-AR",{minimumFractionDigits:2})}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot>
+                          <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
+                            <td colSpan={3} style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-muted)", textTransform:"uppercase" }}>Total</td>
+                            <td style={{ padding:"8px 8px", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color:"var(--accent)", textAlign:"right" }}>
+                              ${Number(selected.total||0).toLocaleString("es-AR",{minimumFractionDigits:2})}
+                            </td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+
+                  {/* Ganancia del vendedor */}
+                  {isVendedor && (() => {
+                    const items = selected.items || [];
+                    const pctV  = Number(user?.pct_vendedor ?? 0);
+                    const gananciaBruta = items.reduce((acc, it) => {
+                      const precioVenta  = Number(it.unit_price || 0);
+                      const precio1Aprox = pctV > 0 ? precioVenta / (1 + pctV / 100) : precioVenta;
+                      return acc + (precioVenta - precio1Aprox) * it.quantity;
+                    }, 0);
+                    const tramo       = getTasa(gananciaBruta);
+                    const gananciaReal = gananciaBruta * (tramo.tasa / 100);
+                    return (
+                      <div style={{ marginTop:12, padding:"12px 14px", background:"var(--success-dim)", border:"1px solid var(--success)", borderRadius:8 }}>
+                        <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--success)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:6 }}>
+                          Tu ganancia en este pedido
+                        </div>
+                        <div style={{ fontSize:11, color:"var(--success)", opacity:0.8, marginBottom:6 }}>
+                          {tramo.label} → {tramo.tasa}% de ${gananciaBruta.toLocaleString("es-AR",{minimumFractionDigits:2})}
+                        </div>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                          <span style={{ fontSize:11, color:"var(--success)", opacity:0.7 }}>({pctV}% de margen)</span>
+                          <div style={{ fontFamily:"var(--font-mono)", fontSize:20, fontWeight:800, color:"var(--success)" }}>
+                            ${gananciaReal.toLocaleString("es-AR",{minimumFractionDigits:2})}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <div style={{ marginTop:12, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>
+                    {new Date(selected.created_at).toLocaleString("es-AR")}
+                  </div>
+                </div>
               </div>
             </>
           )}
