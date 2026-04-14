@@ -1,17 +1,15 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
-// ── Interceptor: adjuntar JWT automáticamente ─────────────────
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("auth_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// ── Interceptor: si el servidor devuelve 401, limpiar sesión ──
 api.interceptors.response.use(
   (res) => res,
   (err) => {
@@ -64,6 +62,9 @@ export const deleteProveedor            = (id)        => api.delete(`/proveedore
 export const getCCProveedor             = (id)        => api.get(`/proveedores/${id}/cuenta-corriente`);
 export const registrarPagoProveedor     = (id, data)  => api.post(`/proveedores/${id}/pago`, data);
 export const registrarCobranzaProveedor = (id, data)  => api.post(`/proveedores/${id}/cobranza`, data);
+// Editar / eliminar movimientos de proveedor
+export const editarMovimientoProv   = (movId, data) => api.put(`/proveedores/movimientos/${movId}`, data);
+export const eliminarMovimientoProv = (movId)       => api.delete(`/proveedores/movimientos/${movId}`);
 
 // ── CUENTA CORRIENTE (clientes) ───────────────────────────────
 export const getCuentaCorrienteGeneral  = ()         => api.get("/cuenta-corriente");
@@ -72,6 +73,9 @@ export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corrie
 export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/saldo`, data);
 export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/cobranza`, data);
 export const getCobranzasCC             = (from, to) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : ""}`);
+// Editar / eliminar movimientos de cliente
+export const editarMovimientoCC   = (movId, data) => api.put(`/cuenta-corriente/movimientos/${movId}`, data);
+export const eliminarMovimientoCC = (movId)       => api.delete(`/cuenta-corriente/movimientos/${movId}`);
 
 // ── PRICE CONFIG (cotización del dólar) ───────────────────────
 export const getPriceConfig = () => api.get("/config/precios");
@@ -95,9 +99,10 @@ export const deleteRemito  = (id)   => api.delete(`/remitos/${id}`);
 // ── COMPROBANTES ──────────────────────────────────────────────
 export const getComprobantes   = (from, to) =>
   api.get(`/comprobantes${from && to ? `?from=${from}&to=${to}` : ""}`);
-export const getComprobante    = (id)   => api.get(`/comprobantes/${id}`);
-export const createComprobante = (data) => api.post("/comprobantes", data);
-export const deleteComprobante = (id)   => api.delete(`/comprobantes/${id}`);
+export const getComprobante    = (id)        => api.get(`/comprobantes/${id}`);
+export const createComprobante = (data)      => api.post("/comprobantes", data);
+export const updateComprobante = (id, data)  => api.put(`/comprobantes/${id}`, data);
+export const deleteComprobante = (id)        => api.delete(`/comprobantes/${id}`);
 export const getLastSalePrice  = (customer_id, product_id) =>
   api.get(`/comprobantes/last-price?customer_id=${customer_id}&product_id=${product_id}`);
 

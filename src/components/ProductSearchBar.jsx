@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, memo } from "react";
 import { createPortal } from "react-dom";
 import { searchProducts, getProduct } from "../utils/api";
 
@@ -12,40 +12,176 @@ const DROPDOWN_W = 660;
 const PREVIEW_W  = 220;
 const LIST_MAX_H = 340;
 
-/**
- * Calcula la posición del dropdown.
- * - Siempre intenta abrirse hacia abajo; si no hay espacio, abre hacia arriba.
- * - Evita salirse del viewport horizontalmente.
- * - Funciona dentro de modales (usa getBoundingClientRect que ya es relativo al viewport).
- */
 function calcDropdownPos(anchorEl, preferUp = false) {
   if (!anchorEl) return { top: 0, left: 0, openUp: false };
-
   const rect   = anchorEl.getBoundingClientRect();
   const vpW    = window.innerWidth;
   const vpH    = window.innerHeight;
   const GAP    = 6;
-
-  // Horizontal: alinear con el input, sin salirse
   let left = rect.left;
   if (left + DROPDOWN_W > vpW - 8) left = vpW - DROPDOWN_W - 8;
   if (left < 8) left = 8;
-
-  // Vertical: ¿hay espacio abajo?
   const spaceBelow = vpH - rect.bottom - GAP;
   const spaceAbove = rect.top - GAP;
-  const dropH      = LIST_MAX_H + 16; // altura aproximada
-
+  const dropH      = LIST_MAX_H + 16;
   let openUp = preferUp;
   if (!preferUp && spaceBelow < dropH && spaceAbove > spaceBelow) openUp = true;
   if (preferUp  && spaceAbove < 80)                                openUp = false;
-
-  const top = openUp
-    ? rect.top  - GAP   // el dropdown crece hacia arriba desde aquí (transform)
-    : rect.bottom + GAP;
-
+  const top = openUp ? rect.top - GAP : rect.bottom + GAP;
   return { top, left, openUp };
 }
+
+// ── Panel de preview completamente aislado ─────────────────────
+// Al ser un componente separado con memo, sus re-renders (cuando llega
+// la imagen o el detalle) NO afectan el layout de la lista de resultados,
+// eliminando el mouseLeave/mouseEnter espurio que causaba el flickering.
+const PreviewPanel = memo(({ product, loading, priceType }) => {
+  const photos = product?.images?.map((i) => i.url).filter(Boolean) || [];
+  const price  = product ? extractPrice(product, priceType) : 0;
+
+  return (
+    <div style={{
+      width:          PREVIEW_W,
+      flexShrink:     0,
+      borderLeft:     "1px solid var(--border)",
+      display:        "flex",
+      flexDirection:  "column",
+      alignItems:     "center",
+      padding:        "18px 14px",
+      background:     "var(--bg3, var(--bg2))",
+      gap:            10,
+      overflowY:      "auto",
+    }}>
+      <div style={{
+        width:          188,
+        height:         188,
+        borderRadius:   8,
+        overflow:       "hidden",
+        border:         "1px solid var(--border)",
+        background:     "var(--bg2)",
+        display:        "flex",
+        alignItems:     "center",
+        justifyContent: "center",
+        flexShrink:     0,
+      }}>
+        {loading && !photos.length ? (
+          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
+            Cargando…
+          </span>
+        ) : photos.length ? (
+          <img
+            src={photos[0]}
+            alt="preview"
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
+            onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
+          />
+        ) : (
+          <span style={{ fontSize: 44, opacity: 0.3 }}>📦</span>
+        )}
+      </div>
+
+      {product ? (
+        <div style={{ width: "100%", textAlign: "center" }}>
+          {product.code && (
+            <div style={{
+              display:      "inline-block",
+              fontFamily:   "var(--font-mono)",
+              fontSize:     10,
+              color:        "var(--accent)",
+              background:   "var(--accent-dim)",
+              border:       "1px solid var(--accent)",
+              borderRadius: 4,
+              padding:      "2px 8px",
+              marginBottom: 8,
+            }}>
+              {product.code}
+            </div>
+          )}
+          <div style={{
+            fontSize:     12,
+            fontWeight:   600,
+            color:        "var(--text)",
+            lineHeight:   1.4,
+            marginBottom: price > 0 ? 8 : 0,
+            wordBreak:    "break-word",
+          }}>
+            {product.name}
+          </div>
+          {price > 0 && (
+            <div style={{
+              fontFamily: "var(--font-mono)",
+              fontSize:   18,
+              fontWeight: 700,
+              color:      "var(--accent)",
+            }}>
+              ${price.toLocaleString("es-AR")}
+            </div>
+          )}
+        </div>
+      ) : !loading ? (
+        <div style={{
+          fontSize:   11,
+          fontFamily: "var(--font-mono)",
+          color:      "var(--text-dim)",
+          textAlign:  "center",
+        }}>
+          Sin imagen
+        </div>
+      ) : null}
+    </div>
+  );
+});
+
+// ── Ítem de la lista también aislado con memo ──────────────────
+// Cada ítem no se re-renderiza cuando cambia el preview,
+// solo cuando cambia su propio estado de highlight.
+const ResultItem = memo(({ product, highlight, onMouseEnter, onMouseLeave, onMouseDown }) => (
+  <div
+    onMouseEnter={onMouseEnter}
+    onMouseLeave={onMouseLeave}
+    onMouseDown={onMouseDown}
+    style={{
+      padding:      "10px 16px",
+      cursor:       "pointer",
+      display:      "flex",
+      alignItems:   "center",
+      gap:          12,
+      background:   highlight ? "var(--accent-dim)" : "transparent",
+      borderLeft:   `3px solid ${highlight ? "var(--accent)" : "transparent"}`,
+      borderBottom: "1px solid var(--border)",
+      transition:   "background 0.07s",
+    }}
+  >
+    <span style={{
+      fontFamily:   "var(--font-mono)",
+      fontSize:     11,
+      color:        highlight ? "var(--accent)" : "var(--text-dim)",
+      width:        80,
+      flexShrink:   0,
+      overflow:     "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace:   "nowrap",
+    }}>
+      {product.code || "—"}
+    </span>
+    <span style={{
+      fontSize:     13,
+      color:        highlight ? "var(--text)" : "var(--text-muted, var(--text))",
+      flex:         1,
+      overflow:     "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace:   "nowrap",
+      fontWeight:   highlight ? 500 : 400,
+    }}>
+      {product.name}
+    </span>
+    {highlight && (
+      <span style={{ fontSize: 11, color: "var(--accent)", flexShrink: 0, opacity: 0.7 }}>
+        ↵
+      </span>
+    )}
+  </div>
+));
 
 export default function ProductSearchBar({
   priceType  = "precio_1",
@@ -63,20 +199,16 @@ export default function ProductSearchBar({
   const [open,          setOpen]          = useState(false);
   const [dropPos,       setDropPos]       = useState({ top: 0, left: 0, openUp: false });
 
-  const inputRef   = useRef(null);
-  const wrapperRef = useRef(null);
-  const listRef    = useRef(null);
+  const inputRef      = useRef(null);
+  const wrapperRef    = useRef(null);
+  const listRef       = useRef(null);
+  const hoverTimerRef = useRef(null);
 
-  // ── Preview ────────────────────────────────────────────────────
   const previewIdx     = hovered !== null ? hovered : activeIdx;
   const previewProduct = results[previewIdx] ? detailCache[results[previewIdx].id] : null;
-  const previewPhotos  = previewProduct?.images?.map((i) => i.url).filter(Boolean) || [];
-  const previewPrice   = previewProduct ? extractPrice(previewProduct, priceType) : 0;
 
-  // ── Recalcular posición ────────────────────────────────────────
   const updateDropPos = useCallback(() => {
-    const pos = calcDropdownPos(wrapperRef.current, preferUp);
-    setDropPos(pos);
+    setDropPos(calcDropdownPos(wrapperRef.current, preferUp));
   }, [preferUp]);
 
   // ── Búsqueda con debounce ──────────────────────────────────────
@@ -88,12 +220,8 @@ export default function ProductSearchBar({
         setResults(data);
         setActiveIdx(0);
         setHovered(null);
-        if (data.length > 0) {
-          updateDropPos();
-          setOpen(true);
-        } else {
-          setOpen(false);
-        }
+        if (data.length > 0) { updateDropPos(); setOpen(true); }
+        else setOpen(false);
       } catch {}
     }, 300);
     return () => clearTimeout(t);
@@ -103,11 +231,11 @@ export default function ProductSearchBar({
   useEffect(() => {
     if (!open) return;
     const handle = () => updateDropPos();
-    window.addEventListener("resize",  handle);
-    window.addEventListener("scroll",  handle, true);
+    window.addEventListener("resize", handle);
+    window.addEventListener("scroll", handle, true);
     return () => {
-      window.removeEventListener("resize",  handle);
-      window.removeEventListener("scroll",  handle, true);
+      window.removeEventListener("resize", handle);
+      window.removeEventListener("scroll", handle, true);
     };
   }, [open, updateDropPos]);
 
@@ -139,13 +267,16 @@ export default function ProductSearchBar({
       if (
         wrapperRef.current && !wrapperRef.current.contains(e.target) &&
         !document.getElementById("psb-portal")?.contains(e.target)
-      ) {
-        setOpen(false);
-      }
+      ) setOpen(false);
     };
     document.addEventListener("mousedown", handle);
     return () => document.removeEventListener("mousedown", handle);
   }, [open]);
+
+  // ── Limpiar hover timer al desmontar ──────────────────────────
+  useEffect(() => {
+    return () => { if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current); };
+  }, []);
 
   // ── Teclado ────────────────────────────────────────────────────
   const handleKeyDown = (e) => {
@@ -177,197 +308,71 @@ export default function ProductSearchBar({
       try { const { data } = await getProduct(prod.id); detail = data; }
       catch { detail = prod; }
     }
-    const price = extractPrice(detail, priceType);
-    onSelect?.({ product: detail, price });
+    onSelect?.({ product: detail, price: extractPrice(detail, priceType) });
   }, [detailCache, priceType, onSelect]);
 
-  // ── Dropdown content (renderizado via portal) ──────────────────
+  // ── Handlers de hover con debounce ────────────────────────────
+  const handleMouseEnter = useCallback((i) => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHovered(i), 60);
+  }, []);
+
+  const handleMouseLeave = useCallback(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => setHovered(null), 60);
+  }, []);
+
+  // ── Dropdown via portal ────────────────────────────────────────
   const dropdownEl = open && results.length > 0 && createPortal(
     <div
       id="psb-portal"
       style={{
-        position:      "fixed",
-        top:           dropPos.openUp ? undefined : dropPos.top,
-        bottom:        dropPos.openUp ? `calc(100vh - ${dropPos.top}px)` : undefined,
-        left:          dropPos.left,
-        width:         DROPDOWN_W,
-        zIndex:        99999,
-        background:    "var(--bg2)",
-        border:        "1px solid var(--border)",
-        borderRadius:  10,
-        boxShadow:     "0 16px 56px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2)",
-        display:       "flex",
-        overflow:      "hidden",
-        maxHeight:     LIST_MAX_H + 16,
-        // Animación sutil de entrada
-        animation:     dropPos.openUp ? "psbSlideUp 0.14s ease" : "psbSlideDown 0.14s ease",
+        position:     "fixed",
+        top:          dropPos.openUp ? undefined : dropPos.top,
+        bottom:       dropPos.openUp ? `calc(100vh - ${dropPos.top}px)` : undefined,
+        left:         dropPos.left,
+        width:        DROPDOWN_W,
+        zIndex:       99999,
+        background:   "var(--bg2)",
+        border:       "1px solid var(--border)",
+        borderRadius: 10,
+        boxShadow:    "0 16px 56px rgba(0,0,0,0.45), 0 4px 16px rgba(0,0,0,0.2)",
+        display:      "flex",
+        overflow:     "hidden",
+        maxHeight:    LIST_MAX_H + 16,
+        animation:    dropPos.openUp ? "psbSlideUp 0.14s ease" : "psbSlideDown 0.14s ease",
       }}
     >
-      {/* ── Lista de resultados ───────────────────────────────── */}
+      {/* Lista con altura fija para que el preview no la desplace */}
       <div
         ref={listRef}
         style={{
-          flex:       1,
-          overflowY:  "auto",
-          minWidth:   0,
+          flex:           1,
+          overflowY:      "auto",
+          minWidth:       0,
           scrollbarWidth: "thin",
           scrollbarColor: "var(--border) transparent",
         }}
       >
-        {results.map((p, i) => {
-          const isActive  = i === activeIdx && hovered === null;
-          const isHover   = i === hovered;
-          const highlight = isActive || isHover;
-          return (
-            <div
-              key={p.id}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              onMouseDown={(e) => { e.preventDefault(); confirmSelection(p); }}
-              style={{
-                padding:      "10px 16px",
-                cursor:       "pointer",
-                display:      "flex",
-                alignItems:   "center",
-                gap:          12,
-                background:   highlight ? "var(--accent-dim)" : "transparent",
-                borderLeft:   `3px solid ${highlight ? "var(--accent)" : "transparent"}`,
-                borderBottom: "1px solid var(--border)",
-                transition:   "background 0.07s",
-              }}
-            >
-              {/* Código */}
-              <span style={{
-                fontFamily:   "var(--font-mono)",
-                fontSize:     11,
-                color:        highlight ? "var(--accent)" : "var(--text-dim)",
-                width:        80,
-                flexShrink:   0,
-                overflow:     "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace:   "nowrap",
-              }}>
-                {p.code || "—"}
-              </span>
-
-              {/* Nombre */}
-              <span style={{
-                fontSize:     13,
-                color:        highlight ? "var(--text)" : "var(--text-muted, var(--text))",
-                flex:         1,
-                overflow:     "hidden",
-                textOverflow: "ellipsis",
-                whiteSpace:   "nowrap",
-                fontWeight:   highlight ? 500 : 400,
-              }}>
-                {p.name}
-              </span>
-
-              {/* Enter hint */}
-              {highlight && (
-                <span style={{ fontSize: 11, color: "var(--accent)", flexShrink: 0, opacity: 0.7 }}>
-                  ↵
-                </span>
-              )}
-            </div>
-          );
-        })}
+        {results.map((p, i) => (
+          <ResultItem
+            key={p.id}
+            product={p}
+            highlight={hovered !== null ? i === hovered : i === activeIdx}
+            onMouseEnter={() => handleMouseEnter(i)}
+            onMouseLeave={handleMouseLeave}
+            onMouseDown={(e) => { e.preventDefault(); confirmSelection(p); }}
+          />
+        ))}
       </div>
 
-      {/* ── Panel de preview ──────────────────────────────────── */}
-      <div style={{
-        width:          PREVIEW_W,
-        flexShrink:     0,
-        borderLeft:     "1px solid var(--border)",
-        display:        "flex",
-        flexDirection:  "column",
-        alignItems:     "center",
-        padding:        "18px 14px",
-        background:     "var(--bg3, var(--bg2))",
-        gap:            10,
-        overflowY:      "auto",
-      }}>
-        {/* Imagen */}
-        <div style={{
-          width:          188,
-          height:         188,
-          borderRadius:   8,
-          overflow:       "hidden",
-          border:         "1px solid var(--border)",
-          background:     "var(--bg2)",
-          display:        "flex",
-          alignItems:     "center",
-          justifyContent: "center",
-          flexShrink:     0,
-        }}>
-          {loadingDetail && !previewPhotos.length ? (
-            <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)" }}>
-              Cargando…
-            </span>
-          ) : previewPhotos.length ? (
-            <img
-              src={previewPhotos[0]}
-              alt="preview"
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              onError={(e) => { e.currentTarget.style.opacity = "0.3"; }}
-            />
-          ) : (
-            <span style={{ fontSize: 44, opacity: 0.3 }}>📦</span>
-          )}
-        </div>
+      {/* Preview aislado: sus re-renders no tocan la lista */}
+      <PreviewPanel
+        product={previewProduct}
+        loading={loadingDetail}
+        priceType={priceType}
+      />
 
-        {/* Info del producto */}
-        {previewProduct ? (
-          <div style={{ width: "100%", textAlign: "center" }}>
-            {previewProduct.code && (
-              <div style={{
-                display:      "inline-block",
-                fontFamily:   "var(--font-mono)",
-                fontSize:     10,
-                color:        "var(--accent)",
-                background:   "var(--accent-dim)",
-                border:       "1px solid var(--accent)",
-                borderRadius: 4,
-                padding:      "2px 8px",
-                marginBottom: 8,
-              }}>
-                {previewProduct.code}
-              </div>
-            )}
-            <div style={{
-              fontSize:     12,
-              fontWeight:   600,
-              color:        "var(--text)",
-              lineHeight:   1.4,
-              marginBottom: previewPrice > 0 ? 8 : 0,
-              wordBreak:    "break-word",
-            }}>
-              {previewProduct.name}
-            </div>
-            {previewPrice > 0 && (
-              <div style={{
-                fontFamily: "var(--font-mono)",
-                fontSize:   18,
-                fontWeight: 700,
-                color:      "var(--accent)",
-              }}>
-                ${previewPrice.toLocaleString("es-AR")}
-              </div>
-            )}
-          </div>
-        ) : !loadingDetail ? (
-          <div style={{
-            fontSize:   11,
-            fontFamily: "var(--font-mono)",
-            color:      "var(--text-dim)",
-            textAlign:  "center",
-          }}>
-            Sin imagen
-          </div>
-        ) : null}
-      </div>
-
-      {/* Keyframes inyectados inline */}
       <style>{`
         @keyframes psbSlideDown {
           from { opacity: 0; transform: translateY(-6px); }
@@ -384,8 +389,6 @@ export default function ProductSearchBar({
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
-
-      {/* ── Input ───────────────────────────────────────────────── */}
       <div className="search-bar" style={{ height: 44 }}>
         <span className="search-icon">🔍</span>
         <input
@@ -398,10 +401,7 @@ export default function ProductSearchBar({
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            if (results.length) {
-              updateDropPos();
-              setOpen(true);
-            }
+            if (results.length) { updateDropPos(); setOpen(true); }
           }}
           style={{ fontSize: 14 }}
           autoFocus={autoFocus}
@@ -428,7 +428,6 @@ export default function ProductSearchBar({
           </button>
         )}
       </div>
-
       {dropdownEl}
     </div>
   );
