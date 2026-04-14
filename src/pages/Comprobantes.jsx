@@ -343,7 +343,7 @@ export default function Comprobantes() {
   const qtyRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
-  const esReposicion          = tipo === "Reposicion";
+  const esReposicion          = tipo === "Reposicion" || tipo === "Devol a proveedor";
   const admiteConsumidorFinal = TIPOS_CON_CONSUMIDOR_FINAL.includes(tipo);
   const isEditing             = !!editingId;
   const total                 = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
@@ -440,7 +440,7 @@ export default function Comprobantes() {
   const handleCreate = async () => {
     if (esReposicion) {
       if (!provSel)     { addToast("Seleccioná un proveedor", "error"); return; }
-      if (!warehouseId) { addToast("Seleccioná el depósito de destino", "error"); return; }
+      if (!warehouseId) { addToast(`Seleccioná el depósito ${tipo === "Devol a proveedor" ? "de origen" : "de destino"}`, "error"); return; }
     } else if (!esConsumidorFinal) {
       if (!custSel)     { addToast("Seleccioná un cliente", "error"); return; }
     }
