@@ -12,7 +12,8 @@ import Products        from "./pages/Products";
 import Vendedores      from "./pages/Vendedores";
 import Configuracion   from "./pages/Configuracion";
 import Usuarios        from "./pages/Usuarios";
-import Calculadora from "./pages/Calculadora";
+import Calculadora   from "./pages/Calculadora";
+import Transportes   from "./pages/Transportes";
 
 // Ruta protegida: redirige a /login si no hay sesión
 function PrivateRoute({ children }) {
@@ -66,6 +67,9 @@ function AppRoutes() {
       } />
       <Route path="/usuarios" element={
         <PrivateRoute><Layout><Usuarios /></Layout></PrivateRoute>
+      } />
+      <Route path="/transportes" element={
+        <PrivateRoute><Layout><Transportes /></Layout></PrivateRoute>
       } />
 
       {/* Fallback */}

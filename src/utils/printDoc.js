@@ -294,6 +294,260 @@ export function printComprobantePDF(doc) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// IMPRIMIR REMITO DE TRANSPORTE (documento formal A4)
+// ─────────────────────────────────────────────────────────────
+export function printRemitoTransporte(remito) {
+  const numero  = String(remito.numero || 0).padStart(8, "0");
+  const nroFull = `00001-${numero}`;
+  const bultos  = remito.bultos || 1;
+  const valor   = fmtMoney(remito.valor || 0);
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Remito de Transporte ${nroFull}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      color: #111;
+      background: #fff;
+      padding: 24px 32px;
+    }
+    /* ── Cabecera ── */
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: stretch;
+      border: 1px solid #444;
+      margin-bottom: 16px;
+    }
+    .doc-header-left {
+      padding: 12px 16px;
+      border-right: 1px solid #444;
+      flex: 1;
+    }
+    .empresa-name {
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: #003399;
+    }
+    .empresa-sub { font-size: 11px; color: #444; margin-top: 3px; }
+    .doc-header-stamp {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 70px;
+      border-right: 1px solid #444;
+      padding: 8px;
+    }
+    .stamp-r {
+      font-size: 32px;
+      font-weight: 900;
+      border: 3px solid #111;
+      width: 44px; height: 44px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 4px;
+    }
+    .stamp-cod { font-size: 9px; text-align: center; }
+    .doc-header-right {
+      padding: 12px 16px;
+      flex: 1.2;
+    }
+    .doc-number { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .doc-meta   { font-size: 12px; line-height: 1.7; }
+    /* ── Datos destinatario ── */
+    .destinatario {
+      border-bottom: 1px solid #888;
+      padding-bottom: 12px;
+      margin-bottom: 12px;
+    }
+    .dest-row { display: flex; justify-content: space-between; font-size: 13px; }
+    .dest-name { font-size: 15px; font-weight: 700; margin: 4px 0 6px; }
+    .dest-cuit { font-size: 12px; color: #444; }
+    /* ── Cuerpo ── */
+    .cuerpo {
+      border: 1px solid #444;
+      min-height: 260px;
+      padding: 40px 32px;
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    .bultos-line { font-size: 18px; font-weight: 700; letter-spacing: 1px; }
+    .valor-line  { font-size: 16px; text-align: center; margin-top: 40px; }
+    /* ── Pie transporte ── */
+    .transporte-box {
+      border: 1px solid #444;
+      padding: 14px 16px;
+    }
+    .transporte-label { font-weight: 700; font-size: 13px; }
+    .transporte-dir   { font-size: 12px; color: #444; margin-top: 3px; padding-left: 88px; }
+    @media print {
+      body { padding: 12px 16px; }
+      @page { margin: 0.8cm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Cabecera -->
+  <div class="doc-header">
+    <div class="doc-header-left">
+      <div class="empresa-name">•O•N•C•E•P•U•N•T•O•S•</div>
+      <div class="empresa-sub">www.oncepuntos.com.ar</div>
+      <div class="empresa-sub">(011) 3838-5284</div>
+    </div>
+    <div class="doc-header-stamp">
+      <div class="stamp-r">R</div>
+      <div class="stamp-cod">COD 001<br>DOCUMENTO<br>NO VALIDO<br>COMO FACTURA</div>
+    </div>
+    <div class="doc-header-right">
+      <div class="doc-number">Remito No. ${nroFull}</div>
+      <div class="doc-meta">
+        Fecha: ${fmtDate(remito.created_at)}<br>
+        IVA RESPONSABLE INSCRIPTO<br>
+        CUIT.: 30-71634628-1
+      </div>
+    </div>
+  </div>
+
+  <!-- Destinatario -->
+  <div class="destinatario">
+    <div class="dest-row">
+      <span>Señores: <span class="dest-name">${remito.customer_name || "—"}</span></span>
+      <span style="font-weight:700">ORIGINAL</span>
+    </div>
+    <div style="margin-bottom:4px">—</div>
+    <div class="dest-cuit">
+      CUIT: ${remito.customer_document || "0"}&nbsp;&nbsp;&nbsp;
+      ${remito.customer_condicion_iva || "IVA RESPONSABLE INSCRIPTO"}
+    </div>
+  </div>
+
+  <!-- Cuerpo -->
+  <div class="cuerpo">
+    <div class="bultos-line">${bultos}&nbsp;&nbsp;&nbsp;BULTO/S DE ARTICULO IMPORTADO</div>
+    <div class="valor-line">Valor aproximado: ${valor}</div>
+  </div>
+
+  <!-- Pie transporte -->
+  <div class="transporte-box">
+    <span class="transporte-label">Transporte:&nbsp;&nbsp;</span>
+    <span style="font-weight:700">${remito.transporte_nombre || "—"}</span>
+    ${remito.transporte_domicilio
+      ? `<div class="transporte-dir">${remito.transporte_domicilio}</div>`
+      : ""}
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPRIMIR ETIQUETAS DE ENVÍO (4 etiquetas por hoja)
+// ─────────────────────────────────────────────────────────────
+export function printEtiquetasEnvio(remito) {
+  const bultos = remito.bultos || 1;
+
+  const etiqueta = `
+    <div class="label">
+      <div class="label-body">
+        <div class="lbl-row">
+          <span class="lbl-key">PARA:</span>
+        </div>
+        <div class="lbl-name">*${remito.customer_name || "—"}</div>
+        <div style="margin: 6px 0; border-top: 1px dashed #aaa;"></div>
+        <div class="lbl-row">
+          <span class="lbl-key">Envía:</span>
+          <span class="lbl-val">${remito.envia || "—"}</span>
+        </div>
+        <div style="height:6px"></div>
+        <div class="lbl-transport-row">
+          <div class="lbl-transport-info">
+            <div class="lbl-key">Transporte:</div>
+            <div class="lbl-transport-name">${remito.transporte_nombre || "—"}</div>
+            ${remito.transporte_domicilio
+              ? `<div class="lbl-transport-dir">${remito.transporte_domicilio}</div>`
+              : ""}
+          </div>
+          <div class="lbl-bultos">${bultos}</div>
+        </div>
+      </div>
+    </div>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Etiquetas de Envío</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 0;
+      width: 100%;
+    }
+    .label {
+      border: 1px solid #bbb;
+      padding: 14px 12px;
+      min-height: 140px;
+      page-break-inside: avoid;
+    }
+    .label-body { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
+    .lbl-key  { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; }
+    .lbl-val  { font-size: 12px; font-weight: 600; }
+    .lbl-name { font-size: 14px; font-weight: 800; margin: 2px 0; }
+    .lbl-row  { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
+    .lbl-transport-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .lbl-transport-info { flex: 1; }
+    .lbl-transport-name { font-size: 11px; font-weight: 700; }
+    .lbl-transport-dir  { font-size: 10px; color: #555; line-height: 1.3; }
+    .lbl-bultos {
+      font-size: 42px;
+      font-weight: 900;
+      line-height: 1;
+      color: #111;
+      text-align: right;
+      min-width: 50px;
+      border: 2px solid #111;
+      padding: 2px 8px;
+    }
+    @media print {
+      @page { margin: 0.5cm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="grid">
+    ${etiqueta}
+    ${etiqueta}
+    ${etiqueta}
+    ${etiqueta}
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Helper: abrir ventana de impresión
 // ─────────────────────────────────────────────────────────────
 function openPrintWindow(html) {

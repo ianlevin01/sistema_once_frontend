@@ -65,8 +65,129 @@ function LeftPanel({
   vendedores, lastPrice, user,
   onSave, onCancel, saving, isEditing,
   total, itemCount,
+  onObsEnter,
 }) {
   const [showConfig, setShowConfig] = useState(false);
+  const [focusedSection, setFocusedSection] = useState(null);
+
+  // ── Refs para navegación por teclado ──────────────────────
+  const tipoWrapRef   = useRef(null);
+  const custInputRef  = useRef(null);
+  const pagoWrapRef   = useRef(null);
+  const precioWrapRef = useRef(null);
+  const vendedorRef   = useRef(null);
+  const obsRef        = useRef(null);
+  const [custHighlight, setCustHighlight] = useState(-1);
+  const [provHighlight, setProvHighlight] = useState(-1);
+
+  // Auto-foco en tipo al abrir el formulario
+  useEffect(() => {
+    if (!isEditing) {
+      const t = setTimeout(() => tipoWrapRef.current?.focus(), 100);
+      return () => clearTimeout(t);
+    }
+  }, []);
+
+  // Auto-highlightea el primer resultado al aparecer
+  useEffect(() => { setCustHighlight(custResults.length > 0 ? 0 : -1); }, [custResults]);
+  useEffect(() => { setProvHighlight(provResults.length > 0 ? 0 : -1); }, [provResults]);
+
+  const sectionFocusProps = (name) => ({
+    onFocus: () => setFocusedSection(name),
+    onBlur:  (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocusedSection(null); },
+  });
+
+  // Abre la config y foca el pago cuando se selecciona entidad
+  const selectCustAndFocus = (c) => {
+    selectCust(c);
+    setShowConfig(true);
+    setTimeout(() => pagoWrapRef.current?.focus(), 80);
+  };
+  const selectProvAndFocus = (p) => {
+    selectProv(p);
+    setShowConfig(true);
+    setTimeout(() => pagoWrapRef.current?.focus(), 80);
+  };
+
+  // Handler teclado tipo
+  const handleTipoKeyDown = (e) => {
+    if (isEditing) return;
+    const idx = TIPOS.indexOf(tipo);
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setTipo(TIPOS[Math.min(idx + 1, TIPOS.length - 1)]);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setTipo(TIPOS[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      custInputRef.current?.focus();
+    }
+  };
+
+  // Handler teclado búsqueda cliente
+  const handleCustKeyDown = (e) => {
+    if (custResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setCustHighlight((i) => Math.min(i + 1, custResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setCustHighlight((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      // Si no hay highlight, selecciona el primero
+      const idx = custHighlight >= 0 ? custHighlight : 0;
+      selectCustAndFocus(custResults[idx]);
+    }
+  };
+
+  // Handler teclado búsqueda proveedor
+  const handleProvKeyDown = (e) => {
+    if (provResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setProvHighlight((i) => Math.min(i + 1, provResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setProvHighlight((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const idx = provHighlight >= 0 ? provHighlight : 0;
+      selectProvAndFocus(provResults[idx]);
+    }
+  };
+
+  // Handler teclado pago
+  const handlePagoKeyDown = (e) => {
+    const idx = PAGOS.indexOf(payMethod);
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setPayMethod(PAGOS[Math.min(idx + 1, PAGOS.length - 1)]);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      setPayMethod(PAGOS[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (!esReposicion) precioWrapRef.current?.focus();
+      else vendedorRef.current?.focus();
+    }
+  };
+
+  // Handler teclado precio
+  const handlePrecioKeyDown = (e) => {
+    const idx = PRECIOS.indexOf(priceType);
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setPriceType(PRECIOS[Math.min(idx + 1, PRECIOS.length - 1)]);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      setPriceType(PRECIOS[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      vendedorRef.current?.focus();
+    }
+  };
 
   return (
     <div style={{ width:300, flexShrink:0, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg2)", overflow:"hidden" }}>
@@ -78,7 +199,25 @@ function LeftPanel({
         </div>
 
         {/* Tipo — botones compactos 2 columnas */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:4 }}>
+        {!isEditing && (
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+            <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>Tipo</div>
+            {focusedSection === 'tipo' && (
+              <div style={{ fontSize:9, fontFamily:"var(--font-mono)", color:"var(--accent)", letterSpacing:"0.06em", opacity:0.8 }}>↑↓ · ENTER avanza</div>
+            )}
+          </div>
+        )}
+        <div
+          ref={tipoWrapRef}
+          tabIndex={isEditing ? -1 : 0}
+          onKeyDown={handleTipoKeyDown}
+          {...sectionFocusProps('tipo')}
+          style={{
+            display:"grid", gridTemplateColumns:"1fr 1fr", gap:4, outline:"none",
+            borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+            boxShadow: focusedSection === 'tipo' ? "0 0 0 2px var(--accent)" : "none",
+          }}
+        >
           {TIPOS.map((t) => (
             <button key={t} onClick={() => setTipo(t)}
               disabled={isEditing}
@@ -91,6 +230,8 @@ function LeftPanel({
                 fontWeight: tipo===t ? 700 : 400,
                 whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis",
                 opacity: isEditing ? 0.6 : 1,
+                transform: (focusedSection === 'tipo' && tipo === t) ? "scale(1.03)" : "none",
+                transition: "transform 0.1s, box-shadow 0.1s",
               }}
               title={t}
             >
@@ -116,16 +257,33 @@ function LeftPanel({
             <>
               <div className="search-bar" style={{ height:34 }}>
                 <span className="search-icon">🔍</span>
-                <input placeholder="Nombre o CUIT..." value={provQuery} onChange={(e) => setProvQuery(e.target.value)} style={{ fontSize:12 }} />
+                <input
+                  ref={custInputRef}
+                  placeholder="Nombre o CUIT..."
+                  value={provQuery}
+                  onChange={(e) => setProvQuery(e.target.value)}
+                  onKeyDown={handleProvKeyDown}
+                  style={{ fontSize:12 }}
+                />
               </div>
               {provResults.length > 0 && (
-                <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:4 }}>
-                  {provResults.map((p) => (
-                    <div key={p.id} onClick={() => selectProv(p)}
-                      style={{ padding:"7px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)", color:"var(--text)" }}
-                      onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
-                      onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
-                      {p.name}
+                <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
+                  {provResults.map((p, i) => (
+                    <div key={p.id}
+                      onClick={() => selectProvAndFocus(p)}
+                      style={{
+                        padding:"8px 10px", fontSize:13, cursor:"pointer",
+                        borderBottom:"1px solid var(--border)",
+                        color:      i === provHighlight ? "var(--accent)" : "var(--text)",
+                        fontWeight: i === provHighlight ? 600 : 400,
+                        background: i === provHighlight ? "var(--accent-dim)" : "transparent",
+                        borderLeft: `3px solid ${i === provHighlight ? "var(--accent)" : "transparent"}`,
+                        display:"flex", alignItems:"center", justifyContent:"space-between",
+                      }}
+                      onMouseEnter={() => setProvHighlight(i)}
+                      onMouseLeave={() => setProvHighlight(-1)}>
+                      <span>{p.name}</span>
+                      {i === provHighlight && <span style={{ fontSize:10, fontFamily:"var(--font-mono)", opacity:0.7 }}>ENTER ↵</span>}
                     </div>
                   ))}
                 </div>
@@ -183,16 +341,33 @@ function LeftPanel({
               <>
                 <div className="search-bar" style={{ height:34 }}>
                   <span className="search-icon">🔍</span>
-                  <input placeholder="Nombre o CUIT..." value={custQuery} onChange={(e) => setCustQuery(e.target.value)} style={{ fontSize:12 }} />
+                  <input
+                    ref={custInputRef}
+                    placeholder="Nombre o CUIT..."
+                    value={custQuery}
+                    onChange={(e) => setCustQuery(e.target.value)}
+                    onKeyDown={handleCustKeyDown}
+                    style={{ fontSize:12 }}
+                  />
                 </div>
                 {custResults.length > 0 && (
-                  <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:4 }}>
-                    {custResults.map((c) => (
-                      <div key={c.id} onClick={() => selectCust(c)}
-                        style={{ padding:"7px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)", color:"var(--text)" }}
-                        onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
-                        onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
-                        {c.name}
+                  <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
+                    {custResults.map((c, i) => (
+                      <div key={c.id}
+                        onClick={() => selectCustAndFocus(c)}
+                        style={{
+                          padding:"8px 10px", fontSize:13, cursor:"pointer",
+                          borderBottom:"1px solid var(--border)",
+                          color:      i === custHighlight ? "var(--accent)" : "var(--text)",
+                          fontWeight: i === custHighlight ? 600 : 400,
+                          background: i === custHighlight ? "var(--accent-dim)" : "transparent",
+                          borderLeft: `3px solid ${i === custHighlight ? "var(--accent)" : "transparent"}`,
+                          display:"flex", alignItems:"center", justifyContent:"space-between",
+                        }}
+                        onMouseEnter={() => setCustHighlight(i)}
+                        onMouseLeave={() => setCustHighlight(-1)}>
+                        <span>{c.name}</span>
+                        {i === custHighlight && <span style={{ fontSize:10, fontFamily:"var(--font-mono)", opacity:0.7 }}>ENTER ↵</span>}
                       </div>
                     ))}
                   </div>
@@ -224,14 +399,30 @@ function LeftPanel({
               </div>
             )}
             <div className="input-group">
-              <label className="input-label">Método de pago</label>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+              <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <span>Método de pago</span>
+                <span style={{ fontSize:9, color: focusedSection === 'pago' ? "var(--accent)" : "var(--text-dim)", fontWeight:400, transition:"color 0.15s" }}>↑↓ · Enter avanza</span>
+              </label>
+              <div
+                ref={pagoWrapRef}
+                tabIndex={0}
+                onKeyDown={handlePagoKeyDown}
+                {...sectionFocusProps('pago')}
+                style={{
+                  display:"flex", flexWrap:"wrap", gap:4, outline:"none",
+                  borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                  boxShadow: focusedSection === 'pago' ? "0 0 0 2px var(--accent)" : "none",
+                }}
+              >
                 {PAGOS.map((p) => (
                   <button key={p} onClick={() => setPayMethod(p)}
-                    style={{ padding:"4px 10px", borderRadius:4, fontSize:11, fontFamily:"var(--font-mono)", cursor:"pointer",
-                      border:"1px solid var(--border)",
+                    style={{
+                      padding:"5px 10px", borderRadius:4, fontSize:11, fontFamily:"var(--font-mono)", cursor:"pointer",
+                      border: `1px solid ${payMethod===p ? "var(--accent)" : "var(--border)"}`,
                       background: payMethod===p ? "var(--accent)" : "transparent",
                       color:      payMethod===p ? "#fff"          : "var(--text-dim)",
+                      fontWeight: payMethod===p ? 700 : 400,
+                      transition: "background 0.1s, border-color 0.1s",
                     }}>
                     {p}
                   </button>
@@ -241,14 +432,30 @@ function LeftPanel({
 
             {!esReposicion && (
               <div className="input-group">
-                <label className="input-label">Tipo de precio</label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+                <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span>Tipo de precio</span>
+                  <span style={{ fontSize:9, color: focusedSection === 'precio' ? "var(--accent)" : "var(--text-dim)", fontWeight:400, transition:"color 0.15s" }}>↑↓ · Enter avanza</span>
+                </label>
+                <div
+                  ref={precioWrapRef}
+                  tabIndex={0}
+                  onKeyDown={handlePrecioKeyDown}
+                  {...sectionFocusProps('precio')}
+                  style={{
+                    display:"flex", flexWrap:"wrap", gap:4, outline:"none",
+                    borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                    boxShadow: focusedSection === 'precio' ? "0 0 0 2px var(--accent)" : "none",
+                  }}
+                >
                   {PRECIOS.map((p) => (
                     <button key={p} onClick={() => setPriceType(p)}
-                      style={{ padding:"4px 10px", borderRadius:4, fontSize:11, fontFamily:"var(--font-mono)", cursor:"pointer",
-                        border:"1px solid var(--border)",
+                      style={{
+                        padding:"5px 10px", borderRadius:4, fontSize:11, fontFamily:"var(--font-mono)", cursor:"pointer",
+                        border: `1px solid ${priceType===p ? "var(--accent)" : "var(--border)"}`,
                         background: priceType===p ? "var(--accent-dim)" : "transparent",
                         color:      priceType===p ? "var(--accent)"     : "var(--text-dim)",
+                        fontWeight: priceType===p ? 700 : 400,
+                        transition: "background 0.1s, border-color 0.1s",
                       }}>
                       {PRECIO_LBL[p]}
                     </button>
@@ -259,14 +466,29 @@ function LeftPanel({
 
             <div className="input-group">
               <label className="input-label">Vendedor</label>
-              <select className="select" value={vendedor} onChange={(e) => setVendedor(e.target.value)} style={{ fontSize:12, height:32 }}>
+              <select
+                ref={vendedorRef}
+                className="select"
+                value={vendedor}
+                onChange={(e) => setVendedor(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); obsRef.current?.focus(); } }}
+                style={{ fontSize:12, height:32 }}
+              >
                 <option value="">— ninguno —</option>
                 {vendedores.map((v) => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
               </select>
             </div>
             <div className="input-group">
               <label className="input-label">Observaciones</label>
-              <input className="input" value={textoLibre} onChange={(e) => setTextoLibre(e.target.value)} placeholder="Texto libre..." style={{ fontSize:12, height:32 }} />
+              <input
+                ref={obsRef}
+                className="input"
+                value={textoLibre}
+                onChange={(e) => setTextoLibre(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onObsEnter?.(); } }}
+                placeholder="Texto libre... (Enter para continuar)"
+                style={{ fontSize:12, height:32 }}
+              />
             </div>
           </div>
         )}
@@ -340,7 +562,8 @@ export default function Comprobantes() {
   const [saving,    setSaving]    = useState(false);
   const [lastPrice, setLastPrice] = useState(null);
 
-  const qtyRef = useRef(null);
+  const qtyRef        = useRef(null);
+  const prodSearchRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
   const esReposicion          = tipo === "Reposicion" || tipo === "Devol a proveedor";
@@ -429,6 +652,7 @@ export default function Comprobantes() {
       unit_price:  Number(itemPrice) || 0,
     }]);
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc(""); setLastPrice(null);
+    setTimeout(() => prodSearchRef.current?.focus(), 50);
   };
 
   const removeItem     = (i) => setItems((prev) => prev.filter((_, idx) => idx !== i));
@@ -709,6 +933,7 @@ export default function Comprobantes() {
             onCancel={() => { setCreating(false); resetForm(); }}
             saving={saving} isEditing={isEditing}
             total={total} itemCount={items.length}
+            onObsEnter={() => prodSearchRef.current?.focus()}
           />
 
           {/* Panel central */}
@@ -780,7 +1005,7 @@ export default function Comprobantes() {
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
+                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>

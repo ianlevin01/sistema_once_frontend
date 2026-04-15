@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { getUsers, createUser, updateUser, deleteUser, getWarehouses } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
-const ROLES = ["admin", "vendedor", "deposito", "caja"];
+const ROLES = ["admin", "superadmin", "vendedor", "deposito", "caja"];
 const EMPTY  = { name: "", email: "", password: "", role: "vendedor", warehouse_id: "", active: true };
 
 export default function Usuarios() {

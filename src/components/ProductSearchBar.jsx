@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, memo } from "react";
+import { useState, useEffect, useRef, useCallback, memo, forwardRef, useImperativeHandle } from "react";
 import { createPortal } from "react-dom";
 import { searchProducts, getProduct } from "../utils/api";
 
@@ -183,13 +183,13 @@ const ResultItem = memo(({ product, highlight, onMouseEnter, onMouseLeave, onMou
   </div>
 ));
 
-export default function ProductSearchBar({
+const ProductSearchBar = forwardRef(function ProductSearchBar({
   priceType  = "precio_1",
   onSelect,
   disabled,
   autoFocus,
   dropUp: preferUp = false,
-}) {
+}, ref) {
   const [query,         setQuery]         = useState("");
   const [results,       setResults]       = useState([]);
   const [activeIdx,     setActiveIdx]     = useState(0);
@@ -203,6 +203,11 @@ export default function ProductSearchBar({
   const wrapperRef    = useRef(null);
   const listRef       = useRef(null);
   const hoverTimerRef = useRef(null);
+
+  // Permite que el padre llame prodSearchRef.current.focus()
+  useImperativeHandle(ref, () => ({
+    focus: () => inputRef.current?.focus(),
+  }));
 
   const previewIdx     = hovered !== null ? hovered : activeIdx;
   const previewProduct = results[previewIdx] ? detailCache[results[previewIdx].id] : null;
@@ -389,6 +394,7 @@ export default function ProductSearchBar({
 
   return (
     <div ref={wrapperRef} style={{ position: "relative" }}>
+
       <div className="search-bar" style={{ height: 44 }}>
         <span className="search-icon">🔍</span>
         <input
@@ -431,4 +437,6 @@ export default function ProductSearchBar({
       {dropdownEl}
     </div>
   );
-}
+});
+
+export default ProductSearchBar;

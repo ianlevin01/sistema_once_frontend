@@ -7,6 +7,7 @@ import { useToast } from "../utils/useToast";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { printRemitoPDF } from "../utils/printDoc";
 import api from "../utils/api";
+import RemitoTransporteTab from "./RemitoTransporteTab";
 
 const PRECIOS    = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
 const PRECIO_LBL = {
@@ -31,6 +32,7 @@ function useWarehouses() {
 export default function Remitos() {
   const today      = () => new Date().toISOString().slice(0, 10);
   const warehouses = useWarehouses();
+  const [activeTab, setActiveTab] = useState("transferencia"); // "transferencia" | "transporte"
 
   const [remitos,      setRemitos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
@@ -183,6 +185,33 @@ export default function Remitos() {
     <>
       <ToastContainer />
 
+      {/* ── Tabs ── */}
+      {!creating && (
+        <div style={{ display: "flex", gap: 0, marginBottom: 20, borderBottom: "2px solid var(--border)" }}>
+          {[
+            { key: "transferencia", label: "📦 Remito de Transferencia" },
+            { key: "transporte",    label: "🚚 Remito de Transporte"    },
+          ].map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setActiveTab(key)}
+              style={{
+                padding: "8px 20px", fontSize: 13, fontWeight: activeTab === key ? 700 : 400,
+                background: "none", border: "none", borderBottom: activeTab === key ? "2px solid var(--accent)" : "2px solid transparent",
+                color: activeTab === key ? "var(--accent)" : "var(--text-dim)",
+                cursor: "pointer", marginBottom: -2, transition: "color 0.15s",
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "transporte" && !creating ? (
+        <RemitoTransporteTab />
+      ) : (
+      <>
       {!creating ? (
         /* ── LISTADO ── */
         <>
@@ -559,6 +588,9 @@ export default function Remitos() {
           </div>
         </div>
       )}
+      </>
+      )}
     </>
   );
 }
+

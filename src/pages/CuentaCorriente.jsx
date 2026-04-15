@@ -8,7 +8,7 @@ import {
   createProveedor, updateProveedor, deleteProveedor,
   getCCProveedor, registrarCobranzaProveedor,
   editarMovimientoProv, eliminarMovimientoProv,
-  getProveedores, getPriceConfig,
+  getProveedores, getPriceConfig, getTransportes,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
@@ -21,12 +21,11 @@ const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-AR") : "—");
 const fmtMonto = (n, divisa) => (divisa === "USD" ? fmtUSD(n) : fmtARS(n));
 
 const COND_IVA    = ["Resp. Inscripto", "Resp. Monotributo", "Consumidor Final", "Exento"];
-const TRANSPORTES = ["DON ALFREDO", "VIA CARGO", "CORREO", "OCA", "ANDREANI", "RETIRA"];
 const METODOS_COBRANZA = ["Efectivo", "Cheque", "Depósito", "Tarjeta", "Mercpago"];
 
 const EMPTY_CLIENTE = {
   name: "", document: "", domicilio: "", codigo_postal: "",
-  phone: "", transporte: "DON ALFREDO", divisa: "ARS",
+  phone: "", transporte: "", divisa: "ARS",
 };
 const EMPTY_PROVEEDOR = {
   name: "", document: "", domicilio: "", codigo_postal: "",
@@ -118,8 +117,19 @@ function DivisaSelector({ value, onChange }) {
 }
 
 function EntityForm({ form, setForm, mode }) {
+  const [transporteOptions, setTransporteOptions] = useState([]);
+
+  useEffect(() => {
+    if (mode === "cliente") {
+      getTransportes()
+        .then((data) => setTransporteOptions(data.map((t) => t.razon_social)))
+        .catch(() => {});
+    }
+  }, [mode]);
+
   const set = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
   const setDivisa = (val) => setForm((p) => ({ ...p, divisa: val }));
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
       <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>Datos</div>
@@ -131,7 +141,15 @@ function EntityForm({ form, setForm, mode }) {
       <FormInput label="Código Postal" value={form.codigo_postal} onChange={set("codigo_postal")} placeholder="1234" />
       <FormInput label="Teléfono"      value={form.phone}         onChange={set("phone")} />
       {mode === "cliente" && (
-        <FormSelect label="Transporte" value={form.transporte} onChange={set("transporte")} options={TRANSPORTES} />
+        <div className="input-group">
+          <label className="input-label">Transporte</label>
+          <select className="select" value={form.transporte ?? ""} onChange={set("transporte")}>
+            <option value="">— seleccionar —</option>
+            {transporteOptions.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+        </div>
       )}
       <hr className="divider" />
       <DivisaSelector value={form.divisa ?? "ARS"} onChange={setDivisa} />

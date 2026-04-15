@@ -24,6 +24,7 @@ const NAV_ADMIN = [
       { to: "/cuenta-corriente", label: "Cuenta Corriente", icon: "💳" },
       { to: "/productos",        label: "Productos",        icon: "🏷️" },
       { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
+      { to: "/transportes",      label: "Transportes",      icon: "🚚"   },
     ],
   },
   {
@@ -63,6 +64,7 @@ const PAGE_TITLES = {
   "/vendedores":       "Vendedores",
   "/usuarios":         "Usuarios del Sistema",
   "/configuracion":    "Configuración",
+  "/transportes":      "Transportes",
 };
 
 function CajaNavItem({ item, location }) {

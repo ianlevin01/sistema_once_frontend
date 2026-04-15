@@ -99,7 +99,8 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
   const [warehouses,  setWarehouses]  = useState([]);
   const [warehouseId, setWarehouseId] = useState("");
   const [lastPrice,   setLastPrice]   = useState(null);
-  const qtyRef = useRef(null);
+  const qtyRef        = useRef(null);
+  const prodSearchRef = useRef(null);
   const esReposicion = tipo === "Reposicion";
 
   useEffect(() => {
@@ -178,6 +179,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
       description: itemDesc||prodSel.name, quantity:Number(itemQty), unit_price:Number(itemPrice)||0,
     }]);
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc(""); setLastPrice(null);
+    setTimeout(() => prodSearchRef.current?.focus(), 50);
   };
 
   const removeItem  = (i) => setItems((prev) => prev.filter((_,idx) => idx !== i));
@@ -226,7 +228,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
     items, removeItem, prodSel, handleProdSelect,
     itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
     confirmItem, totalCalc, saving, handleCreate,
-    qtyRef, vendedores, originalItems, lastPrice, esReposicion,
+    qtyRef, prodSearchRef, vendedores, originalItems, lastPrice, esReposicion,
   };
 }
 
@@ -237,6 +239,55 @@ function PresModal({ m }) {
   if (!m.open) return null;
   const currentIds = new Set(m.items.map((i) => i.product_id).filter(Boolean));
   const removedNow = m.originalItems.filter((oi) => oi.product_id && !currentIds.has(oi.product_id));
+
+  // ── Refs y estado para navegación por teclado ──────────────
+  const tipoWrapRef  = useRef(null);
+  const custInputRef = useRef(null);
+  const pagoRef      = useRef(null);
+  const [custHighlight, setCustHighlight] = useState(-1);
+  const [provHighlight, setProvHighlight] = useState(-1);
+
+  const TIPOS_MODAL = ["Presupuesto","Devolucion","Reposicion"];
+
+  useEffect(() => {
+    if (m.open) {
+      const t = setTimeout(() => tipoWrapRef.current?.focus(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [m.open]);
+
+  useEffect(() => { setCustHighlight(-1); }, [m.custRes]);
+  useEffect(() => { setProvHighlight(-1); }, [m.provResults]);
+
+  const selectCustAndFocus = (c) => {
+    m.selectCust(c);
+    setTimeout(() => pagoRef.current?.focus(), 80);
+  };
+  const selectProvAndFocus = (p) => {
+    m.selectProv(p);
+    setTimeout(() => pagoRef.current?.focus(), 80);
+  };
+
+  const handleTipoKeyDown = (e) => {
+    const idx = TIPOS_MODAL.indexOf(m.tipo);
+    if (e.key === "ArrowDown") { e.preventDefault(); m.setTipo(TIPOS_MODAL[Math.min(idx + 1, TIPOS_MODAL.length - 1)]); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); m.setTipo(TIPOS_MODAL[Math.max(idx - 1, 0)]); }
+    else if (e.key === "Enter") { e.preventDefault(); custInputRef.current?.focus(); }
+  };
+
+  const handleCustKeyDown = (e) => {
+    if (m.custRes.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setCustHighlight((i) => Math.min(i + 1, m.custRes.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setCustHighlight((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter" && custHighlight >= 0) { e.preventDefault(); selectCustAndFocus(m.custRes[custHighlight]); }
+  };
+
+  const handleProvKeyDown = (e) => {
+    if (m.provResults.length === 0) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setProvHighlight((i) => Math.min(i + 1, m.provResults.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setProvHighlight((i) => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter" && provHighlight >= 0) { e.preventDefault(); selectProvAndFocus(m.provResults[provHighlight]); }
+  };
 
   return (
     <div className="modal-overlay" onClick={() => m.setOpen(false)}>
@@ -263,15 +314,22 @@ function PresModal({ m }) {
           <div style={{ width:240, flexShrink:0, borderRight:"1px solid var(--border)", background:"var(--bg2)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Tipo</div>
-              {["Presupuesto","Devolucion","Reposicion"].map((t) => (
-                <div key={t} onClick={() => m.setTipo(t)}
-                  style={{ padding:"7px 10px", borderRadius:4, cursor:"pointer", marginBottom:3, fontSize:13,
-                    background: m.tipo===t ? "var(--accent-dim)" : "transparent",
-                    color:      m.tipo===t ? "var(--accent)"     : "var(--text-muted)",
-                    borderLeft: `3px solid ${m.tipo===t ? "var(--accent)" : "transparent"}`,
-                    fontWeight: m.tipo===t ? 600 : 400,
-                  }}>{t}</div>
-              ))}
+              <div
+                ref={tipoWrapRef}
+                tabIndex={0}
+                onKeyDown={handleTipoKeyDown}
+                style={{ outline:"none" }}
+              >
+                {TIPOS_MODAL.map((t) => (
+                  <div key={t} onClick={() => m.setTipo(t)}
+                    style={{ padding:"7px 10px", borderRadius:4, cursor:"pointer", marginBottom:3, fontSize:13,
+                      background: m.tipo===t ? "var(--accent-dim)" : "transparent",
+                      color:      m.tipo===t ? "var(--accent)"     : "var(--text-muted)",
+                      borderLeft: `3px solid ${m.tipo===t ? "var(--accent)" : "transparent"}`,
+                      fontWeight: m.tipo===t ? 600 : 400,
+                    }}>{t}</div>
+                ))}
+              </div>
             </div>
 
             <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
@@ -288,15 +346,27 @@ function PresModal({ m }) {
                   <>
                     <div className="search-bar" style={{ height:36 }}>
                       <span className="search-icon">🔍</span>
-                      <input placeholder="Nombre o CUIT..." value={m.provQuery} onChange={(e) => m.setProvQuery(e.target.value)} style={{ fontSize:12 }} />
+                      <input
+                        ref={custInputRef}
+                        placeholder="Nombre o CUIT..."
+                        value={m.provQuery}
+                        onChange={(e) => m.setProvQuery(e.target.value)}
+                        onKeyDown={handleProvKeyDown}
+                        style={{ fontSize:12 }}
+                      />
                     </div>
                     {m.provResults.length > 0 && (
                       <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:6 }}>
-                        {m.provResults.map((p) => (
-                          <div key={p.id} onClick={() => m.selectProv(p)}
-                            style={{ padding:"8px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
-                            onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
+                        {m.provResults.map((p, i) => (
+                          <div key={p.id}
+                            onClick={() => selectProvAndFocus(p)}
+                            style={{
+                              padding:"8px 10px", fontSize:13, cursor:"pointer",
+                              borderBottom:"1px solid var(--border)",
+                              background: i === provHighlight ? "var(--accent-dim)" : "transparent",
+                            }}
+                            onMouseEnter={() => setProvHighlight(i)}
+                            onMouseLeave={() => setProvHighlight(-1)}>
                             {p.name}
                           </div>
                         ))}
@@ -314,15 +384,27 @@ function PresModal({ m }) {
                   <>
                     <div className="search-bar" style={{ height:36 }}>
                       <span className="search-icon">🔍</span>
-                      <input placeholder="Nombre o CUIT..." value={m.custQuery} onChange={(e) => m.setCustQuery(e.target.value)} style={{ fontSize:12 }} />
+                      <input
+                        ref={custInputRef}
+                        placeholder="Nombre o CUIT..."
+                        value={m.custQuery}
+                        onChange={(e) => m.setCustQuery(e.target.value)}
+                        onKeyDown={handleCustKeyDown}
+                        style={{ fontSize:12 }}
+                      />
                     </div>
                     {m.custRes.length > 0 && (
                       <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:120, overflowY:"auto", marginTop:6 }}>
-                        {m.custRes.map((c) => (
-                          <div key={c.id} onClick={() => m.selectCust(c)}
-                            style={{ padding:"8px 10px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
-                            onMouseEnter={(e) => e.currentTarget.style.background="var(--bg2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background="transparent"}>
+                        {m.custRes.map((c, i) => (
+                          <div key={c.id}
+                            onClick={() => selectCustAndFocus(c)}
+                            style={{
+                              padding:"8px 10px", fontSize:13, cursor:"pointer",
+                              borderBottom:"1px solid var(--border)",
+                              background: i === custHighlight ? "var(--accent-dim)" : "transparent",
+                            }}
+                            onMouseEnter={() => setCustHighlight(i)}
+                            onMouseLeave={() => setCustHighlight(-1)}>
                             {c.name}
                           </div>
                         ))}
@@ -345,7 +427,13 @@ function PresModal({ m }) {
               )}
               <div className="input-group">
                 <label className="input-label">Método de pago</label>
-                <select className="select" value={m.payMethod} onChange={(e) => m.setPayMethod(e.target.value)} style={{ fontSize:12 }}>
+                <select
+                  ref={pagoRef}
+                  className="select"
+                  value={m.payMethod}
+                  onChange={(e) => m.setPayMethod(e.target.value)}
+                  style={{ fontSize:12 }}
+                >
                   {PAGOS.map((p) => <option key={p}>{p}</option>)}
                 </select>
               </div>
@@ -366,7 +454,9 @@ function PresModal({ m }) {
               </div>
               <div className="input-group">
                 <label className="input-label">Observaciones</label>
-                <input className="input" value={m.texto} onChange={(e) => m.setTexto(e.target.value)} placeholder="Texto libre..." style={{ fontSize:12 }} />
+                <input className="input" value={m.texto} onChange={(e) => m.setTexto(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); m.prodSearchRef.current?.focus(); } }}
+                  placeholder="Texto libre... (Enter para continuar)" style={{ fontSize:12 }} />
               </div>
             </div>
 
@@ -435,7 +525,7 @@ function PresModal({ m }) {
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar priceType={m.priceType} onSelect={m.handleProdSelect} autoFocus={!m.prodSel} dropUp />
+                  <ProductSearchBar ref={m.prodSearchRef} priceType={m.priceType} onSelect={m.handleProdSelect} autoFocus={!m.prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
