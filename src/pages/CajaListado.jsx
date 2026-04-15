@@ -153,7 +153,9 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
     setItems(itemsPre);
     setCustSel(order.customer_id ? { id:order.customer_id, name:order.customer_name } : null);
     setCustQuery(order.customer_name || "");
-    setTipo("Presupuesto"); setPayMethod("Contado"); setPriceType("precio_1");
+    setTipo("Presupuesto");
+    setPayMethod(order.payment_method || "Contado");
+    setPriceType(order.price_type || "precio_1");
     setVendedor(order.vendedor || ""); setTexto(order.texto_libre || "");
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
     setProvSel(null); setProvQuery(""); setWarehouseId(""); setLastPrice(null);
@@ -241,13 +243,22 @@ function PresModal({ m }) {
   const removedNow = m.originalItems.filter((oi) => oi.product_id && !currentIds.has(oi.product_id));
 
   // ── Refs y estado para navegación por teclado ──────────────
-  const tipoWrapRef  = useRef(null);
-  const custInputRef = useRef(null);
-  const pagoRef      = useRef(null);
-  const [custHighlight, setCustHighlight] = useState(-1);
-  const [provHighlight, setProvHighlight] = useState(-1);
+  const tipoWrapRef   = useRef(null);
+  const custInputRef  = useRef(null);
+  const pagoWrapRef   = useRef(null);
+  const precioWrapRef = useRef(null);
+  const vendedorRef   = useRef(null);
+  const obsRef        = useRef(null);
+  const [custHighlight,  setCustHighlight]  = useState(-1);
+  const [provHighlight,  setProvHighlight]  = useState(-1);
+  const [focusedSection, setFocusedSection] = useState(null);
 
   const TIPOS_MODAL = ["Presupuesto","Devolucion","Reposicion"];
+
+  const sectionFocusProps = (name) => ({
+    onFocus: () => setFocusedSection(name),
+    onBlur:  (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocusedSection(null); },
+  });
 
   useEffect(() => {
     if (m.open) {
@@ -261,11 +272,11 @@ function PresModal({ m }) {
 
   const selectCustAndFocus = (c) => {
     m.selectCust(c);
-    setTimeout(() => pagoRef.current?.focus(), 80);
+    setTimeout(() => pagoWrapRef.current?.focus(), 80);
   };
   const selectProvAndFocus = (p) => {
     m.selectProv(p);
-    setTimeout(() => pagoRef.current?.focus(), 80);
+    setTimeout(() => pagoWrapRef.current?.focus(), 80);
   };
 
   const handleTipoKeyDown = (e) => {
@@ -287,6 +298,30 @@ function PresModal({ m }) {
     if (e.key === "ArrowDown") { e.preventDefault(); setProvHighlight((i) => Math.min(i + 1, m.provResults.length - 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setProvHighlight((i) => Math.max(i - 1, 0)); }
     else if (e.key === "Enter" && provHighlight >= 0) { e.preventDefault(); selectProvAndFocus(m.provResults[provHighlight]); }
+  };
+
+  const handlePagoKeyDown = (e) => {
+    const idx = PAGOS.indexOf(m.payMethod);
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault(); m.setPayMethod(PAGOS[Math.min(idx + 1, PAGOS.length - 1)]);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault(); m.setPayMethod(PAGOS[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (!m.esReposicion) precioWrapRef.current?.focus();
+      else vendedorRef.current?.focus();
+    }
+  };
+
+  const handlePrecioKeyDown = (e) => {
+    const idx = PRECIOS.indexOf(m.priceType);
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault(); m.setPriceType(PRECIOS[Math.min(idx + 1, PRECIOS.length - 1)]);
+    } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault(); m.setPriceType(PRECIOS[Math.max(idx - 1, 0)]);
+    } else if (e.key === "Enter") {
+      e.preventDefault(); vendedorRef.current?.focus();
+    }
   };
 
   return (
@@ -425,38 +460,100 @@ function PresModal({ m }) {
                   </select>
                 </div>
               )}
+
+              {/* Método de pago — button group con teclado */}
               <div className="input-group">
-                <label className="input-label">Método de pago</label>
-                <select
-                  ref={pagoRef}
-                  className="select"
-                  value={m.payMethod}
-                  onChange={(e) => m.setPayMethod(e.target.value)}
-                  style={{ fontSize:12 }}
+                <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span>Método de pago</span>
+                  <span style={{ fontSize:9, fontFamily:"var(--font-mono)", color: focusedSection === "pago" ? "var(--accent)" : "var(--text-dim)", transition:"color 0.15s" }}>↑↓ · Enter avanza</span>
+                </label>
+                <div
+                  ref={pagoWrapRef}
+                  tabIndex={0}
+                  onKeyDown={handlePagoKeyDown}
+                  {...sectionFocusProps("pago")}
+                  style={{
+                    display:"flex", flexWrap:"wrap", gap:4, outline:"none",
+                    borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                    boxShadow: focusedSection === "pago" ? "0 0 0 2px var(--accent)" : "none",
+                  }}
                 >
-                  {PAGOS.map((p) => <option key={p}>{p}</option>)}
-                </select>
+                  {PAGOS.map((p) => (
+                    <button key={p} onClick={() => m.setPayMethod(p)}
+                      style={{
+                        padding:"4px 8px", borderRadius:4, fontSize:10, fontFamily:"var(--font-mono)", cursor:"pointer",
+                        border: `1px solid ${m.payMethod === p ? "var(--accent)" : "var(--border)"}`,
+                        background: m.payMethod === p ? "var(--accent)" : "transparent",
+                        color:      m.payMethod === p ? "#fff"          : "var(--text-dim)",
+                        fontWeight: m.payMethod === p ? 700 : 400,
+                        transition: "background 0.1s, border-color 0.1s",
+                      }}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {/* Tipo de precio — button group con teclado */}
               {!m.esReposicion && (
                 <div className="input-group">
-                  <label className="input-label">Tipo de precio</label>
-                  <select className="select" value={m.priceType} onChange={(e) => m.setPriceType(e.target.value)} style={{ fontSize:12 }}>
-                    {PRECIOS.map((p) => <option key={p} value={p}>{PRECIO_LBL[p]}</option>)}
-                  </select>
+                  <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                    <span>Tipo de precio</span>
+                    <span style={{ fontSize:9, fontFamily:"var(--font-mono)", color: focusedSection === "precio" ? "var(--accent)" : "var(--text-dim)", transition:"color 0.15s" }}>↑↓ · Enter avanza</span>
+                  </label>
+                  <div
+                    ref={precioWrapRef}
+                    tabIndex={0}
+                    onKeyDown={handlePrecioKeyDown}
+                    {...sectionFocusProps("precio")}
+                    style={{
+                      display:"flex", flexWrap:"wrap", gap:4, outline:"none",
+                      borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                      boxShadow: focusedSection === "precio" ? "0 0 0 2px var(--accent)" : "none",
+                    }}
+                  >
+                    {PRECIOS.map((p) => (
+                      <button key={p} onClick={() => m.setPriceType(p)}
+                        style={{
+                          padding:"4px 8px", borderRadius:4, fontSize:10, fontFamily:"var(--font-mono)", cursor:"pointer",
+                          border: `1px solid ${m.priceType === p ? "var(--accent)" : "var(--border)"}`,
+                          background: m.priceType === p ? "var(--accent-dim)" : "transparent",
+                          color:      m.priceType === p ? "var(--accent)"     : "var(--text-dim)",
+                          fontWeight: m.priceType === p ? 700 : 400,
+                          transition: "background 0.1s, border-color 0.1s",
+                        }}>
+                        {PRECIO_LBL[p]}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
+
               <div className="input-group">
                 <label className="input-label">Vendedor</label>
-                <select className="select" value={m.vendedor} onChange={(e) => m.setVendedor(e.target.value)} style={{ fontSize:12 }}>
+                <select
+                  ref={vendedorRef}
+                  className="select"
+                  value={m.vendedor}
+                  onChange={(e) => m.setVendedor(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); obsRef.current?.focus(); } }}
+                  style={{ fontSize:12 }}
+                >
                   <option value="">— seleccionar —</option>
                   {m.vendedores.map((v) => <option key={v.id} value={v.nombre}>{v.nombre}</option>)}
                 </select>
               </div>
               <div className="input-group">
                 <label className="input-label">Observaciones</label>
-                <input className="input" value={m.texto} onChange={(e) => m.setTexto(e.target.value)}
+                <input
+                  ref={obsRef}
+                  className="input"
+                  value={m.texto}
+                  onChange={(e) => m.setTexto(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); m.prodSearchRef.current?.focus(); } }}
-                  placeholder="Texto libre... (Enter para continuar)" style={{ fontSize:12 }} />
+                  placeholder="Texto libre... (Enter para continuar)"
+                  style={{ fontSize:12 }}
+                />
               </div>
             </div>
 
