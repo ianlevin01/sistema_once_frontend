@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   searchCustomers, getCustomer,
-  createCustomer, updateCustomer, deleteCustomer,
+  createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente,
   getCuentaCorrienteCliente, getCuentaCorrienteGeneral,
   registrarCobranzaCC, editarMovimientoCC, eliminarMovimientoCC,
   searchProveedores, getProveedor,
@@ -183,10 +183,14 @@ function EntityFicha({ selected, mode }) {
 // ─────────────────────────────────────────────────────────────
 function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCuenta, cotizacion, saving }) {
   const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS" });
+  const [cotizacionCustom, setCotizacionCustom] = useState("");
 
   useEffect(() => {
-    if (open) setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta });
-  }, [open, divisaCuenta]);
+    if (open) {
+      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta });
+      setCotizacionCustom(String(cotizacion || ""));
+    }
+  }, [open, divisaCuenta, cotizacion]);
 
   if (!open) return null;
 
@@ -194,14 +198,16 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
   const setDivisaCobro = (d) => setForm((p) => ({ ...p, divisa_cobro: d }));
   const setMetodo = (m) => setForm((p) => ({ ...p, metodo_pago: m }));
 
+  const cotizUsada = Number(cotizacionCustom) || cotizacion;
+
   const previewConversion = () => {
     const monto = Number(form.monto);
-    if (!monto || !cotizacion || form.divisa_cobro === divisaCuenta) return null;
+    if (!monto || !cotizUsada || form.divisa_cobro === divisaCuenta) return null;
     if (form.divisa_cobro === "ARS" && divisaCuenta === "USD") {
-      return `= USD ${(monto / cotizacion).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizacion.toLocaleString("es-AR")})`;
+      return `= USD ${(monto / cotizUsada).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizUsada.toLocaleString("es-AR")})`;
     }
     if (form.divisa_cobro === "USD" && divisaCuenta === "ARS") {
-      return `= $${(monto * cotizacion).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizacion.toLocaleString("es-AR")})`;
+      return `= $${(monto * cotizUsada).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizUsada.toLocaleString("es-AR")})`;
     }
     return null;
   };
@@ -233,6 +239,16 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
               ))}
             </div>
           </div>
+          {form.divisa_cobro !== divisaCuenta && (
+            <div className="input-group">
+              <label className="input-label">Cotización manual (ARS por USD)</label>
+              <input className="input" type="number" min="0" step="0.01"
+                value={cotizacionCustom}
+                onChange={(e) => setCotizacionCustom(e.target.value)}
+                placeholder={String(cotizacion)}
+              />
+            </div>
+          )}
           <div className="input-group">
             <label className="input-label">Monto ({form.divisa_cobro})</label>
             <input className="input" type="number" min="0" step="0.01" value={form.monto} onChange={setF("monto")} autoFocus />
@@ -263,7 +279,7 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onConfirm(form)} disabled={saving}>
+          <button className="btn btn-primary" onClick={() => onConfirm({ ...form, cotizacion_manual: cotizUsada })} disabled={saving}>
             {saving ? "Guardando..." : mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"}
           </button>
         </div>
@@ -530,8 +546,9 @@ function EntityPanel({
   const selectEntity = async (c, idx) => {
     if (idx !== undefined) setSelectedIndex(idx);
     setSelected({ ...c, _loading: true });
-    setEditing(false); setIsNew(false); setViewCC(false); setCC(null);
+    setEditing(false); setIsNew(false); setViewCC(true); setCC(null);
     setLoadingDetail(true);
+    loadCC(c.id);
     try {
       const res  = await getFn(c.id);
       const data = res.data || res;
@@ -544,9 +561,15 @@ function EntityPanel({
     setLoadingCC(true);
     try {
       const res  = await getCCFn(id);
-      const data = res.data || res;
+      const data = res.data ?? null;
       setCC(data);
-    } catch { addToast("Error cargando cuenta corriente", "error"); }
+    } catch (err) {
+      if (err.response?.status === 404) {
+        setCC(null); // cliente web: sin CC
+      } else {
+        addToast("Error cargando cuenta corriente", "error");
+      }
+    }
     setLoadingCC(false);
   };
 
@@ -560,6 +583,7 @@ function EntityPanel({
       await registrarCobranzaFn(selected.id, {
         monto, concepto: formCobranza.concepto || (mode === "proveedor" ? "Pago a proveedor" : "Cobranza"),
         metodo_pago: formCobranza.metodo_pago, divisa_cobro: formCobranza.divisa_cobro,
+        cotizacion_manual: formCobranza.cotizacion_manual ?? null,
       });
       addToast(mode === "proveedor" ? "Pago registrado" : "Cobranza registrada", "success");
       setModalCobranza(false);
@@ -656,11 +680,11 @@ function EntityPanel({
                 <span style={{ fontSize: 14, fontWeight: 600, color: "var(--text)" }}>{selected.name}</span>
                 <DivisaBadge divisa={selected.divisa ?? "ARS"} />
                 <div style={{ marginLeft: 16, display: "flex", gap: 4 }}>
-                  {["Ficha", "Cta Cte"].map((lbl, i) => (
-                    <button key={lbl} onClick={() => i === 0 ? setViewCC(false) : handleVerCC()}
+                  {["Cta Cte", "Ficha"].map((lbl, i) => (
+                    <button key={lbl} onClick={() => i === 0 ? handleVerCC() : setViewCC(false)}
                       style={{ fontSize: 12, padding: "4px 12px", borderRadius: 4, border: "1px solid var(--border)", cursor: "pointer",
-                        background: (i === 0 ? !viewCC : viewCC) ? "var(--accent)" : "transparent",
-                        color:      (i === 0 ? !viewCC : viewCC) ? "#fff"          : "var(--text-muted)",
+                        background: (i === 0 ? viewCC : !viewCC) ? "var(--accent)" : "transparent",
+                        color:      (i === 0 ? viewCC : !viewCC) ? "#fff"          : "var(--text-muted)",
                       }}>
                       {lbl}
                     </button>
@@ -934,6 +958,16 @@ export default function CuentaCorriente() {
   const [cotizacion, setCotizacion] = useState(0);
   const { addToast, ToastContainer } = useToast();
 
+  // Solo clientes con CC en el buscador
+  const searchClientesConCC = (name) => searchCustomers(name, true);
+  // Al crear un cliente desde CC, abrirle CC automáticamente
+  const createClienteConCC = async (data) => {
+    const res = await createCustomer(data);
+    const customer = res.data || res;
+    try { await openCuentaCorriente(customer.id); } catch {}
+    return res;
+  };
+
   useEffect(() => {
     getPriceConfig()
       .then(({ data }) => { const val = data?.cotizacion_dolar; if (val) setCotizacion(Number(val)); })
@@ -963,8 +997,8 @@ export default function CuentaCorriente() {
       {tab === "clientes" && (
         <EntityPanel
           mode="cliente"
-          searchFn={searchCustomers} getFn={getCustomer}
-          createFn={createCustomer} updateFn={updateCustomer} deleteFn={deleteCustomer}
+          searchFn={searchClientesConCC} getFn={getCustomer}
+          createFn={createClienteConCC} updateFn={updateCustomer} deleteFn={deleteCustomer}
           getCCFn={getCuentaCorrienteCliente} registrarCobranzaFn={registrarCobranzaCC}
           editarMovFn={editarMovimientoCC} eliminarMovFn={eliminarMovimientoCC}
           emptyForm={EMPTY_CLIENTE} addToast={addToast} cotizacion={cotizacion}

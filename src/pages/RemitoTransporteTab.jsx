@@ -16,17 +16,16 @@ const fmtMoney = (n) =>
 const nroRemito = (n) => `00001-${String(n || 0).padStart(8, "0")}`;
 
 export default function RemitoTransporteTab() {
-  const today = () => new Date().toISOString().slice(0, 10);
   const { user } = useAuth();
   const { addToast, ToastContainer } = useToast();
 
-  // Lista
+  // Lista — sin filtro de fecha por defecto para evitar problemas de zona horaria
   const [list,         setList]         = useState([]);
   const [loading,      setLoading]      = useState(true);
-  const [from,         setFrom]         = useState(today());
-  const [to,           setTo]           = useState(today());
-  const [appliedFrom,  setAppliedFrom]  = useState(today());
-  const [appliedTo,    setAppliedTo]    = useState(today());
+  const [from,         setFrom]         = useState("");
+  const [to,           setTo]           = useState("");
+  const [appliedFrom,  setAppliedFrom]  = useState("");
+  const [appliedTo,    setAppliedTo]    = useState("");
   const filterDirty = from !== appliedFrom || to !== appliedTo;
 
   // Transportes disponibles
@@ -48,10 +47,10 @@ export default function RemitoTransporteTab() {
   const [valor,     setValor]     = useState("");
   const [saving,    setSaving]    = useState(false);
 
-  const loadList = async () => {
+  const loadList = async (f = appliedFrom, t = appliedTo) => {
     setLoading(true);
     try {
-      setList(await getTransportRemitos(appliedFrom, appliedTo));
+      setList(await getTransportRemitos(f, t));
     } catch {
       addToast("Error al cargar remitos de transporte", "error");
     } finally {
@@ -63,7 +62,7 @@ export default function RemitoTransporteTab() {
     try { setTransportes(await getTransportes()); } catch { /* silencioso */ }
   };
 
-  useEffect(() => { loadList(); }, [appliedFrom, appliedTo]);
+  useEffect(() => { loadList(appliedFrom, appliedTo); }, [appliedFrom, appliedTo]);
   useEffect(() => { loadTransportes(); }, []);
 
   const applyFilter = () => { setAppliedFrom(from); setAppliedTo(to); };

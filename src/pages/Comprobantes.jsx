@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useParams } from "react-router-dom";
 import {
   getComprobantes, getComprobante, createComprobante, updateComprobante,
   deleteComprobante, searchCustomers, searchProveedores, getWarehouses,
@@ -8,6 +9,7 @@ import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
+import { printComprobantePDF } from "../utils/printDoc";
 
 // ── Constantes ─────────────────────────────────────────────────
 const TIPOS   = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedor"];
@@ -79,6 +81,8 @@ function LeftPanel({
   const obsRef        = useRef(null);
   const [custHighlight, setCustHighlight] = useState(-1);
   const [provHighlight, setProvHighlight] = useState(-1);
+  const custDropdownRef = useRef(null);
+  const provDropdownRef = useRef(null);
 
   // Auto-foco en tipo al abrir el formulario
   useEffect(() => {
@@ -91,6 +95,18 @@ function LeftPanel({
   // Auto-highlightea el primer resultado al aparecer
   useEffect(() => { setCustHighlight(custResults.length > 0 ? 0 : -1); }, [custResults]);
   useEffect(() => { setProvHighlight(provResults.length > 0 ? 0 : -1); }, [provResults]);
+
+  // Scroll al ítem resaltado en el dropdown
+  useEffect(() => {
+    if (custHighlight >= 0 && custDropdownRef.current) {
+      custDropdownRef.current.children[custHighlight]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [custHighlight]);
+  useEffect(() => {
+    if (provHighlight >= 0 && provDropdownRef.current) {
+      provDropdownRef.current.children[provHighlight]?.scrollIntoView({ block: "nearest" });
+    }
+  }, [provHighlight]);
 
   const sectionFocusProps = (name) => ({
     onFocus: () => setFocusedSection(name),
@@ -194,8 +210,17 @@ function LeftPanel({
 
       {/* Header compacto */}
       <div style={{ padding:"14px 16px 10px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
-        <div style={{ fontFamily:"var(--font-mono)", fontSize:10, fontWeight:700, color:"var(--accent)", letterSpacing:"0.1em", textTransform:"uppercase", marginBottom:10 }}>
-          {isEditing ? "✏️ Editando" : "Nuevo comprobante"}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:10 }}>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, fontWeight:700, color:"var(--accent)", letterSpacing:"0.1em", textTransform:"uppercase" }}>
+            {isEditing ? "✏️ Editando" : "Nuevo comprobante"}
+          </div>
+          <button
+            onClick={() => window.open("/comprobantes/nuevo", "_blank", "width=1440,height=900,noopener")}
+            style={{ fontSize:10, padding:"3px 9px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, color:"var(--accent)", cursor:"pointer", fontFamily:"var(--font-mono)", fontWeight:700, letterSpacing:"0.06em" }}
+            title="Abrir otro comprobante en nueva ventana"
+          >
+            + NUEVO
+          </button>
         </div>
 
         {/* Tipo — botones compactos 2 columnas */}
@@ -267,7 +292,7 @@ function LeftPanel({
                 />
               </div>
               {provResults.length > 0 && (
-                <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
+                <div ref={provDropdownRef} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
                   {provResults.map((p, i) => (
                     <div key={p.id}
                       onClick={() => selectProvAndFocus(p)}
@@ -351,7 +376,7 @@ function LeftPanel({
                   />
                 </div>
                 {custResults.length > 0 && (
-                  <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
+                  <div ref={custDropdownRef} style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:140, overflowY:"auto", marginTop:4 }}>
                     {custResults.map((c, i) => (
                       <div key={c.id}
                         onClick={() => selectCustAndFocus(c)}
@@ -517,13 +542,14 @@ function LeftPanel({
 }
 
 // ── Componente principal ───────────────────────────────────────
-export default function Comprobantes() {
+export default function Comprobantes({ initialCreating = false }) {
+  const { editId } = useParams() ?? {};
   const { user } = useAuth();
   const vendedores = useVendedores();
   const [comprobantes, setComprobantes] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
-  const [creating,     setCreating]     = useState(false);
+  const [creating,     setCreating]     = useState(initialCreating);
   const [editingId,    setEditingId]    = useState(null); // id del comprobante en edición
 
   const [from,        setFrom]        = useState(today());
@@ -593,7 +619,7 @@ export default function Comprobantes() {
   useEffect(() => {
     if (!custQuery.trim() || esReposicion || esConsumidorFinal) { setCustResults([]); return; }
     const t = setTimeout(async () => {
-      try { const { data } = await searchCustomers(custQuery); setCustResults(data); } catch {}
+      try { const { data } = await searchCustomers(custQuery, true); setCustResults(data); } catch {}
     }, 300);
     return () => clearTimeout(t);
   }, [custQuery, esReposicion, esConsumidorFinal]);
@@ -685,6 +711,7 @@ export default function Comprobantes() {
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante creado", "success");
+      if (initialCreating) { setTimeout(() => window.close(), 800); return; }
       setCreating(false); resetForm(); loadAll(appliedFrom, appliedTo);
     } catch { addToast("Error creando comprobante", "error"); }
     setSaving(false);
@@ -733,6 +760,8 @@ export default function Comprobantes() {
     } catch { addToast("Error cargando comprobante", "error"); }
   };
 
+  useEffect(() => { if (editId) handleOpenEdit(editId); }, [editId]);
+
   // ── Guardar edición ────────────────────────────────────────────
   const handleSaveEdit = async () => {
     if (items.length === 0) { addToast("Agregá al menos un producto", "error"); return; }
@@ -744,6 +773,7 @@ export default function Comprobantes() {
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante actualizado", "success");
+      if (editId) { setTimeout(() => window.close(), 800); return; }
       setCreating(false); setEditingId(null); resetForm(); loadAll(appliedFrom, appliedTo);
     } catch (err) { addToast(err?.response?.data?.message || "Error actualizando", "error"); }
     setSaving(false);
@@ -792,7 +822,7 @@ export default function Comprobantes() {
             </div>
             <div style={{ flex:1 }} />
             <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
-              onClick={() => { setCreating(true); resetForm(); }}>
+              onClick={() => window.open("/comprobantes/nuevo", "_blank", "width=1440,height=900,noopener")}>
               + Nuevo comprobante
             </button>
           </div>
@@ -834,7 +864,8 @@ export default function Comprobantes() {
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => handleOpenEdit(c.id)}>✏️</button>
+                            <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank", "width=1440,height=900,noopener")}>✏️</button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)}>🗑️</button>
                           </div>
                         </td>
@@ -846,13 +877,16 @@ export default function Comprobantes() {
             )}
           </div>
 
-          {/* Modal detalle */}
-          {selected && (
-            <div className="modal-overlay" onClick={() => setSelected(null)}>
-              <div className="modal" style={{ maxWidth:600 }} onClick={(e) => e.stopPropagation()}>
+        {/* Modal detalle */}
+        {selected && (
+          <div className="modal-overlay" onClick={() => setSelected(null)}>
+            <div className="modal" style={{ maxWidth:600 }} onClick={(e) => e.stopPropagation()}>
                 <div className="modal-header">
                   <span className="modal-title">{selected.tipo || "Comprobante"} — {selected.id?.slice(0,8)}…</span>
-                  <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(selected)}>🖨 Imprimir</button>
+                    <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
+                  </div>
                 </div>
                 <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
                   <span className="badge badge-success">{selected.status}</span>
@@ -930,7 +964,7 @@ export default function Comprobantes() {
             warehouses={warehouses} warehouseId={warehouseId} setWarehouseId={setWarehouseId}
             vendedores={vendedores} lastPrice={lastPrice} user={user}
             onSave={isEditing ? handleSaveEdit : handleCreate}
-            onCancel={() => { setCreating(false); resetForm(); }}
+            onCancel={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
             saving={saving} isEditing={isEditing}
             total={total} itemCount={items.length}
             onObsEnter={() => prodSearchRef.current?.focus()}

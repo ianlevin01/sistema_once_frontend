@@ -14,6 +14,7 @@ import Configuracion   from "./pages/Configuracion";
 import Usuarios        from "./pages/Usuarios";
 import Calculadora   from "./pages/Calculadora";
 import Transportes   from "./pages/Transportes";
+import Clientes      from "./pages/Clientes";
 
 // Ruta protegida: redirige a /login si no hay sesión
 function PrivateRoute({ children }) {
@@ -36,6 +37,12 @@ function AppRoutes() {
       <Route path="/" element={<PrivateRoute><Navigate to="/comprobantes" replace /></PrivateRoute>} />
 
       <Route path="/comprobantes" element={
+        <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>
+      } />
+      <Route path="/comprobantes/nuevo" element={
+        <PrivateRoute><Layout><Comprobantes initialCreating={true} /></Layout></PrivateRoute>
+      } />
+      <Route path="/comprobantes/editar/:editId" element={
         <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>
       } />
       <Route path="/remitos" element={
@@ -70,6 +77,9 @@ function AppRoutes() {
       } />
       <Route path="/transportes" element={
         <PrivateRoute><Layout><Transportes /></Layout></PrivateRoute>
+      } />
+      <Route path="/clientes" element={
+        <PrivateRoute><Layout><Clientes /></Layout></PrivateRoute>
       } />
 
       {/* Fallback */}

@@ -147,6 +147,24 @@ export default function Products() {
   const [creatingCat,     setCreatingCat]     = useState(false);
   const catRef = useRef(null);
 
+  // Refs para navegación Enter en el formulario nuevo/editar
+  const nameRef     = useRef(null);
+  const codeRef     = useRef(null);
+  const barcodeRef  = useRef(null);
+  const boxCodeRef  = useRef(null);
+  const qxbRef      = useRef(null);
+  const costoRef    = useRef(null);
+  const ivaRef      = useRef(null);
+  const despachoRef = useRef(null);
+  const aduanaRef   = useRef(null);
+  const origenRef   = useRef(null);
+  const videoRef    = useRef(null);
+
+  // Foco en el primer campo cuando se abre el modal
+  useEffect(() => {
+    if (modal) setTimeout(() => nameRef.current?.focus(), 80);
+  }, [modal]);
+
   useEffect(() => {
     getCategories().then(({ data }) => setCategories(data || [])).catch(() => {});
   }, []);
@@ -789,26 +807,31 @@ export default function Products() {
         >
           <div className="input-group">
             <label className="input-label">Nombre / Detalle *</label>
-            <input className="input" value={form.name} onChange={f("name")} placeholder="Descripción del producto" />
+            <input ref={nameRef} className="input" value={form.name} onChange={f("name")} placeholder="Descripción del producto"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); codeRef.current?.focus(); } }} />
           </div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Código</label>
-              <input className="input" value={form.code} onChange={f("code")} placeholder="AV5847" />
+              <input ref={codeRef} className="input" value={form.code} onChange={f("code")} placeholder="AV5847"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); barcodeRef.current?.focus(); } }} />
             </div>
             <div className="input-group">
               <label className="input-label">Barcode</label>
-              <input className="input" value={form.barcode} onChange={f("barcode")} placeholder="7790001111111" />
+              <input ref={barcodeRef} className="input" value={form.barcode} onChange={f("barcode")} placeholder="7790001111111"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); boxCodeRef.current?.focus(); } }} />
             </div>
           </div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Box Code</label>
-              <input className="input" value={form.box_code} onChange={f("box_code")} placeholder="890" />
+              <input ref={boxCodeRef} className="input" value={form.box_code} onChange={f("box_code")} placeholder="890"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); qxbRef.current?.focus(); } }} />
             </div>
             <div className="input-group">
               <label className="input-label">QxB</label>
-              <input className="input" type="number" value={form.qxb} onChange={f("qxb")} placeholder="36" />
+              <input ref={qxbRef} className="input" type="number" value={form.qxb} onChange={f("qxb")} placeholder="36"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); costoRef.current?.focus(); } }} />
             </div>
           </div>
           <hr className="divider" />
@@ -833,28 +856,33 @@ export default function Products() {
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
           <div className="input-group">
             <label className="input-label">Costo en USD</label>
-            <input className="input" type="number" value={form.costo_usd} onChange={f("costo_usd")} placeholder="0.00" />
+            <input ref={costoRef} className="input" type="number" value={form.costo_usd} onChange={f("costo_usd")} placeholder="0.00"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ivaRef.current?.focus(); } }} />
           </div>
           <div className="input-group">
             <label className="input-label">Tasa IVA (%)</label>
-            <input className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21" />
+            <input ref={ivaRef} className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); despachoRef.current?.focus(); } }} />
           </div>
           <hr className="divider" />
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Logística</div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Despacho</label>
-              <input className="input" value={form.despacho} onChange={f("despacho")} />
+              <input ref={despachoRef} className="input" value={form.despacho} onChange={f("despacho")}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); aduanaRef.current?.focus(); } }} />
             </div>
             <div className="input-group">
               <label className="input-label">Aduana</label>
-              <input className="input" value={form.aduana} onChange={f("aduana")} />
+              <input ref={aduanaRef} className="input" value={form.aduana} onChange={f("aduana")}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); origenRef.current?.focus(); } }} />
             </div>
           </div>
           <div className="grid-2">
             <div className="input-group">
               <label className="input-label">Origen</label>
-              <input className="input" value={form.origen} onChange={f("origen")} placeholder="China, Brasil..." />
+              <input ref={origenRef} className="input" value={form.origen} onChange={f("origen")} placeholder="China, Brasil..."
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); videoRef.current?.focus(); } }} />
             </div>
             <div className="input-group">
               <label className="input-label">Categoría</label>
@@ -907,7 +935,7 @@ export default function Products() {
           </div>
           <div className="input-group">
             <label className="input-label">URL Video</label>
-            <input className="input" value={form.video_url} onChange={f("video_url")} placeholder="https://youtube.com/..." />
+            <input ref={videoRef} className="input" value={form.video_url} onChange={f("video_url")} placeholder="https://youtube.com/..." />
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginTop:4 }}>
             <input type="checkbox" id="active" checked={form.active} onChange={f("active")} style={{ accentColor:"var(--accent)", width:15, height:15 }} />

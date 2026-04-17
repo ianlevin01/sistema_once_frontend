@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
 import { getTransportes, createTransporte, updateTransporte, deleteTransporte } from "../utils/api";
 import { useToast } from "../utils/useToast";
+import RemitoTransporteTab from "./RemitoTransporteTab";
 
 const EMPTY = { codigo: "", razon_social: "", domicilio: "", telefono: "", email: "" };
 
 export default function Transportes() {
+  const [activeTab, setActiveTab] = useState("transportes");
   const [list,    setList]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(null); // null | "new" | objeto transporte
@@ -65,18 +67,45 @@ export default function Transportes() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  const TABS = [
+    { key: "transportes",       label: "Transportes" },
+    { key: "remitos-transporte", label: "Remitos de Transporte" },
+  ];
+
   return (
     <div style={{ maxWidth: 900, margin: "0 auto" }}>
       <ToastContainer />
 
       {/* Header */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
         <div>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: "var(--text)" }}>Transportes</h2>
-          <p style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
-            Empresas de transporte utilizadas en remitos
-          </p>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: "flex", gap: 4, marginBottom: 20, borderBottom: "1px solid var(--border)", paddingBottom: 0 }}>
+        {TABS.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            style={{
+              padding: "8px 18px", fontSize: 13, fontWeight: 600, cursor: "pointer",
+              background: "none", border: "none",
+              borderBottom: activeTab === t.key ? "2px solid var(--accent)" : "2px solid transparent",
+              color: activeTab === t.key ? "var(--accent)" : "var(--text-muted)",
+              marginBottom: -1,
+            }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "remitos-transporte" && <RemitoTransporteTab />}
+
+      {activeTab === "transportes" && (<>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo transporte</button>
       </div>
 
@@ -157,6 +186,7 @@ export default function Transportes() {
           </table>
         </div>
       )}
+      </>)}
     </div>
   );
 }

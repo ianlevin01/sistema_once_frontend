@@ -21,6 +21,7 @@ const NAV_ADMIN = [
   {
     section: "Maestros",
     items: [
+      { to: "/clientes",         label: "Clientes",         icon: "👤" },
       { to: "/cuenta-corriente", label: "Cuenta Corriente", icon: "💳" },
       { to: "/productos",        label: "Productos",        icon: "🏷️" },
       { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
@@ -59,6 +60,7 @@ const PAGE_TITLES = {
   "/caja":             "Caja · Imputaciones",
   "/caja/listado":     "Caja · Listado",
   "/pedidos-web":      "Pedidos Web",
+  "/clientes":         "Clientes",
   "/cuenta-corriente": "Cuenta Corriente",
   "/productos":        "Productos",
   "/vendedores":       "Vendedores",

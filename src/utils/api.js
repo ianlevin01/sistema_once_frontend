@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -46,11 +46,14 @@ export const updateVendedor       = (id, data) => api.put(`/vendedores/${id}`, d
 export const deleteVendedor       = (id)       => api.delete(`/vendedores/${id}`);
 
 // ── CUSTOMERS ─────────────────────────────────────────────────
-export const searchCustomers = (name) => api.get(`/customers/search?name=${name}`);
-export const getCustomer     = (id)   => api.get(`/customers/${id}`);
-export const createCustomer  = (data) => api.post("/customers", data);
-export const updateCustomer  = (id, data) => api.put(`/customers/${id}`, data);
-export const deleteCustomer  = (id)   => api.delete(`/customers/${id}`);
+export const getClientes       = ()           => api.get("/customers");
+export const searchCustomers   = (name, conCC = false) =>
+  api.get(`/customers/search?name=${encodeURIComponent(name)}${conCC ? "&con_cc=true" : ""}`);
+export const getCustomer       = (id)         => api.get(`/customers/${id}`);
+export const createCustomer    = (data)       => api.post("/customers", data);
+export const updateCustomer    = (id, data)   => api.put(`/customers/${id}`, data);
+export const deleteCustomer    = (id)         => api.delete(`/customers/${id}`);
+export const openCuentaCorriente = (id)       => api.post(`/customers/${id}/cuenta-corriente`);
 
 // ── PROVEEDORES ───────────────────────────────────────────────
 export const searchProveedores          = (q)         => api.get(`/proveedores/search?q=${encodeURIComponent(q)}`);

@@ -54,6 +54,7 @@ const BASE_CSS = `
   th.right, td.right { text-align: right; }
   td { padding: 7px 8px; border-bottom: 1px solid #e0e0e0; }
   tbody tr:last-child td { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #f7f7f7; }
   .total-row { border-top: 2px solid #111; font-weight: 800; font-size: 14px; }
   .total-row td { padding: 10px 8px; }
   .footer {
@@ -108,7 +109,7 @@ export function printRemitoPDF(remito, sinPrecios = false) {
 <body>
   <div class="header">
     <div>
-      <div class="empresa">Remito de Transferencia</div>
+      <div class="empresa">Remito</div>
       <div style="font-size:12px;color:#555;margin-top:4px">
         ${remito.origen || "—"} → ${remito.destino || "—"}
       </div>
@@ -388,65 +389,74 @@ export function printRemitoTransporte(remito) {
     }
     .transporte-label { font-weight: 700; font-size: 13px; }
     .transporte-dir   { font-size: 12px; color: #444; margin-top: 3px; padding-left: 88px; }
+    .copy { page-break-after: always; }
+    .copy:last-child { page-break-after: auto; }
     @media print {
       body { padding: 12px 16px; }
       @page { margin: 0.8cm; size: A4; }
     }
   </style>
 </head>
-<body>
-  <!-- Cabecera -->
-  <div class="doc-header">
-    <div class="doc-header-left">
-      <div class="empresa-name">•O•N•C•E•P•U•N•T•O•S•</div>
-      <div class="empresa-sub">www.oncepuntos.com.ar</div>
-      <div class="empresa-sub">(011) 3838-5284</div>
-    </div>
-    <div class="doc-header-stamp">
-      <div class="stamp-r">R</div>
-      <div class="stamp-cod">COD 001<br>DOCUMENTO<br>NO VALIDO<br>COMO FACTURA</div>
-    </div>
-    <div class="doc-header-right">
-      <div class="doc-number">Remito No. ${nroFull}</div>
-      <div class="doc-meta">
-        Fecha: ${fmtDate(remito.created_at)}<br>
-        IVA RESPONSABLE INSCRIPTO<br>
-        CUIT.: 30-71634628-1
+<body>`;
+
+  const copyLabels = ["ORIGINAL", "DUPLICADO", "TRIPLICADO"];
+  const copyHtml = copyLabels.map((label) => `
+  <div class="copy">
+    <!-- Cabecera -->
+    <div class="doc-header">
+      <div class="doc-header-left">
+        <div class="empresa-name">•O•N•C•E•P•U•N•T•O•S•</div>
+        <div class="empresa-sub">www.oncepuntos.com.ar</div>
+        <div class="empresa-sub">(011) 3838-5284</div>
+      </div>
+      <div class="doc-header-stamp">
+        <div class="stamp-r">R</div>
+        <div class="stamp-cod">COD 001<br>DOCUMENTO<br>NO VALIDO<br>COMO FACTURA</div>
+      </div>
+      <div class="doc-header-right">
+        <div class="doc-number">Remito No. ${nroFull}</div>
+        <div class="doc-meta">
+          Fecha: ${fmtDate(remito.created_at)}<br>
+          IVA RESPONSABLE INSCRIPTO<br>
+          CUIT.: 30-71634628-1
+        </div>
       </div>
     </div>
-  </div>
 
-  <!-- Destinatario -->
-  <div class="destinatario">
-    <div class="dest-row">
-      <span>Señores: <span class="dest-name">${remito.customer_name || "—"}</span></span>
-      <span style="font-weight:700">ORIGINAL</span>
+    <!-- Destinatario -->
+    <div class="destinatario">
+      <div class="dest-row">
+        <span>Señores: <span class="dest-name">${remito.customer_name || "—"}</span></span>
+        <span style="font-weight:700">${label}</span>
+      </div>
+      <div style="margin-bottom:4px">—</div>
+      <div class="dest-cuit">
+        CUIT: ${remito.customer_document || "0"}&nbsp;&nbsp;&nbsp;
+        ${remito.customer_condicion_iva || "IVA RESPONSABLE INSCRIPTO"}
+      </div>
     </div>
-    <div style="margin-bottom:4px">—</div>
-    <div class="dest-cuit">
-      CUIT: ${remito.customer_document || "0"}&nbsp;&nbsp;&nbsp;
-      ${remito.customer_condicion_iva || "IVA RESPONSABLE INSCRIPTO"}
+
+    <!-- Cuerpo -->
+    <div class="cuerpo">
+      <div class="bultos-line">${bultos}&nbsp;&nbsp;&nbsp;BULTO/S DE ARTICULO IMPORTADO</div>
+      <div class="valor-line">Valor aproximado: ${valor}</div>
     </div>
-  </div>
 
-  <!-- Cuerpo -->
-  <div class="cuerpo">
-    <div class="bultos-line">${bultos}&nbsp;&nbsp;&nbsp;BULTO/S DE ARTICULO IMPORTADO</div>
-    <div class="valor-line">Valor aproximado: ${valor}</div>
-  </div>
+    <!-- Pie transporte -->
+    <div class="transporte-box">
+      <span class="transporte-label">Transporte:&nbsp;&nbsp;</span>
+      <span style="font-weight:700">${remito.transporte_nombre || "—"}</span>
+      ${remito.transporte_domicilio
+        ? `<div class="transporte-dir">${remito.transporte_domicilio}</div>`
+        : ""}
+    </div>
+  </div>`).join("");
 
-  <!-- Pie transporte -->
-  <div class="transporte-box">
-    <span class="transporte-label">Transporte:&nbsp;&nbsp;</span>
-    <span style="font-weight:700">${remito.transporte_nombre || "—"}</span>
-    ${remito.transporte_domicilio
-      ? `<div class="transporte-dir">${remito.transporte_domicilio}</div>`
-      : ""}
-  </div>
+  const html2 = html + copyHtml + `
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  openPrintWindow(html2);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -455,6 +465,8 @@ export function printRemitoTransporte(remito) {
 export function printEtiquetasEnvio(remito) {
   const bultos = remito.bultos || 1;
 
+  const customerAddr = [remito.customer_domicilio, remito.customer_localidad].filter(Boolean).join(", ");
+
   const etiqueta = `
     <div class="label">
       <div class="label-body">
@@ -462,6 +474,7 @@ export function printEtiquetasEnvio(remito) {
           <span class="lbl-key">PARA:</span>
         </div>
         <div class="lbl-name">*${remito.customer_name || "—"}</div>
+        ${customerAddr ? `<div class="lbl-address">${customerAddr}</div>` : ""}
         <div style="margin: 6px 0; border-top: 1px dashed #aaa;"></div>
         <div class="lbl-row">
           <span class="lbl-key">Envía:</span>
@@ -492,23 +505,27 @@ export function printEtiquetasEnvio(remito) {
       font-family: 'Helvetica Neue', Arial, sans-serif;
       background: #fff;
     }
+    html, body { height: 100%; }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 0;
+      grid-template-rows: 1fr 1fr;
       width: 100%;
+      height: 100%;
+      gap: 0;
     }
     .label {
       border: 1px solid #bbb;
-      padding: 14px 12px;
-      min-height: 140px;
+      padding: 18px 16px;
       page-break-inside: avoid;
+      overflow: hidden;
     }
     .label-body { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .lbl-key  { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; }
-    .lbl-val  { font-size: 12px; font-weight: 600; }
-    .lbl-name { font-size: 14px; font-weight: 800; margin: 2px 0; }
-    .lbl-row  { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
+    .lbl-key     { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; }
+    .lbl-val     { font-size: 12px; font-weight: 600; }
+    .lbl-name    { font-size: 18px; font-weight: 800; margin: 2px 0; }
+    .lbl-address { font-size: 15px; color: #222; font-weight: 600; margin-bottom: 4px; }
+    .lbl-row     { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
     .lbl-transport-row {
       display: flex;
       align-items: flex-end;
@@ -520,17 +537,18 @@ export function printEtiquetasEnvio(remito) {
     .lbl-transport-name { font-size: 11px; font-weight: 700; }
     .lbl-transport-dir  { font-size: 10px; color: #555; line-height: 1.3; }
     .lbl-bultos {
-      font-size: 42px;
+      font-size: 48px;
       font-weight: 900;
       line-height: 1;
       color: #111;
       text-align: right;
-      min-width: 50px;
+      min-width: 54px;
       border: 2px solid #111;
-      padding: 2px 8px;
+      padding: 2px 10px;
     }
     @media print {
-      @page { margin: 0.5cm; size: A4; }
+      html, body { height: 100%; margin: 0; }
+      @page { margin: 0.5cm; size: A4 landscape; }
     }
   </style>
 </head>
