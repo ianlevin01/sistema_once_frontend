@@ -17,7 +17,7 @@ import { useToast } from "../utils/useToast";
 // ─────────────────────────────────────────────────────────────
 const fmtARS  = (n) => `$${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtUSD  = (n) => `USD ${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-AR") : "—");
+const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—");
 const fmtMonto = (n, divisa) => (divisa === "USD" ? fmtUSD(n) : fmtARS(n));
 
 const COND_IVA    = ["Resp. Inscripto", "Resp. Monotributo", "Consumidor Final", "Exento"];

@@ -7,7 +7,7 @@ import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
-import { printComprobantePDF } from "../utils/printDoc";
+import { printComprobantePDF, printRemitoPDF } from "../utils/printDoc";
 
 // ── Constantes ────────────────────────────────────────────────
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
@@ -19,7 +19,7 @@ const PRECIO_LBL = {
 
 const today   = () => new Date().toISOString().slice(0, 10);
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
-const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR") : "—";
+const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—";
 const fmtUSD  = (n) => `USD ${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
 
 // ── API helpers locales ───────────────────────────────────────
@@ -1306,7 +1306,7 @@ export default function CajaListado() {
                           ${fmt(r.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF({...r, tipo:"Remito"})}>🖨️</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => printRemitoPDF(r)}>🖨️</button>
                         </td>
                       </tr>
                     ))}

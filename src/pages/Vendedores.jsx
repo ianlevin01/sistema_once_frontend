@@ -168,7 +168,7 @@ export default function Vendedores() {
                   <ROW label="Nombre" value={selected.nombre} />
                   <ROW label="Email"  value={selected.email} />
                   <ROW label="Estado" value={selected.activo ? "Activo" : "Inactivo"} />
-                  <ROW label="Alta"   value={selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : null} mono />
+                  <ROW label="Alta"   value={selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : null} mono />
                 </div>
 
                 {/* Columna derecha: stat de ventas */}

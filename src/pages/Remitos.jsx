@@ -313,7 +313,7 @@ export default function Remitos({ initialCreating = false }) {
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.customer_name || "—"}</td>
                         <td style={{ fontFamily:"var(--font-mono)", fontSize:13 }}>{r.items?.length ?? "—"}</td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>
-                          {r.created_at ? new Date(r.created_at).toLocaleDateString("es-AR") : "—"}
+                          {r.created_at ? new Date(r.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
@@ -357,7 +357,7 @@ export default function Remitos({ initialCreating = false }) {
                 {/* Meta */}
                 <div style={{ display:"flex", gap:12, marginBottom:14, flexWrap:"wrap" }}>
                   <span style={{ fontSize:12, color:"var(--text-dim)" }}>
-                    {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : "—"}
+                    {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                   </span>
                   {selected.customer_name && (
                     <span style={{ fontSize:13, color:"var(--text-muted)" }}>Cliente: {selected.customer_name}</span>

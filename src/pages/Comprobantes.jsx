@@ -416,7 +416,7 @@ function LeftPanel({
           <div style={{ padding:"12px 16px" }}>
             {esReposicion && (
               <div className="input-group">
-                <label className="input-label">Depósito destino</label>
+                <label className="input-label">{tipo === "Devol a proveedor" ? "Depósito origen" : "Depósito destino"}</label>
                 <select className="select" value={warehouseId} onChange={(e) => setWarehouseId(e.target.value)} style={{ fontSize:12, height:32 }}>
                   <option value="">— seleccionar —</option>
                   {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -597,6 +597,13 @@ export default function Comprobantes({ initialCreating = false }) {
   const isEditing             = !!editingId;
   const total                 = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
 
+  // Pre-populate warehouseId with user's warehouse when switching to supplier op type
+  useEffect(() => {
+    if (esReposicion && !warehouseId && user?.warehouse_id) {
+      setWarehouseId(user.warehouse_id);
+    }
+  }, [esReposicion]);
+
   // ── Carga ─────────────────────────────────────────────────────
   const loadAll = async (f = appliedFrom, t = appliedTo) => {
     setLoading(true);
@@ -701,7 +708,8 @@ export default function Comprobantes({ initialCreating = false }) {
       await createComprobante({
         customer_id:             esReposicion ? null : (esConsumidorFinal ? null : custSel.id),
         supplier_id:             esReposicion ? provSel.id : null,
-        warehouse_id:            esReposicion ? warehouseId : (user?.warehouse_id || null),
+        warehouse_id:            user?.warehouse_id || null,
+        destino_warehouse_id:    esReposicion ? (warehouseId || null) : null,
         user_id:                 user?.id || null,
         payment_method:          payMethod,
         tipo, vendedor, price_type: priceType, texto_libre: textoLibre,
@@ -859,7 +867,7 @@ export default function Comprobantes({ initialCreating = false }) {
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{c.payment_method || "—"}</td>
                         <td><span className="badge badge-success">{c.status}</span></td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>
-                          {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : "—"}
+                          {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
@@ -1023,7 +1031,7 @@ export default function Comprobantes({ initialCreating = false }) {
                       <span style={{ color:"rgba(255,200,0,0.8)" }}>⏱</span>
                       <span>Última venta a <strong style={{ color:"var(--text)" }}>{custSel.name}</strong>:</span>
                       <span style={{ color:"var(--accent)", fontWeight:700 }}>${fmt(lastPrice.unit_price)}</span>
-                      <span style={{ color:"var(--text-dim)" }}>el {new Date(lastPrice.created_at).toLocaleDateString("es-AR")}</span>
+                      <span style={{ color:"var(--text-dim)" }}>el {new Date(lastPrice.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}</span>
                     </div>
                   )}
                 </div>

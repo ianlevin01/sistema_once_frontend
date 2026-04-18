@@ -3,7 +3,7 @@
  */
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+  d ? new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" }) : "—";
 
 const fmtMoney = (n) =>
   Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -298,7 +298,7 @@ export function printComprobantePDF(doc) {
   </div>` : ""}
 
   <div class="footer">
-    Documento generado el ${new Date().toLocaleString("es-AR")}
+    Documento generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
   </div>
 </body>
 </html>`;

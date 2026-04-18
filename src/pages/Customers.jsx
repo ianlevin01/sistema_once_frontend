@@ -325,7 +325,7 @@ export default function Customers() {
 
                   <div style={{ marginTop:16, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.1em", marginBottom:10 }}>Alta</div>
                   <div style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>
-                    {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : "—"}
+                    {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                   </div>
                 </div>
               </div>

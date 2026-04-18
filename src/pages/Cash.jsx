@@ -180,7 +180,7 @@ export default function Cash() {
                         {esUSD ? fmtUSD(m.amount) : fmtARS(m.amount)}
                       </td>
                       <td style={{ fontSize:12, color:"var(--text-muted)" }}>
-                        {m.created_at ? new Date(m.created_at).toLocaleDateString("es-AR") : "—"}
+                        {m.created_at ? new Date(m.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                       </td>
                     </tr>
                   );

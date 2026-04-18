@@ -228,7 +228,7 @@ export default function Layout({ children }) {
               background: "var(--bg3)", padding: "4px 10px",
               borderRadius: "var(--radius)", border: "1px solid var(--border)",
             }}>
-              {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric" })}
+              {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" })}
             </span>
           </div>
         </header>

@@ -8,7 +8,7 @@ import { printRemitoTransporte, printEtiquetasEnvio } from "../utils/printDoc";
 import { useAuth } from "../utils/useAuth";
 
 const fmtDate = (d) =>
-  d ? new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+  d ? new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" }) : "—";
 
 const fmtMoney = (n) =>
   Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });

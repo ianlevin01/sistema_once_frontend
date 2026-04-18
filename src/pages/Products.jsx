@@ -601,7 +601,7 @@ export default function Products() {
                     <LBL>Clasificación</LBL>
                     <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:6 }}>
                       <Field label="Categoría"  value={selected.category?.name || selected.category_name || selected.category_id || "—"} />
-                      <Field label="Fecha alta" value={selected.fecha || (selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR") : null)} mono />
+                      <Field label="Fecha alta" value={selected.fecha || (selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : null)} mono />
                       <Field label="Estado"     value={selected.active !== false ? "Activo" : "Inactivo"} />
                     </div>
                   </section>
@@ -613,7 +613,7 @@ export default function Products() {
                         {lastCosts.map((c, i) => (
                           <div key={i} style={{ flex:1, background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"7px 10px" }}>
                             <div style={{ fontSize:10, color:"var(--text-dim)", marginBottom:2 }}>
-                              {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR") : `Costo ${i+1}`}
+                              {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : `Costo ${i+1}`}
                             </div>
                             <div style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)" }}>
                               ${FMT(c.cost)}

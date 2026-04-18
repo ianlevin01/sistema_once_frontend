@@ -856,7 +856,7 @@ export default function WebOrders() {
                     <div style={{ fontSize:12, color:"var(--text-dim)" }}>📍 {o.customer_city}</div>
                   )}
                   <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:4, fontFamily:"var(--font-mono)" }}>
-                    {new Date(o.created_at).toLocaleString("es-AR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit" })}
+                    {new Date(o.created_at).toLocaleString("es-AR", { day:"2-digit", month:"2-digit", hour:"2-digit", minute:"2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
                   </div>
                 </div>
               );
@@ -1006,7 +1006,7 @@ export default function WebOrders() {
                   })()}
 
                   <div style={{ marginTop:12, fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>
-                    {new Date(selected.created_at).toLocaleString("es-AR")}
+                    {new Date(selected.created_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
                   </div>
                 </div>
               </div>
