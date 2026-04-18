@@ -69,7 +69,21 @@ export default function Remitos({ initialCreating = false }) {
   const [itemDesc,    setItemDesc]    = useState("");
   const [saving,      setSaving]      = useState(false);
 
-  const qtyRef = useRef(null);
+  const qtyRef        = useRef(null);
+  const origenRef     = useRef(null);
+  const destinoRef    = useRef(null);
+  const custInputRef  = useRef(null);
+  const priceTypeRef  = useRef(null);
+  const prodSearchRef = useRef(null);
+
+  const [custHighlight,  setCustHighlight]  = useState(-1);
+  const [focusedSection, setFocusedSection] = useState(null);
+
+  const sectionFocusProps = (name) => ({
+    onFocus: () => setFocusedSection(name),
+    onBlur:  (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setFocusedSection(null); },
+  });
+
   const { addToast, ToastContainer } = useToast();
 
   const loadAll = async (f = appliedFrom, t = appliedTo) => {
@@ -110,13 +124,56 @@ export default function Remitos({ initialCreating = false }) {
   useEffect(() => {
     if (!custQuery.trim()) { setCustResults([]); return; }
     const t = setTimeout(async () => {
-      try { const { data } = await searchCustomers(custQuery); setCustResults(data); }
+      try { const { data } = await searchCustomers(custQuery, true); setCustResults(data); }
       catch {}
     }, 300);
     return () => clearTimeout(t);
   }, [custQuery]);
 
-  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); };
+  useEffect(() => { setCustHighlight(-1); }, [custResults]);
+
+  // Auto-foco al abrir el formulario nuevo
+  useEffect(() => {
+    if (creating && !editId) {
+      const t = setTimeout(() => origenRef.current?.focus(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [creating, editId]);
+
+  const selectCust = (c) => {
+    setCustSel(c); setCustQuery(""); setCustResults([]);
+    setTimeout(() => priceTypeRef.current?.focus(), 80);
+  };
+
+  const handleOrigenKeyDown = (e) => {
+    const idx = warehouses.indexOf(origen);
+    if (e.key === "ArrowDown") { e.preventDefault(); setOrigen(warehouses[Math.min(idx + 1, warehouses.length - 1)]); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setOrigen(warehouses[Math.max(idx - 1, 0)]); }
+    else if (e.key === "Enter") { e.preventDefault(); destinoRef.current?.focus(); }
+  };
+
+  const handleDestinoKeyDown = (e) => {
+    const idx = warehouses.indexOf(destino);
+    if (e.key === "ArrowDown") { e.preventDefault(); setDestino(warehouses[Math.min(idx + 1, warehouses.length - 1)]); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setDestino(warehouses[Math.max(idx - 1, 0)]); }
+    else if (e.key === "Enter") { e.preventDefault(); custInputRef.current?.focus(); }
+  };
+
+  const handleCustKeyDown = (e) => {
+    if (custResults.length > 0) {
+      if (e.key === "ArrowDown") { e.preventDefault(); setCustHighlight((i) => Math.min(i + 1, custResults.length - 1)); return; }
+      if (e.key === "ArrowUp")   { e.preventDefault(); setCustHighlight((i) => Math.max(i - 1, 0)); return; }
+      if (e.key === "Enter" && custHighlight >= 0) { e.preventDefault(); selectCust(custResults[custHighlight]); return; }
+    }
+    if (e.key === "Enter") { e.preventDefault(); priceTypeRef.current?.focus(); }
+  };
+
+  const handlePrecioKeyDown = (e) => {
+    const idx = PRECIOS.indexOf(priceType);
+    if (e.key === "ArrowDown" || e.key === "ArrowRight") { e.preventDefault(); setPriceType(PRECIOS[Math.min(idx + 1, PRECIOS.length - 1)]); }
+    else if (e.key === "ArrowUp" || e.key === "ArrowLeft") { e.preventDefault(); setPriceType(PRECIOS[Math.max(idx - 1, 0)]); }
+    else if (e.key === "Enter") { e.preventDefault(); prodSearchRef.current?.focus(); }
+  };
 
   const handleProdSelect = ({ product, price }) => {
     setProdSel(product);
@@ -377,8 +434,16 @@ export default function Remitos({ initialCreating = false }) {
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div>
-                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Origen</div>
-                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto" }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", justifyContent:"space-between" }}>
+                    <span>Origen</span>
+                    {focusedSection==="origen" && <span style={{ fontSize:9, color:"var(--accent)" }}>↑↓ · Enter→</span>}
+                  </div>
+                  <div
+                    ref={origenRef}
+                    tabIndex={0}
+                    onKeyDown={handleOrigenKeyDown}
+                    {...sectionFocusProps("origen")}
+                    style={{ border:`1px solid ${focusedSection==="origen"?"var(--accent)":"var(--border)"}`, borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto", outline:"none", transition:"border-color 0.15s" }}>
                     {warehouses.map((w, idx) => (
                       <div key={`origen-${idx}`} onClick={() => setOrigen(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
@@ -394,8 +459,16 @@ export default function Remitos({ initialCreating = false }) {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Destino</div>
-                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto" }}>
+                  <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", justifyContent:"space-between" }}>
+                    <span>Destino</span>
+                    {focusedSection==="destino" && <span style={{ fontSize:9, color:"var(--info)" }}>↑↓ · Enter→</span>}
+                  </div>
+                  <div
+                    ref={destinoRef}
+                    tabIndex={0}
+                    onKeyDown={handleDestinoKeyDown}
+                    {...sectionFocusProps("destino")}
+                    style={{ border:`1px solid ${focusedSection==="destino"?"var(--info)":"var(--border)"}`, borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto", outline:"none", transition:"border-color 0.15s" }}>
                     {warehouses.map((w, idx) => (
                       <div key={`destino-${idx}`} onClick={() => setDestino(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
@@ -425,17 +498,21 @@ export default function Remitos({ initialCreating = false }) {
                   </div>
                 ) : (
                   <>
-                    <div className="search-bar">
+                    <div className="search-bar" {...sectionFocusProps("cust")} style={{ border:`1px solid ${focusedSection==="cust"?"var(--accent)":"var(--border)"}`, borderRadius:6, transition:"border-color 0.15s" }}>
                       <span className="search-icon">🔍</span>
-                      <input placeholder="Nombre..." value={custQuery} onChange={(e) => setCustQuery(e.target.value)} style={{ fontSize:13 }} />
+                      <input ref={custInputRef} placeholder="Nombre..." value={custQuery}
+                        onChange={(e) => setCustQuery(e.target.value)}
+                        onKeyDown={handleCustKeyDown}
+                        style={{ fontSize:13 }} />
                     </div>
                     {custResults.length > 0 && (
                       <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:130, overflowY:"auto", marginTop:6 }}>
-                        {custResults.map((c) => (
+                        {custResults.map((c, ci) => (
                           <div key={c.id} onClick={() => selectCust(c)}
-                            style={{ padding:"9px 12px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)" }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = "var(--bg2)"}
-                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}>
+                            style={{ padding:"9px 12px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)",
+                              background: custHighlight===ci ? "var(--accent-dim)" : "transparent",
+                              color:      custHighlight===ci ? "var(--accent)"     : "var(--text)",
+                            }}>
                             {c.name}
                           </div>
                         ))}
@@ -447,19 +524,25 @@ export default function Remitos({ initialCreating = false }) {
 
               {/* Tipo precio */}
               <div>
-                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Precio</div>
-                <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8, display:"flex", justifyContent:"space-between" }}>
+                  <span>Precio</span>
+                  {focusedSection==="precio" && <span style={{ fontSize:9, color:"var(--accent)" }}>←→ · Enter→</span>}
+                </div>
+                <div ref={priceTypeRef} tabIndex={0} onKeyDown={handlePrecioKeyDown}
+                  {...sectionFocusProps("precio")}
+                  style={{ display:"flex", flexWrap:"wrap", gap:6, outline:"none", padding:2 }}>
                   {PRECIOS.map((p) => (
-                    <div key={p} onClick={() => setPriceType(p)}
-                      style={{ padding:"8px 12px", fontSize:13, cursor:"pointer",
-                        background: priceType===p ? "var(--accent-dim)" : "transparent",
+                    <button key={p} onClick={() => setPriceType(p)}
+                      style={{ padding:"5px 11px", fontSize:12, cursor:"pointer", borderRadius:20,
+                        border:`1.5px solid ${priceType===p ? "var(--accent)" : "var(--border)"}`,
+                        background: priceType===p ? "var(--accent-dim)" : "var(--bg3)",
                         color:      priceType===p ? "var(--accent)"     : "var(--text-muted)",
-                        borderLeft: `3px solid ${priceType===p ? "var(--accent)" : "transparent"}`,
-                        borderBottom:"1px solid var(--border)",
-                        fontWeight: priceType===p ? 600 : 400,
+                        fontWeight: priceType===p ? 700 : 400,
+                        fontFamily:"var(--font-mono)",
+                        transition:"all 0.12s",
                       }}>
                       {PRECIO_LBL[p]}
-                    </div>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -560,7 +643,7 @@ export default function Remitos({ initialCreating = false }) {
               <div style={{ display:"flex", gap:10, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Código o descripción</div>
-                  <ProductSearchBar priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
+                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 110px" }}>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>Cantidad</div>

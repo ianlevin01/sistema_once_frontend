@@ -106,7 +106,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
   useEffect(() => {
     if (!open || !custQuery.trim() || esReposicion) { setCustRes([]); return; }
     const t = setTimeout(async () => {
-      try { const { data } = await searchCustomers(custQuery); setCustRes(data); } catch {}
+      try { const { data } = await searchCustomers(custQuery, true); setCustRes(data); } catch {}
     }, 300);
     return () => clearTimeout(t);
   }, [custQuery, open, esReposicion]);
@@ -283,7 +283,7 @@ function PresModal({ m }) {
     const idx = TIPOS_MODAL.indexOf(m.tipo);
     if (e.key === "ArrowDown") { e.preventDefault(); m.setTipo(TIPOS_MODAL[Math.min(idx + 1, TIPOS_MODAL.length - 1)]); }
     else if (e.key === "ArrowUp") { e.preventDefault(); m.setTipo(TIPOS_MODAL[Math.max(idx - 1, 0)]); }
-    else if (e.key === "Enter") { e.preventDefault(); custInputRef.current?.focus(); }
+    else if (e.key === "Enter") { e.preventDefault(); (m.custSel ? pagoWrapRef : custInputRef).current?.focus(); }
   };
 
   const handleCustKeyDown = (e) => {
