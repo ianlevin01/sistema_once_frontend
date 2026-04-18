@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:3000/api",
+  baseURL: "https://oncepuntos.duckdns.org/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -97,6 +97,7 @@ export const getRemitos    = (from, to) =>
   api.get(`/remitos${from && to ? `?from=${from}&to=${to}` : ""}`);
 export const getRemito     = (id)   => api.get(`/remitos/${id}`);
 export const createRemito  = (data) => api.post("/remitos", data);
+export const updateRemito  = (id, data) => api.put(`/remitos/${id}`, data);
 export const deleteRemito  = (id)   => api.delete(`/remitos/${id}`);
 
 // ── TRANSPORTES ───────────────────────────────────────────────

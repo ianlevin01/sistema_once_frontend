@@ -81,7 +81,7 @@ const BASE_CSS = `
 `;
 
 // ─────────────────────────────────────────────────────────────
-// IMPRIMIR REMITO
+// IMPRIMIR REMITO — 2 copias por hoja
 // ─────────────────────────────────────────────────────────────
 export function printRemitoPDF(remito, sinPrecios = false) {
   const items = remito.items || [];
@@ -89,7 +89,7 @@ export function printRemitoPDF(remito, sinPrecios = false) {
 
   const itemsHtml = items.map((it) => `
     <tr>
-      <td style="font-family:monospace;font-size:11px;color:#555">${it.code || "—"}</td>
+      <td style="font-family:monospace;color:#555">${it.code || "—"}</td>
       <td>${it.name || it.description || "—"}</td>
       <td class="right" style="font-family:monospace">${it.quantity}</td>
       ${sinPrecios ? "" : `
@@ -99,74 +99,86 @@ export function printRemitoPDF(remito, sinPrecios = false) {
     </tr>
   `).join("");
 
+  const cols = sinPrecios ? 3 : 5;
+
+  const copyHtml = `
+  <div class="remito-copy">
+    <div class="header">
+      <div>
+        <div class="empresa">Remito</div>
+        <div style="font-size:11px;color:#555;margin-top:2px">${remito.origen || "—"} → ${remito.destino || "—"}</div>
+      </div>
+      <div class="doc-info">
+        <div class="doc-tipo">REMITO</div>
+        <div>Fecha: ${fmtDate(remito.created_at)}</div>
+        ${remito.vendedor ? `<div>Vendedor: ${remito.vendedor}</div>` : ""}
+        <div style="font-size:9px;color:#aaa;margin-top:2px">#${(remito.id || "").slice(0, 8).toUpperCase()}</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11px;margin-bottom:8px">
+      <div style="color:#555">Origen</div>   <div style="font-weight:600">${remito.origen || "—"}</div>
+      <div style="color:#555">Destino</div>  <div style="font-weight:600">${remito.destino || "—"}</div>
+      ${remito.customer_name ? `<div style="color:#555">Cliente</div><div style="font-weight:600">${remito.customer_name}</div>` : ""}
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:70px">Código</th>
+          <th>Descripción</th>
+          <th class="right" style="width:50px">Cant.</th>
+          ${sinPrecios ? "" : `
+            <th class="right" style="width:90px">P. Unit.</th>
+            <th class="right" style="width:100px">Total</th>
+          `}
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml || `<tr><td colspan="${cols}" style="text-align:center;color:#999">Sin productos</td></tr>`}
+      </tbody>
+      ${!sinPrecios ? `
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right;font-size:11px;color:#555">TOTAL</td>
+          <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
+        </tr>
+      </tfoot>` : ""}
+    </table>
+    ${remito.texto_libre ? `<div style="margin-top:6px;font-size:10px;color:#555">${remito.texto_libre}</div>` : ""}
+  </div>`;
+
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <title>Remito — ${remito.origen} → ${remito.destino}</title>
-  <style>${BASE_CSS}</style>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
+    .remito-copy { padding: 14px 20px; }
+    .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:10px; }
+    .empresa { font-size:16px; font-weight:800; letter-spacing:-0.5px; }
+    .doc-info { text-align:right; font-size:10px; color:#444; line-height:1.5; }
+    .doc-tipo { font-size:13px; font-weight:700; color:#111; }
+    table { width:100%; border-collapse:collapse; font-size:10px; margin-top:4px; }
+    thead tr { background:#f0f0f0; border-bottom:2px solid #111; }
+    th { padding:5px 6px; text-align:left; font-size:9px; text-transform:uppercase; letter-spacing:0.06em; color:#444; }
+    th.right, td.right { text-align:right; }
+    td { padding:5px 6px; border-bottom:1px solid #e0e0e0; }
+    tbody tr:last-child td { border-bottom:none; }
+    tbody tr:nth-child(even) { background:#f7f7f7; }
+    .total-row { border-top:2px solid #111; font-weight:800; }
+    .total-row td { padding:6px 6px; }
+    .cut { border:none; border-top:1px dashed #bbb; margin:2px 0; }
+    @media print {
+      @page { margin: 0.8cm; size: A4; }
+      .remito-copy { padding: 10px 16px; }
+    }
+  </style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <div class="empresa">Remito</div>
-      <div style="font-size:12px;color:#555;margin-top:4px">
-        ${remito.origen || "—"} → ${remito.destino || "—"}
-      </div>
-    </div>
-    <div class="doc-info">
-      <div class="doc-tipo">REMITO</div>
-      <div>Fecha: ${fmtDate(remito.created_at)}</div>
-      ${remito.vendedor ? `<div>Vendedor: ${remito.vendedor}</div>` : ""}
-      <div style="font-size:10px;color:#aaa;margin-top:4px">#${(remito.id || "").slice(0, 8).toUpperCase()}</div>
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Movimiento</div>
-    <div class="meta-grid">
-      <div class="key">Origen</div>   <div class="val">${remito.origen || "—"}</div>
-      <div class="key">Destino</div>  <div class="val">${remito.destino || "—"}</div>
-      ${remito.customer_name ? `<div class="key">Cliente</div><div class="val">${remito.customer_name}</div>` : ""}
-    </div>
-  </div>
-
-  <div class="section">
-    <div class="section-title">Productos (${items.length})</div>
-    <table>
-      <thead>
-        <tr>
-          <th style="width:80px">Código</th>
-          <th>Descripción</th>
-          <th class="right" style="width:60px">Cant.</th>
-          ${sinPrecios ? "" : `
-            <th class="right" style="width:100px">P. Unit.</th>
-            <th class="right" style="width:110px">Total</th>
-          `}
-        </tr>
-      </thead>
-      <tbody>
-        ${itemsHtml || "<tr><td colspan='5' style='text-align:center;color:#999'>Sin productos</td></tr>"}
-      </tbody>
-      ${!sinPrecios ? `
-      <tfoot>
-        <tr class="total-row">
-          <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
-          <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
-        </tr>
-      </tfoot>` : ""}
-    </table>
-  </div>
-
-  ${remito.texto_libre ? `
-  <div class="section">
-    <div class="section-title">Observaciones</div>
-    <div style="font-size:12px;color:#444;line-height:1.6">${remito.texto_libre}</div>
-  </div>` : ""}
-
-  <div class="footer">
-    Documento generado el ${new Date().toLocaleString("es-AR")}
-  </div>
+  ${copyHtml}
+  <hr class="cut" />
+  ${copyHtml}
 </body>
 </html>`;
 

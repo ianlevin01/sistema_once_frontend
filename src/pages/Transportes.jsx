@@ -12,6 +12,7 @@ export default function Transportes() {
   const [editing, setEditing] = useState(null); // null | "new" | objeto transporte
   const [form,    setForm]    = useState(EMPTY);
   const [saving,  setSaving]  = useState(false);
+  const [search,  setSearch]  = useState("");
   const { addToast, ToastContainer } = useToast();
 
   const load = async () => {
@@ -105,7 +106,12 @@ export default function Transportes() {
       {activeTab === "remitos-transporte" && <RemitoTransporteTab />}
 
       {activeTab === "transportes" && (<>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, gap: 12 }}>
+        <div className="search-bar" style={{ width: 260 }}>
+          <span className="search-icon">🔍</span>
+          <input placeholder="Buscar por nombre o código..." value={search}
+            onChange={(e) => setSearch(e.target.value)} style={{ fontSize: 13 }} />
+        </div>
         <button className="btn btn-primary" onClick={openNew}>+ Nuevo transporte</button>
       </div>
 
@@ -169,7 +175,13 @@ export default function Transportes() {
               </tr>
             </thead>
             <tbody>
-              {list.map((t, i) => (
+              {list.filter((t) => {
+                if (!search.trim()) return true;
+                const q = search.toLowerCase();
+                return (t.razon_social || "").toLowerCase().includes(q)
+                  || (t.codigo || "").toLowerCase().includes(q)
+                  || (t.telefono || "").toLowerCase().includes(q);
+              }).map((t, i) => (
                 <tr key={t.id} style={{ borderBottom: i < list.length - 1 ? "1px solid var(--border)" : "none" }}>
                   <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12 }}>{t.codigo}</td>
                   <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>{t.razon_social}</td>

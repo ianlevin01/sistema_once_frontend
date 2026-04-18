@@ -373,10 +373,11 @@ export default function WebOrders() {
   const [presPriceType,setPresPriceType]= useState("precio_1");
   const [presVendedor, setPresVendedor] = useState("");
   const [presTexto,    setPresTexto]    = useState("");
-  const [presCustSel,  setPresCustSel]  = useState(null);
-  const [presCustQuery,setPresCustQuery]= useState("");
-  const [presCustRes,  setPresCustRes]  = useState([]);
-  const [presItems,    setPresItems]    = useState([]);
+  const [presCustSel,     setPresCustSel]     = useState(null);
+  const [presCustQuery,   setPresCustQuery]   = useState("");
+  const [presCustRes,     setPresCustRes]     = useState([]);
+  const [presNoCCWarning, setPresNoCCWarning] = useState(false);
+  const [presItems,       setPresItems]       = useState([]);
   const [presProdSel,  setPresProdSel]  = useState(null);
   const [presItemQty,  setPresItemQty]  = useState("");
   const [presItemPrice,setPresItemPrice]= useState("");
@@ -389,7 +390,7 @@ export default function WebOrders() {
   useEffect(() => {
     if (!presModal || !presCustQuery.trim()) { setPresCustRes([]); return; }
     const t = setTimeout(async () => {
-      try { const { data } = await searchCustomers(presCustQuery); setPresCustRes(data); } catch {}
+      try { const { data } = await searchCustomers(presCustQuery, true); setPresCustRes(data); } catch {}
     }, 300);
     return () => clearTimeout(t);
   }, [presCustQuery, presModal]);
@@ -475,8 +476,14 @@ export default function WebOrders() {
       unit_price:  Number(i.unit_price || 0),
     }));
     setPresItems(itemsPre);
+    setPresNoCCWarning(false);
     if (selected.customer_id) {
       setPresCustSel({ id: selected.customer_id, name: selected.customer_name });
+      // Verificar si el cliente tiene CC
+      searchCustomers(selected.customer_name || "", true).then(({ data }) => {
+        const hasCC = data.some((c) => c.id === selected.customer_id);
+        setPresNoCCWarning(!hasCC);
+      }).catch(() => {});
     } else {
       setPresCustSel(null);
       setPresCustQuery(selected.customer_name || "");
@@ -493,7 +500,7 @@ export default function WebOrders() {
     setPresModal(true);
   };
 
-  const presSelectCust = (c) => { setPresCustSel(c); setPresCustQuery(""); setPresCustRes([]); };
+  const presSelectCust = (c) => { setPresCustSel(c); setPresCustQuery(""); setPresCustRes([]); setPresNoCCWarning(false); };
 
   const presHandleProdSelect = ({ product, price }) => {
     setPresProdSel(product);
@@ -537,7 +544,7 @@ export default function WebOrders() {
         items: presItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Presupuesto Web creado", "success");
-      setPresModal(false);
+      setPresModal(false); setPresNoCCWarning(false);
       if (selected) setColor(selected.id, "green");
     } catch { addToast("Error creando presupuesto", "error"); }
     setPresSaving(false);
@@ -602,13 +609,13 @@ export default function WebOrders() {
 
       {/* ── MODAL PRESUPUESTAR ──────────────────────────────── */}
       {presModal && (
-        <div className="modal-overlay" onClick={() => setPresModal(false)}>
+        <div className="modal-overlay" onClick={() => { setPresModal(false); setPresNoCCWarning(false); }}>
           <div className="modal" style={{ maxWidth:900, width:"96vw", maxHeight:"92vh", overflow:"hidden", display:"flex", flexDirection:"column" }}
             onClick={(e) => e.stopPropagation()}>
 
             <div className="modal-header" style={{ flexShrink:0 }}>
               <span className="modal-title">🧾 Presupuesto Web — {selected?.customer_name}</span>
-              <button className="modal-close" onClick={() => setPresModal(false)}>✕</button>
+              <button className="modal-close" onClick={() => { setPresModal(false); setPresNoCCWarning(false); }}>✕</button>
             </div>
 
             <div style={{ display:"flex", flex:1, overflow:"hidden", minHeight:0 }}>
@@ -623,15 +630,26 @@ export default function WebOrders() {
                 <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                   <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente</div>
                   {presCustSel ? (
-                    <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{presCustSel.name}</span>
-                      <button onClick={() => setPresCustSel(null)} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
-                    </div>
+                    <>
+                      <div style={{
+                        background: presNoCCWarning ? "rgba(234,179,8,.10)" : "var(--accent-dim)",
+                        border: `1px solid ${presNoCCWarning ? "#ca8a04" : "var(--accent)"}`,
+                        borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between",
+                      }}>
+                        <span style={{ fontSize:13, color: presNoCCWarning ? "#92400e" : "var(--accent)", fontWeight:600 }}>{presCustSel.name}</span>
+                        <button onClick={() => { setPresCustSel(null); setPresNoCCWarning(false); }} style={{ background:"none", border:"none", color: presNoCCWarning ? "#92400e" : "var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
+                      </div>
+                      {presNoCCWarning && (
+                        <div style={{ marginTop:5, padding:"5px 8px", background:"rgba(234,179,8,.10)", border:"1px solid #ca8a04", borderRadius:4, fontSize:10, color:"#92400e", lineHeight:1.5 }}>
+                          ⚠️ Sin CC registrada. Podés usarlo igual o ✕ para buscar uno con CC.
+                        </div>
+                      )}
+                    </>
                   ) : (
                     <>
                       <div className="search-bar" style={{ height:36 }}>
                         <span className="search-icon">🔍</span>
-                        <input placeholder="Nombre o CUIT..." value={presCustQuery}
+                        <input placeholder="Buscar con CC..." value={presCustQuery}
                           onChange={(e) => setPresCustQuery(e.target.value)} style={{ fontSize:12 }} />
                       </div>
                       {presCustRes.length > 0 && (
@@ -682,7 +700,7 @@ export default function WebOrders() {
                     style={{ width:"100%", fontSize:13, padding:"10px" }}>
                     {presSaving ? "Guardando..." : "✓ Cerrar presupuesto"}
                   </button>
-                  <button className="btn btn-ghost" onClick={() => setPresModal(false)}
+                  <button className="btn btn-ghost" onClick={() => { setPresModal(false); setPresNoCCWarning(false); }}
                     style={{ width:"100%", fontSize:13 }}>Cancelar</button>
                 </div>
               </div>

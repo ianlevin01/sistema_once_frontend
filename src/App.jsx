@@ -48,6 +48,12 @@ function AppRoutes() {
       <Route path="/remitos" element={
         <PrivateRoute><Layout><Remitos /></Layout></PrivateRoute>
       } />
+      <Route path="/remitos/nuevo" element={
+        <PrivateRoute><Layout><Remitos initialCreating={true} /></Layout></PrivateRoute>
+      } />
+      <Route path="/remitos/editar/:editId" element={
+        <PrivateRoute><Layout><Remitos /></Layout></PrivateRoute>
+      } />
       <Route path="/caja" element={
         <PrivateRoute><Layout><Cash /></Layout></PrivateRoute>
       } />

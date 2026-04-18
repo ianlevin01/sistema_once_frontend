@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import {
-  getRemitos, getRemito, createRemito, deleteRemito,
+  getRemitos, getRemito, createRemito, updateRemito, deleteRemito,
   searchCustomers,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
@@ -27,13 +28,14 @@ function useWarehouses() {
   return warehouses;
 }
 
-export default function Remitos() {
+export default function Remitos({ initialCreating = false }) {
+  const { editId } = useParams() ?? {};
   const today      = () => new Date().toISOString().slice(0, 10);
   const warehouses = useWarehouses();
   const [remitos,      setRemitos]      = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
-  const [creating,     setCreating]     = useState(false);
+  const [creating,     setCreating]     = useState(initialCreating);
   const [from,         setFrom]         = useState(today());
   const [to,           setTo]           = useState(today());
   const [appliedFrom,  setAppliedFrom]  = useState(today());
@@ -85,6 +87,26 @@ export default function Remitos() {
 
   useEffect(() => { loadAll(today(), today()); }, []);
 
+  // Cargar remito existente cuando se abre en modo edición
+  useEffect(() => {
+    if (!editId) return;
+    setCreating(true);
+    getRemito(editId).then(({ data }) => {
+      setOrigen(data.origen || "");
+      setDestino(data.destino || "");
+      setPriceType(data.price_type || "precio_1");
+      if (data.customer_id) setCustSel({ id: data.customer_id, name: data.customer_name });
+      setItems((data.items || []).map((i) => ({
+        product_id: i.product_id,
+        code:       i.code || "",
+        name:       i.name || "",
+        description:i.name || "",
+        quantity:   i.quantity,
+        unit_price: Number(i.unit_price || 0),
+      })));
+    }).catch(() => addToast("Error cargando remito", "error"));
+  }, [editId]);
+
   useEffect(() => {
     if (!custQuery.trim()) { setCustResults([]); return; }
     const t = setTimeout(async () => {
@@ -134,17 +156,23 @@ export default function Remitos() {
     if (!origen || !destino)   { addToast("Seleccioná origen y destino", "error"); return; }
     if (items.length === 0)    { addToast("Agregá al menos un producto", "error"); return; }
     setSaving(true);
+    const payload = {
+      origen, destino,
+      customer_id: custSel?.id || null,
+      price_type:  priceType,
+      items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
+    };
     try {
-      const { data: newRemito } = await createRemito({
-        origen, destino,
-        user_id:    null,
-        customer_id: custSel?.id || null,
-        price_type:  priceType,
-        items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
-      });
+      if (editId) {
+        await updateRemito(editId, payload);
+        addToast("Remito actualizado", "success");
+        setTimeout(() => window.close(), 800);
+        return;
+      }
+      const { data: newRemito } = await createRemito({ ...payload, user_id: null });
       addToast("Remito creado", "success");
+      if (initialCreating) { setTimeout(() => window.close(), 800); return; }
       setCreating(false); resetForm(); loadAll();
-      // Ofrecer imprimir inmediatamente
       const remitoPrint = {
         ...newRemito,
         origen, destino,
@@ -154,7 +182,7 @@ export default function Remitos() {
       if (confirm("¿Querés imprimir el remito ahora?")) {
         printRemitoPDF(remitoPrint, sinPrecios);
       }
-    } catch { addToast("Error creando remito", "error"); }
+    } catch { addToast(editId ? "Error actualizando remito" : "Error creando remito", "error"); }
     setSaving(false);
   };
 
@@ -200,7 +228,7 @@ export default function Remitos() {
             )}
             <div style={{ marginLeft:"auto" }}>
               <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
-                onClick={() => { setCreating(true); resetForm(); }}>
+                onClick={() => window.open("/remitos/nuevo", "_blank", "width=1440,height=900,noopener")}>
                 + Nuevo remito
               </button>
             </div>
@@ -233,6 +261,10 @@ export default function Remitos() {
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(r.id)}>Ver</button>
+                            <button className="btn btn-ghost btn-sm" title="Editar"
+                              onClick={() => window.open(`/remitos/editar/${r.id}`, "_blank", "width=1440,height=900,noopener")}>
+                              ✏️
+                            </button>
                             <button className="btn btn-ghost btn-sm" title="Imprimir"
                               style={{ fontSize:15 }}
                               onClick={async () => {
@@ -341,12 +373,12 @@ export default function Remitos() {
             {/* Origen / Destino */}
             <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--accent)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:14 }}>
-                Nuevo Remito
+                {editId ? "Editar Remito" : "Nuevo Remito"}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Origen</div>
-                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto" }}>
                     {warehouses.map((w, idx) => (
                       <div key={`origen-${idx}`} onClick={() => setOrigen(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
@@ -363,7 +395,7 @@ export default function Remitos() {
                 </div>
                 <div>
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Destino</div>
-                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)" }}>
+                  <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", background:"var(--bg3)", maxHeight:160, overflowY:"auto" }}>
                     {warehouses.map((w, idx) => (
                       <div key={`destino-${idx}`} onClick={() => setDestino(w)}
                         style={{ padding:"7px 10px", fontSize:13, cursor:"pointer",
@@ -442,9 +474,9 @@ export default function Remitos() {
             <div style={{ padding:"16px 18px", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <button className="btn btn-primary" onClick={handleCreate} disabled={saving}
                 style={{ width:"100%", fontSize:14, padding:"12px" }}>
-                {saving ? "Guardando..." : "✓ Cerrar remito"}
+                {saving ? "Guardando..." : editId ? "✓ Guardar cambios" : "✓ Cerrar remito"}
               </button>
-              <button className="btn btn-ghost" onClick={() => { setCreating(false); resetForm(); }}
+              <button className="btn btn-ghost" onClick={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
                 style={{ width:"100%", fontSize:14 }}>
                 Cancelar
               </button>
