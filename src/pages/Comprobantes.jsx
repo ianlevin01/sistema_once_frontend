@@ -65,7 +65,7 @@ function LeftPanel({
   provSel, provQuery, setProvQuery, provResults, selectProv, setProvSel,
   warehouses, warehouseId, setWarehouseId,
   vendedores, lastPrice, user,
-  onSave, onCancel, saving, isEditing,
+  onSave, onCancel, onReset, saving, isEditing,
   total, itemCount,
   onObsEnter,
 }) {
@@ -74,6 +74,9 @@ function LeftPanel({
 
   // ── Refs para navegación por teclado ──────────────────────
   const tipoWrapRef   = useRef(null);
+  const cfToggleRef   = useRef(null);
+  const cfNombreRef   = useRef(null);
+  const divisaWrapRef = useRef(null);
   const custInputRef  = useRef(null);
   const pagoWrapRef   = useRef(null);
   const precioWrapRef = useRef(null);
@@ -137,7 +140,32 @@ function LeftPanel({
       setTipo(TIPOS[Math.max(idx - 1, 0)]);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      custInputRef.current?.focus();
+      if (admiteConsumidorFinal) cfToggleRef.current?.focus();
+      else custInputRef.current?.focus();
+    }
+  };
+
+  // Handler teclado divisa ARS/USD
+  const handleDivisaKeyDown = (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setDivisa((d) => (d === "ARS" ? "USD" : "ARS"));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      setShowConfig(true);
+      setTimeout(() => pagoWrapRef.current?.focus(), 50);
+    }
+  };
+
+  // Handler teclado toggle Cliente/Consumidor Final
+  const handleCfToggleKeyDown = (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      toggleConsumidorFinal(!esConsumidorFinal);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (esConsumidorFinal) cfNombreRef.current?.focus();
+      else custInputRef.current?.focus();
     }
   };
 
@@ -214,13 +242,15 @@ function LeftPanel({
           <div style={{ fontFamily:"var(--font-mono)", fontSize:10, fontWeight:700, color:"var(--accent)", letterSpacing:"0.1em", textTransform:"uppercase" }}>
             {isEditing ? "✏️ Editando" : "Nuevo comprobante"}
           </div>
-          <button
-            onClick={() => window.open("/comprobantes/nuevo", "_blank", "width=1440,height=900,noopener")}
-            style={{ fontSize:10, padding:"3px 9px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, color:"var(--accent)", cursor:"pointer", fontFamily:"var(--font-mono)", fontWeight:700, letterSpacing:"0.06em" }}
-            title="Abrir otro comprobante en nueva ventana"
-          >
-            + NUEVO
-          </button>
+          {!isEditing && (
+            <button
+              onClick={() => { onReset(); setTimeout(() => tipoWrapRef.current?.focus(), 50); }}
+              style={{ fontSize:10, padding:"3px 9px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:4, color:"var(--accent)", cursor:"pointer", fontFamily:"var(--font-mono)", fontWeight:700, letterSpacing:"0.06em" }}
+              title="Borrar todo y empezar un nuevo comprobante"
+            >
+              + NUEVO
+            </button>
+          )}
         </div>
 
         {/* Tipo — botones compactos 2 columnas */}
@@ -318,31 +348,63 @@ function LeftPanel({
         ) : (
           <>
             {admiteConsumidorFinal && (
-              <div style={{ display:"flex", gap:4, marginBottom:8 }}>
-                {["Cliente","Cons. Final"].map((lbl, i) => {
-                  const isCF = i === 1;
-                  const active = esConsumidorFinal === isCF;
-                  return (
-                    <button key={lbl} onClick={() => toggleConsumidorFinal(isCF)}
-                      style={{
-                        flex:1, padding:"5px 0", borderRadius:4, cursor:"pointer", fontSize:11,
-                        fontFamily:"var(--font-mono)", border:"1px solid var(--border)",
-                        background: active ? "var(--accent-dim)" : "transparent",
-                        color:      active ? "var(--accent)"     : "var(--text-dim)",
-                        fontWeight: active ? 700 : 400,
-                      }}>
-                      {lbl}
-                    </button>
-                  );
-                })}
+              <div style={{ marginBottom:8 }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:3 }}>
+                  <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>Tipo cliente</div>
+                  {focusedSection === 'cfToggle' && (
+                    <div style={{ fontSize:9, fontFamily:"var(--font-mono)", color:"var(--accent)", letterSpacing:"0.06em", opacity:0.8 }}>←→ · ENTER avanza</div>
+                  )}
+                </div>
+                <div
+                  ref={cfToggleRef}
+                  tabIndex={0}
+                  onKeyDown={handleCfToggleKeyDown}
+                  {...sectionFocusProps('cfToggle')}
+                  style={{
+                    display:"flex", gap:4, outline:"none",
+                    borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                    boxShadow: focusedSection === 'cfToggle' ? "0 0 0 2px var(--accent)" : "none",
+                  }}
+                >
+                  {["Cliente","Cons. Final"].map((lbl, i) => {
+                    const isCF = i === 1;
+                    const active = esConsumidorFinal === isCF;
+                    return (
+                      <button key={lbl} onClick={() => toggleConsumidorFinal(isCF)}
+                        style={{
+                          flex:1, padding:"5px 0", borderRadius:4, cursor:"pointer", fontSize:11,
+                          fontFamily:"var(--font-mono)", border:"1px solid var(--border)",
+                          background: active ? "var(--accent-dim)" : "transparent",
+                          color:      active ? "var(--accent)"     : "var(--text-dim)",
+                          fontWeight: active ? 700 : 400,
+                          transform: (focusedSection === 'cfToggle' && active) ? "scale(1.03)" : "none",
+                          transition: "transform 0.1s",
+                        }}>
+                        {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
             {esConsumidorFinal ? (
               <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
-                <input className="input" placeholder="Nombre (opcional)" value={consumidorFinalNombre}
-                  onChange={(e) => setConsumidorFinalNombre(e.target.value)} style={{ fontSize:12, height:32 }} />
-                <div style={{ display:"flex", gap:4 }}>
+                <input ref={cfNombreRef} className="input" placeholder="Nombre (opcional)" value={consumidorFinalNombre}
+                  onChange={(e) => setConsumidorFinalNombre(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); divisaWrapRef.current?.focus(); } }}
+                  style={{ fontSize:12, height:32 }} />
+                <div
+                  ref={divisaWrapRef}
+                  tabIndex={0}
+                  onKeyDown={handleDivisaKeyDown}
+                  {...sectionFocusProps('divisa')}
+                  style={{
+                    display:"flex", gap:4, outline:"none",
+                    borderRadius:6, padding:2, transition:"box-shadow 0.15s",
+                    boxShadow: focusedSection === 'divisa' ? "0 0 0 2px var(--accent)" : "none",
+                  }}
+                >
                   {["ARS","USD"].map((d) => (
                     <button key={d} onClick={() => setDivisa(d)}
                       style={{
@@ -351,6 +413,8 @@ function LeftPanel({
                         border:`1px solid ${divisa===d ? "var(--accent)" : "var(--border)"}`,
                         background: divisa===d ? "var(--accent-dim)" : "transparent",
                         color:      divisa===d ? "var(--accent)"     : "var(--text-muted)",
+                        transform: (focusedSection === 'divisa' && divisa === d) ? "scale(1.03)" : "none",
+                        transition: "transform 0.1s",
                       }}>
                       {d === "ARS" ? "🪙 ARS" : "💵 USD"}
                     </button>
@@ -830,7 +894,7 @@ export default function Comprobantes({ initialCreating = false }) {
             </div>
             <div style={{ flex:1 }} />
             <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
-              onClick={() => window.open("/comprobantes/nuevo", "_blank", "width=1440,height=900,noopener")}>
+              onClick={() => window.open("/comprobantes/nuevo", "_blank")}>
               + Nuevo comprobante
             </button>
           </div>
@@ -973,6 +1037,7 @@ export default function Comprobantes({ initialCreating = false }) {
             vendedores={vendedores} lastPrice={lastPrice} user={user}
             onSave={isEditing ? handleSaveEdit : handleCreate}
             onCancel={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
+            onReset={resetForm}
             saving={saving} isEditing={isEditing}
             total={total} itemCount={items.length}
             onObsEnter={() => prodSearchRef.current?.focus()}
