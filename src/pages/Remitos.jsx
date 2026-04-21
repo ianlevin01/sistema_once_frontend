@@ -285,7 +285,7 @@ export default function Remitos({ initialCreating = false }) {
             )}
             <div style={{ marginLeft:"auto" }}>
               <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
-                onClick={() => window.open("/remitos/nuevo", "_blank", "width=1440,height=900,noopener")}>
+                onClick={() => window.open("/remitos/nuevo", "_blank")}>
                 + Nuevo remito
               </button>
             </div>
