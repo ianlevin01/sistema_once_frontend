@@ -30,7 +30,7 @@ function useWarehouses() {
 
 export default function Remitos({ initialCreating = false }) {
   const { editId } = useParams() ?? {};
-  const today      = () => new Date().toISOString().slice(0, 10);
+  const today      = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
   const warehouses = useWarehouses();
   const [remitos,      setRemitos]      = useState([]);
   const [loading,      setLoading]      = useState(true);

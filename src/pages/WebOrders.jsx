@@ -21,7 +21,7 @@ const PRECIO_LBL = {
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 
 // ─────────────────────────────────────────────────────────────
 // Modal de EDICIÓN — misma estructura visual que PresModal

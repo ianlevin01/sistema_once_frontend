@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { getUsers, createUser, updateUser, deleteUser, getWarehouses } from "../utils/api";
+import { useState, useEffect, useRef } from "react";
+import { getUsers, createUser, updateUser, deleteUser, getWarehouses, createWarehouse } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
 const ROLES = ["admin", "superadmin", "vendedor", "deposito", "caja"];
@@ -11,8 +11,12 @@ export default function Usuarios() {
   const [loading,    setLoading]    = useState(true);
   const [editing,    setEditing]    = useState(null);   // null | "new" | user object
   const [form,       setForm]       = useState(EMPTY);
-  const [saving,     setSaving]     = useState(false);
-  const [showPass,   setShowPass]   = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [showPass,      setShowPass]      = useState(false);
+  const [newWhName,     setNewWhName]     = useState("");
+  const [creatingWh,    setCreatingWh]    = useState(false);
+  const [showNewWh,     setShowNewWh]     = useState(false);
+  const newWhInputRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
   const load = async () => {
@@ -87,6 +91,29 @@ export default function Usuarios() {
   };
 
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));
+
+  const handleShowNewWh = () => {
+    setShowNewWh(true);
+    setNewWhName("");
+    setTimeout(() => newWhInputRef.current?.focus(), 50);
+  };
+
+  const handleCreateWarehouse = async () => {
+    if (!newWhName.trim()) return;
+    setCreatingWh(true);
+    try {
+      const res = await createWarehouse(newWhName.trim());
+      const created = res.data;
+      setWarehouses((prev) => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setForm((p) => ({ ...p, warehouse_id: created.id }));
+      setShowNewWh(false);
+      setNewWhName("");
+      addToast(`Depósito "${created.name}" creado`, "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Error creando depósito", "error");
+    }
+    setCreatingWh(false);
+  };
 
   const warehouseName = (id) => warehouses.find((w) => w.id === id)?.name || "—";
 
@@ -251,11 +278,49 @@ export default function Usuarios() {
                   </select>
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Depósito asignado</label>
-                  <select className="select" value={form.warehouse_id} onChange={f("warehouse_id")}>
-                    <option value="">— Sin asignar —</option>
-                    {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
-                  </select>
+                  <label className="input-label" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span>Depósito asignado</span>
+                    {!showNewWh && (
+                      <button
+                        type="button"
+                        onClick={handleShowNewWh}
+                        style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 11, padding: 0 }}
+                      >
+                        + Nuevo depósito
+                      </button>
+                    )}
+                  </label>
+                  {showNewWh ? (
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input
+                        ref={newWhInputRef}
+                        className="input"
+                        value={newWhName}
+                        onChange={(e) => setNewWhName(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleCreateWarehouse(); if (e.key === "Escape") setShowNewWh(false); }}
+                        placeholder="Nombre del depósito"
+                        style={{ flex: 1 }}
+                      />
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={handleCreateWarehouse}
+                        disabled={creatingWh || !newWhName.trim()}
+                      >
+                        {creatingWh ? "..." : "Crear"}
+                      </button>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setShowNewWh(false)}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <select className="select" value={form.warehouse_id} onChange={f("warehouse_id")}>
+                      <option value="">— Sin asignar —</option>
+                      {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                    </select>
+                  )}
                 </div>
               </div>
 

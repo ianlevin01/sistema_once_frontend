@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -36,7 +36,8 @@ export const updateUser  = (id, data)   => api.put(`/users/${id}`, data);
 export const deleteUser  = (id)         => api.delete(`/users/${id}`);
 
 // ── WAREHOUSES ────────────────────────────────────────────────
-export const getWarehouses = () => api.get("/comprobantes/warehouses");
+export const getWarehouses    = ()       => api.get("/warehouses");
+export const createWarehouse  = (name)   => api.post("/warehouses", { name });
 
 // ── VENDEDORES ────────────────────────────────────────────────
 export const getVendedores        = ()         => api.get("/vendedores");

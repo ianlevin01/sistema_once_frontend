@@ -20,7 +20,7 @@ const PRECIO_LBL = {
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Costo",
 };
 const TIPOS_CON_CONSUMIDOR_FINAL = ["Presupuesto","Devolucion","Nota de Pedido"];
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 
 // ── Componente de fila de item editable ────────────────────────
@@ -842,6 +842,11 @@ export default function Comprobantes({ initialCreating = false }) {
       await updateComprobante(editingId, {
         vendedor, texto_libre: textoLibre, price_type: priceType,
         payment_method: payMethod,
+        customer_id:             esReposicion ? null : (esConsumidorFinal ? null : (custSel?.id || null)),
+        supplier_id:             esReposicion ? (provSel?.id || null) : null,
+        es_consumidor_final:     esConsumidorFinal,
+        consumidor_final_nombre: esConsumidorFinal ? (consumidorFinalNombre || "Consumidor Final") : null,
+        divisa:                  esConsumidorFinal ? divisa : "ARS",
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante actualizado", "success");
@@ -937,7 +942,7 @@ export default function Comprobantes({ initialCreating = false }) {
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
                             <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank", "width=1440,height=900,noopener")}>✏️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}>✏️</button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)}>🗑️</button>
                           </div>
                         </td>

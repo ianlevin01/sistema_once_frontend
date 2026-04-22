@@ -7,7 +7,7 @@ const SOURCES = ["venta", "gasto", "ajuste", "retiro", "ingreso manual", "otro"]
 const EMPTY = { type: "ingreso", source: "venta", amount: "", divisa: "ARS" };
 
 export default function Cash() {
-  const today = () => new Date().toISOString().slice(0, 10);
+  const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 
   const [movements, setMovements] = useState([]);
   const [loading, setLoading]     = useState(true);

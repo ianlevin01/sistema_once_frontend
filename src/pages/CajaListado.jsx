@@ -17,7 +17,7 @@ const PRECIO_LBL = {
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Precio Costo",
 };
 
-const today   = () => new Date().toISOString().slice(0, 10);
+const today   = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 const fmt     = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—";
 const fmtUSD  = (n) => `USD ${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 })}`;
@@ -1048,6 +1048,15 @@ export default function CajaListado() {
     } catch { addToast("Error eliminando", "error"); }
   };
 
+  const handleDeletePresupuesto = async (id) => {
+    if (!confirm("¿Eliminar este presupuesto? Se revertirá el stock y la cuenta corriente.")) return;
+    try {
+      await deleteComprobante(id);
+      setPresupuestos((prev) => prev.filter((p) => p.id !== id));
+      addToast("Eliminado", "success");
+    } catch { addToast("Error eliminando", "error"); }
+  };
+
   // ── RENDER ───────────────────────────────────────────────────
   return (
     <>
@@ -1113,9 +1122,17 @@ export default function CajaListado() {
                           ${fmt(p.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm"
-                            onClick={() => imprimirComprobante(p.id)}
-                            title="Imprimir">🖨️</button>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => imprimirComprobante(p.id)}
+                              title="Imprimir">🖨️</button>
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => window.open(`/comprobantes/editar/${p.id}`, "_blank")}
+                              title="Editar">✏️</button>
+                            <button className="btn btn-danger btn-sm btn-icon"
+                              onClick={() => handleDeletePresupuesto(p.id)}
+                              title="Eliminar">🗑️</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1189,9 +1206,17 @@ export default function CajaListado() {
                           {fmtUSD(p.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm"
-                            onClick={() => imprimirComprobante(p.id)}
-                            title="Imprimir">🖨️</button>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => imprimirComprobante(p.id)}
+                              title="Imprimir">🖨️</button>
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => window.open(`/comprobantes/editar/${p.id}`, "_blank")}
+                              title="Editar">✏️</button>
+                            <button className="btn btn-danger btn-sm btn-icon"
+                              onClick={() => handleDeletePresupuesto(p.id)}
+                              title="Eliminar">🗑️</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
