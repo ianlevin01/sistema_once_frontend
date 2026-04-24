@@ -100,6 +100,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
   const [warehouseId, setWarehouseId] = useState("");
   const [lastPrice,   setLastPrice]   = useState(null);
   const qtyRef        = useRef(null);
+  const priceRef      = useRef(null);
   const prodSearchRef = useRef(null);
   const esReposicion = tipo === "Reposicion";
 
@@ -230,7 +231,7 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
     items, removeItem, prodSel, handleProdSelect,
     itemQty, setItemQty, itemPrice, setItemPrice, itemDesc, setItemDesc,
     confirmItem, totalCalc, saving, handleCreate,
-    qtyRef, prodSearchRef, vendedores, originalItems, lastPrice, esReposicion,
+    qtyRef, priceRef, prodSearchRef, vendedores, originalItems, lastPrice, esReposicion,
   };
 }
 
@@ -629,14 +630,14 @@ function PresModal({ m }) {
                   <input ref={m.qtyRef} className="input"
                     style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
                     placeholder="0" value={m.itemQty} onChange={(e) => m.setItemQty(e.target.value)}
-                    onKeyDown={(e) => { if (e.key==="Enter") m.confirmItem(); }} />
+                    onKeyDown={(e) => { if (e.key==="Enter") { e.preventDefault(); m.priceRef.current?.focus(); } }} />
                 </div>
                 <div style={{ flex:"0 0 110px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Precio</div>
-                  <input className="input"
+                  <input ref={m.priceRef} className="input"
                     style={{ height:38, fontSize:14, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
                     placeholder="0.00" value={m.itemPrice} onChange={(e) => m.setItemPrice(e.target.value)}
-                    onKeyDown={(e) => { if (e.key==="Enter") m.confirmItem(); }} />
+                    onKeyDown={(e) => { if (e.key==="Enter") { e.preventDefault(); m.confirmItem(); } }} />
                 </div>
                 <button className="btn btn-primary" onClick={m.confirmItem}
                   style={{ height:38, fontSize:13, padding:"0 16px", flexShrink:0 }}>

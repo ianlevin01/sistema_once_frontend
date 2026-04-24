@@ -205,17 +205,22 @@ export function printComprobantePDF(doc) {
   const normalizedItems = items.map(normalizeItem);
 
   // Total: usar el guardado en doc.total, o recalcular desde items
-  const total = Number(doc.total) || normalizedItems.reduce(
-    (a, i) => a + i.quantity * i.unit_price, 0
-  );
+  // Para comprobantes USD: doc.total está en USD, pero unit_price de items está en ARS.
+  // Derivamos la cotizacion implícita para mostrar items en la moneda correcta.
+  const itemsTotalARS = normalizedItems.reduce((a, i) => a + i.quantity * i.unit_price, 0);
+  const total = Number(doc.total) || itemsTotalARS;
+  const cotizacion = (divisa === "USD" && total > 0 && itemsTotalARS > 0)
+    ? itemsTotalARS / total
+    : 1;
+  const toDisplayPrice = (arsPrice) => divisa === "USD" ? arsPrice / cotizacion : arsPrice;
 
   const itemsHtml = normalizedItems.map((it) => `
     <tr>
       <td style="font-family:monospace;font-size:11px;color:#555">${it.code}</td>
       <td>${it.name}</td>
       <td class="right" style="font-family:monospace">${it.quantity}</td>
-      <td class="right" style="font-family:monospace">${prefix}${fmtMoney(it.unit_price)}</td>
-      <td class="right" style="font-family:monospace;font-weight:700">${prefix}${fmtMoney(it.quantity * it.unit_price)}</td>
+      <td class="right" style="font-family:monospace">${prefix}${fmtMoney(toDisplayPrice(it.unit_price))}</td>
+      <td class="right" style="font-family:monospace;font-weight:700">${prefix}${fmtMoney(toDisplayPrice(it.quantity * it.unit_price))}</td>
     </tr>
   `).join("");
 

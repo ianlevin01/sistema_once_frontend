@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   getRemitos, getRemito, createRemito, updateRemito, deleteRemito,
-  searchCustomers,
+  getUsers,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import ProductSearchBar from "../components/ProductSearchBar";
@@ -56,10 +56,9 @@ export default function Remitos({ initialCreating = false }) {
     }
   }, [warehouses]);
 
-  // Cliente
-  const [custQuery,   setCustQuery]   = useState("");
-  const [custResults, setCustResults] = useState([]);
-  const [custSel,     setCustSel]     = useState(null);
+  // Usuario destinatario
+  const [userList,    setUserList]    = useState([]);
+  const [userSel,     setUserSel]     = useState(null);
 
   // Items
   const [items,       setItems]       = useState([]);
@@ -70,13 +69,13 @@ export default function Remitos({ initialCreating = false }) {
   const [saving,      setSaving]      = useState(false);
 
   const qtyRef        = useRef(null);
+  const priceRef      = useRef(null);
   const origenRef     = useRef(null);
   const destinoRef    = useRef(null);
-  const custInputRef  = useRef(null);
+  const userRef       = useRef(null);
   const priceTypeRef  = useRef(null);
   const prodSearchRef = useRef(null);
 
-  const [custHighlight,  setCustHighlight]  = useState(-1);
   const [focusedSection, setFocusedSection] = useState(null);
 
   const sectionFocusProps = (name) => ({
@@ -109,7 +108,7 @@ export default function Remitos({ initialCreating = false }) {
       setOrigen(data.origen || "");
       setDestino(data.destino || "");
       setPriceType(data.price_type || "precio_1");
-      if (data.customer_id) setCustSel({ id: data.customer_id, name: data.customer_name });
+      if (data.recipient_user_id) setUserSel({ id: data.recipient_user_id, name: data.recipient_user_name });
       setItems((data.items || []).map((i) => ({
         product_id: i.product_id,
         code:       i.code || "",
@@ -122,15 +121,8 @@ export default function Remitos({ initialCreating = false }) {
   }, [editId]);
 
   useEffect(() => {
-    if (!custQuery.trim()) { setCustResults([]); return; }
-    const t = setTimeout(async () => {
-      try { const { data } = await searchCustomers(custQuery, true); setCustResults(data); }
-      catch {}
-    }, 300);
-    return () => clearTimeout(t);
-  }, [custQuery]);
-
-  useEffect(() => { setCustHighlight(-1); }, [custResults]);
+    getUsers().then(({ data }) => setUserList(Array.isArray(data) ? data : [])).catch(() => {});
+  }, []);
 
   // Auto-foco al abrir el formulario nuevo
   useEffect(() => {
@@ -140,8 +132,8 @@ export default function Remitos({ initialCreating = false }) {
     }
   }, [creating, editId]);
 
-  const selectCust = (c) => {
-    setCustSel(c); setCustQuery(""); setCustResults([]);
+  const selectUser = (u) => {
+    setUserSel(u);
     setTimeout(() => priceTypeRef.current?.focus(), 80);
   };
 
@@ -156,16 +148,11 @@ export default function Remitos({ initialCreating = false }) {
     const idx = warehouses.indexOf(destino);
     if (e.key === "ArrowDown") { e.preventDefault(); setDestino(warehouses[Math.min(idx + 1, warehouses.length - 1)]); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setDestino(warehouses[Math.max(idx - 1, 0)]); }
-    else if (e.key === "Enter") { e.preventDefault(); custInputRef.current?.focus(); }
-  };
-
-  const handleCustKeyDown = (e) => {
-    if (custResults.length > 0) {
-      if (e.key === "ArrowDown") { e.preventDefault(); setCustHighlight((i) => Math.min(i + 1, custResults.length - 1)); return; }
-      if (e.key === "ArrowUp")   { e.preventDefault(); setCustHighlight((i) => Math.max(i - 1, 0)); return; }
-      if (e.key === "Enter" && custHighlight >= 0) { e.preventDefault(); selectCust(custResults[custHighlight]); return; }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (userSel) priceTypeRef.current?.focus();
+      else userRef.current?.focus();
     }
-    if (e.key === "Enter") { e.preventDefault(); priceTypeRef.current?.focus(); }
   };
 
   const handlePrecioKeyDown = (e) => {
@@ -205,7 +192,7 @@ export default function Remitos({ initialCreating = false }) {
     setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
-  const handleQtyKeyDown = (e) => { if (e.key === "Enter") confirmItem(); };
+  const handleQtyKeyDown = (e) => { if (e.key === "Enter") { e.preventDefault(); priceRef.current?.focus(); } };
   const removeItem = (i) => setItems((prev) => prev.filter((_,idx) => idx !== i));
   const total = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
 
@@ -215,8 +202,8 @@ export default function Remitos({ initialCreating = false }) {
     setSaving(true);
     const payload = {
       origen, destino,
-      customer_id: custSel?.id || null,
-      price_type:  priceType,
+      recipient_user_id: userSel?.id || null,
+      price_type:        priceType,
       items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
     };
     try {
@@ -233,7 +220,7 @@ export default function Remitos({ initialCreating = false }) {
       const remitoPrint = {
         ...newRemito,
         origen, destino,
-        customer_name: custSel?.name || null,
+        customer_name: userSel?.name || null,
         items,
       };
       if (confirm("¿Querés imprimir el remito ahora?")) {
@@ -246,7 +233,7 @@ export default function Remitos({ initialCreating = false }) {
   const resetForm = () => {
     setOrigen(warehouses[0] || ""); setDestino(warehouses[warehouses.length > 1 ? 1 : 0] || "");
     setPriceType("precio_1");
-    setSinPrecios(false); setCustSel(null); setCustQuery(""); setItems([]);
+    setSinPrecios(false); setUserSel(null); setItems([]);
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
@@ -286,14 +273,14 @@ export default function Remitos({ initialCreating = false }) {
             <div style={{ marginLeft:"auto" }}>
               <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
                 onClick={() => window.open("/remitos/nuevo", "_blank")}>
-                + Nuevo remito
+                + Nuevo remito interno
               </button>
             </div>
           </div>
 
           <div className="card">
             <div className="card-header">
-              <span className="card-title">Remitos</span>
+              <span className="card-title">Remitos Internos</span>
               <span className="badge badge-info">{remitos.length}</span>
             </div>
             {loading ? <div className="empty">Cargando...</div> : remitos.length === 0 ? (
@@ -302,7 +289,7 @@ export default function Remitos({ initialCreating = false }) {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>#</th><th>Origen</th><th>Destino</th><th>Cliente</th><th>Items</th><th>Fecha</th><th></th></tr>
+                    <tr><th>#</th><th>Origen</th><th>Destino</th><th>Vendedor</th><th>Items</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
                     {remitos.map((r) => (
@@ -310,7 +297,7 @@ export default function Remitos({ initialCreating = false }) {
                         <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)" }}>{r.id.slice(0,8)}…</td>
                         <td style={{ fontSize:14, color:"var(--accent)", fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.origen || "—"}</td>
                         <td style={{ fontSize:14, color:"var(--info)",   fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.destino || "—"}</td>
-                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.customer_name || "—"}</td>
+                        <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.recipient_user_name || "—"}</td>
                         <td style={{ fontFamily:"var(--font-mono)", fontSize:13 }}>{r.items?.length ?? "—"}</td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>
                           {r.created_at ? new Date(r.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
@@ -359,8 +346,8 @@ export default function Remitos({ initialCreating = false }) {
                   <span style={{ fontSize:12, color:"var(--text-dim)" }}>
                     {selected.created_at ? new Date(selected.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                   </span>
-                  {selected.customer_name && (
-                    <span style={{ fontSize:13, color:"var(--text-muted)" }}>Cliente: {selected.customer_name}</span>
+                  {selected.recipient_user_name && (
+                    <span style={{ fontSize:13, color:"var(--text-muted)" }}>Vendedor: {selected.recipient_user_name}</span>
                   )}
                   {selected.vendedor && (
                     <span style={{ fontSize:13, color:"var(--text-muted)" }}>Vendedor: {selected.vendedor}</span>
@@ -430,7 +417,7 @@ export default function Remitos({ initialCreating = false }) {
             {/* Origen / Destino */}
             <div style={{ padding:"20px 18px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
               <div style={{ fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700, color:"var(--accent)", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:14 }}>
-                {editId ? "Editar Remito" : "Nuevo Remito"}
+                {editId ? "Editar Remito Interno" : "Nuevo Remito Interno"}
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
                 <div>
@@ -488,37 +475,29 @@ export default function Remitos({ initialCreating = false }) {
 
             {/* Cliente + Precio */}
             <div style={{ flex:1, overflowY:"auto", padding:"16px 18px", borderBottom:"1px solid var(--border)" }}>
-              {/* Cliente */}
+              {/* Usuario vendedor */}
               <div style={{ marginBottom:16 }}>
-                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Cliente (opcional)</div>
-                {custSel ? (
+                <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:8 }}>Vendedor (opcional)</div>
+                {userSel ? (
                   <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 12px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-                    <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{custSel.name}</span>
-                    <button onClick={() => setCustSel(null)} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:16 }}>✕</button>
+                    <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{userSel.name}</span>
+                    <button onClick={() => setUserSel(null)} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:16 }}>✕</button>
                   </div>
                 ) : (
-                  <>
-                    <div className="search-bar" {...sectionFocusProps("cust")} style={{ border:`1px solid ${focusedSection==="cust"?"var(--accent)":"var(--border)"}`, borderRadius:6, transition:"border-color 0.15s" }}>
-                      <span className="search-icon">🔍</span>
-                      <input ref={custInputRef} placeholder="Nombre..." value={custQuery}
-                        onChange={(e) => setCustQuery(e.target.value)}
-                        onKeyDown={handleCustKeyDown}
-                        style={{ fontSize:13 }} />
-                    </div>
-                    {custResults.length > 0 && (
-                      <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, maxHeight:130, overflowY:"auto", marginTop:6 }}>
-                        {custResults.map((c, ci) => (
-                          <div key={c.id} onClick={() => selectCust(c)}
-                            style={{ padding:"9px 12px", fontSize:13, cursor:"pointer", borderBottom:"1px solid var(--border)",
-                              background: custHighlight===ci ? "var(--accent-dim)" : "transparent",
-                              color:      custHighlight===ci ? "var(--accent)"     : "var(--text)",
-                            }}>
-                            {c.name}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </>
+                  <select ref={userRef} className="select" style={{ fontSize:13 }}
+                    value=""
+                    onChange={(e) => {
+                      const u = userList.find((x) => x.id === e.target.value);
+                      if (u) selectUser(u);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); priceTypeRef.current?.focus(); }
+                    }}>
+                    <option value="">— seleccionar —</option>
+                    {userList.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
                 )}
               </div>
 
@@ -574,7 +553,7 @@ export default function Remitos({ initialCreating = false }) {
               <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)" }}>{origen}</span>
               <span style={{ color:"var(--text-dim)", fontSize:18 }}>→</span>
               <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--info)" }}>{destino}</span>
-              {custSel && <span style={{ fontSize:13, color:"var(--text-muted)", marginLeft:16 }}>Cliente: {custSel.name}</span>}
+              {userSel && <span style={{ fontSize:13, color:"var(--text-muted)", marginLeft:16 }}>Vendedor: {userSel.name}</span>}
               <span style={{ marginLeft:"auto", fontSize:13, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>{PRECIO_LBL[priceType]}</span>
             </div>
 
@@ -657,11 +636,11 @@ export default function Remitos({ initialCreating = false }) {
                   <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:5 }}>
                     {PRECIO_LBL[priceType]}
                   </div>
-                  <input className="input"
+                  <input ref={priceRef} className="input"
                     style={{ height:40, fontSize:16, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
                     placeholder="0.00" value={itemPrice}
                     onChange={(e) => setItemPrice(e.target.value)}
-                    onKeyDown={handleQtyKeyDown} />
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmItem(); } }} />
                 </div>
                 <button className="btn btn-primary" onClick={confirmItem}
                   style={{ height:40, fontSize:14, padding:"0 20px", flexShrink:0 }}>

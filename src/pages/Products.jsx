@@ -352,7 +352,9 @@ export default function Products() {
         if (query) { const { data } = await searchProducts(query); setResults(data); }
       }
       setModal(null);
-    } catch { addToast("Error guardando producto", "error"); }
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error guardando producto", "error");
+    }
     setSaving(false);
   };
 

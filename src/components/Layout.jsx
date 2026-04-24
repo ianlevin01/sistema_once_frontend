@@ -7,7 +7,7 @@ const NAV_ADMIN = [
     section: "Operaciones",
     items: [
       { to: "/comprobantes", label: "Comprobantes", icon: "🧾" },
-      { to: "/remitos",      label: "Remitos",      icon: "📦" },
+      { to: "/remitos",      label: "Remitos Internos",      icon: "📦" },
       {
         label: "Caja", icon: "💰",
         submenu: [
@@ -56,7 +56,7 @@ const NAV_VENDEDOR = [
 
 const PAGE_TITLES = {
   "/comprobantes":     "Comprobantes",
-  "/remitos":          "Remitos",
+  "/remitos":          "Remitos Internos",
   "/caja":             "Caja · Imputaciones",
   "/caja/listado":     "Caja · Listado",
   "/pedidos-web":      "Pedidos Web",

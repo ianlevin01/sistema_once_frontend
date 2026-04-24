@@ -8,8 +8,9 @@ import {
   createProveedor, updateProveedor, deleteProveedor,
   getCCProveedor, registrarCobranzaProveedor,
   editarMovimientoProv, eliminarMovimientoProv,
-  getProveedores, getPriceConfig, getTransportes,
+  getProveedores, getPriceConfig, getTransportes, getComprobante,
 } from "../utils/api";
+import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
 // ─────────────────────────────────────────────────────────────
@@ -443,7 +444,19 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
             return (
               <div key={m.id} style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--border)", alignItems: "center", background: "var(--bg)" }}>
                 <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
-                <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
+                {m.order_id ? (
+                  <button
+                    style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
+                    title="Ver comprobante"
+                    onClick={async () => {
+                      try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
+                    }}
+                  >
+                    {m.concepto || "Ver comprobante"}
+                  </button>
+                ) : (
+                  <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
+                )}
                 <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{m.metodo_pago || "—"}</span>
                 <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: m.tipo === "debito" ? "var(--danger)" : "var(--success)" }}>
                   {m.tipo === "debito" ? "+" : "−"}{fmtMonto(m.monto, divisaCC)}

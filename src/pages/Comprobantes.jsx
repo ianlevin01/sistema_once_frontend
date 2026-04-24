@@ -653,6 +653,7 @@ export default function Comprobantes({ initialCreating = false }) {
   const [lastPrice, setLastPrice] = useState(null);
 
   const qtyRef        = useRef(null);
+  const priceRef      = useRef(null);
   const prodSearchRef = useRef(null);
   const { addToast, ToastContainer } = useToast();
 
@@ -1124,16 +1125,16 @@ export default function Comprobantes({ initialCreating = false }) {
                   <input ref={qtyRef} className="input"
                     style={{ height:38, fontSize:15, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
                     placeholder="0" value={itemQty} onChange={(e) => setItemQty(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); priceRef.current?.focus(); } }} />
                 </div>
                 <div style={{ flex:"0 0 120px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>
                     {PRECIO_LBL[priceType]}
                   </div>
-                  <input className="input"
+                  <input ref={priceRef} className="input"
                     style={{ height:38, fontSize:15, fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700, width:"100%" }}
                     placeholder="0.00" value={itemPrice} onChange={(e) => setItemPrice(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmItem(); } }} />
                 </div>
                 <button className="btn btn-primary" onClick={confirmItem}
                   style={{ height:38, fontSize:13, padding:"0 18px", flexShrink:0 }}>
