@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -64,6 +64,7 @@ export const createProveedor            = (data)      => api.post("/proveedores"
 export const updateProveedor            = (id, data)  => api.put(`/proveedores/${id}`, data);
 export const deleteProveedor            = (id)        => api.delete(`/proveedores/${id}`);
 export const getCCProveedor             = (id)        => api.get(`/proveedores/${id}/cuenta-corriente`);
+export const getCCProveedoresSummary    = ()          => api.get("/proveedores/cc-summary");
 export const registrarPagoProveedor     = (id, data)  => api.post(`/proveedores/${id}/pago`, data);
 export const registrarCobranzaProveedor = (id, data)  => api.post(`/proveedores/${id}/cobranza`, data);
 // Editar / eliminar movimientos de proveedor

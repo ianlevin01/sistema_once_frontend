@@ -8,8 +8,8 @@ const extractPrice = (product, priceType) => {
   return found ? Number(found.price) : 0;
 };
 
-const DROPDOWN_W = 660;
-const PREVIEW_W  = 220;
+const DROPDOWN_W = 780;
+const PREVIEW_W  = 310;
 const LIST_MAX_H = 340;
 
 function calcDropdownPos(anchorEl, preferUp = false) {
@@ -53,8 +53,8 @@ const PreviewPanel = memo(({ product, loading, priceType }) => {
       overflowY:      "auto",
     }}>
       <div style={{
-        width:          188,
-        height:         188,
+        width:          280,
+        height:         280,
         borderRadius:   8,
         overflow:       "hidden",
         border:         "1px solid var(--border)",

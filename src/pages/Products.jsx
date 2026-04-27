@@ -88,8 +88,8 @@ function ImageGallery({ photos }) {
   if (!valid.length) return null;
 
   return (
-    <div style={{ width:130 }}>
-      <div style={{ width:130, height:120, borderRadius:7, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:5, position:"relative" }}>
+    <div style={{ width:280 }}>
+      <div style={{ width:280, height:260, borderRadius:7, overflow:"hidden", border:"1px solid var(--border)", background:"var(--bg3)", marginBottom:6, position:"relative" }}>
         <img
           src={valid[active]}
           alt={`Foto ${active + 1}`}
@@ -103,13 +103,13 @@ function ImageGallery({ photos }) {
         )}
       </div>
       {valid.length > 1 && (
-        <div style={{ display:"flex", gap:4, overflowX:"auto", paddingBottom:2 }}>
+        <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:2 }}>
           {valid.map((url, i) => (
             <div
               key={i}
               onClick={() => setActive(i)}
               style={{
-                width:36, height:36, borderRadius:4, overflow:"hidden", cursor:"pointer", flexShrink:0,
+                width:68, height:68, borderRadius:5, overflow:"hidden", cursor:"pointer", flexShrink:0,
                 border: `2px solid ${i === active ? "var(--accent)" : "var(--border)"}`,
                 opacity: i === active ? 1 : 0.65,
                 transition:"all 0.13s",
@@ -353,7 +353,11 @@ export default function Products() {
       }
       setModal(null);
     } catch (err) {
-      addToast(err?.response?.data?.message || "Error guardando producto", "error");
+      const apiData = err?.response?.data;
+      addToast(
+        apiData?.message || "Error guardando producto",
+        apiData?.deleted ? "warning" : "error"
+      );
     }
     setSaving(false);
   };

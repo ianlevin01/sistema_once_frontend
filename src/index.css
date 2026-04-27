@@ -650,8 +650,9 @@ thead tr {
   min-width: 220px;
 }
 
-.toast.success { border-left: 3px solid var(--success); }
-.toast.error   { border-left: 3px solid var(--danger);  }
+.toast.success  { border-left: 3px solid var(--success); }
+.toast.error    { border-left: 3px solid var(--danger);  }
+.toast.warning  { border-left: 3px solid #f59e0b; }
 
 @keyframes slideIn {
   from { transform: translateX(110%); opacity: 0; }

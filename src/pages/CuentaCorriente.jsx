@@ -8,7 +8,8 @@ import {
   createProveedor, updateProveedor, deleteProveedor,
   getCCProveedor, registrarCobranzaProveedor,
   editarMovimientoProv, eliminarMovimientoProv,
-  getProveedores, getPriceConfig, getTransportes, getComprobante,
+  getCCProveedoresSummary,
+  getPriceConfig, getTransportes, getComprobante,
 } from "../utils/api";
 import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
@@ -840,26 +841,12 @@ function TabGeneral({ cotizacion }) {
     (async () => {
       setLoading(true);
       try {
-        const { data: dataClientes } = await getCuentaCorrienteGeneral();
+        const [{ data: dataClientes }, { data: provCC }] = await Promise.all([
+          getCuentaCorrienteGeneral(),
+          getCCProveedoresSummary(),
+        ]);
         setCuentasClientes(dataClientes);
-
-        const { data: proveedores } = await getProveedores();
-        const chunks = [];
-        for (let i = 0; i < proveedores.length; i += 20) chunks.push(proveedores.slice(i, i + 20));
-        const provConCC = [];
-        for (const chunk of chunks) {
-          const results = await Promise.allSettled(
-            chunk.map(async (p) => {
-              try {
-                const res = await getCCProveedor(p.id);
-                const cc  = res.data?.cuenta || res.data || null;
-                return { ...p, saldo: Number(cc?.saldo || 0), divisa: cc?.divisa ?? p.divisa ?? "ARS" };
-              } catch { return { ...p, saldo: 0, divisa: p.divisa ?? "ARS" }; }
-            })
-          );
-          results.forEach((r) => { if (r.status === "fulfilled") provConCC.push(r.value); });
-        }
-        setCuentasProveedores(provConCC);
+        setCuentasProveedores(provCC.map((p) => ({ ...p, divisa: p.cc_divisa })));
       } catch { addToast("Error cargando cuentas corrientes", "error"); }
       setLoading(false);
     })();
