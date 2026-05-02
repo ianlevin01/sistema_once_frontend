@@ -52,6 +52,7 @@ export default function Usuarios() {
 
   const handleSave = async () => {
     if (!form.name.trim())     { addToast("Nombre requerido", "error"); return; }
+    if (!form.email.trim())    { addToast("Email requerido", "error"); return; }
     if (!form.role.trim())     { addToast("Rol requerido", "error"); return; }
     if (editing === "new" && !form.password.trim()) { addToast("Contraseña requerida", "error"); return; }
 
@@ -59,7 +60,7 @@ export default function Usuarios() {
     try {
       const payload = {
         name:         form.name.trim(),
-        email:        form.email.trim() || null,
+        email:        form.email.trim(),
         role:         form.role,
         warehouse_id: form.warehouse_id || null,
         active:       form.active,
@@ -243,8 +244,8 @@ export default function Usuarios() {
                   <input className="input" value={form.name} onChange={f("name")} placeholder="Nombre del usuario" autoFocus />
                 </div>
                 <div className="input-group">
-                  <label className="input-label">Email</label>
-                  <input className="input" type="email" value={form.email} onChange={f("email")} placeholder="opcional" />
+                  <label className="input-label">Email *</label>
+                  <input className="input" type="email" value={form.email} onChange={f("email")} placeholder="usuario@mail.com" />
                 </div>
               </div>
 

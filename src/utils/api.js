@@ -23,7 +23,8 @@ api.interceptors.response.use(
 );
 
 // ── AUTH ──────────────────────────────────────────────────────
-export const login  = (password) => api.post("/auth/login", { password });
+export const login           = (email, password) => api.post("/auth/login", { email, password });
+export const loginWithGoogle = (id_token)        => api.post("/auth/google", { id_token });
 export const logout = () => {
   localStorage.removeItem("auth_token");
   localStorage.removeItem("auth_user");

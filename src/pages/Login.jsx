@@ -1,22 +1,34 @@
 import { useState } from "react";
+import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../utils/useAuth";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
+  const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState("");
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!password.trim()) return;
+    if (!email.trim() || !password.trim()) return;
     setLoading(true);
     setError("");
     try {
-      await login(password);
-      // El redirect lo maneja App.jsx al detectar que isAuthenticated cambió
+      await login(email.trim(), password);
     } catch (err) {
-      setError(err.response?.data?.message || "Contraseña incorrecta");
+      setError(err.response?.data?.message || "Credenciales incorrectas");
+    }
+    setLoading(false);
+  };
+
+  const handleGoogle = async ({ credential }) => {
+    setError("");
+    setLoading(true);
+    try {
+      await loginWithGoogle(credential);
+    } catch (err) {
+      setError(err.response?.data?.message || "No autorizado");
     }
     setLoading(false);
   };
@@ -38,7 +50,7 @@ export default function Login() {
         boxShadow: "0 8px 40px rgba(0,0,0,0.3)",
       }}>
         {/* Logo / título */}
-        <div style={{ textAlign: "center", marginBottom: 36 }}>
+        <div style={{ textAlign: "center", marginBottom: 32 }}>
           <div style={{
             width: 52, height: 52, borderRadius: 12,
             background: "var(--accent)", margin: "0 auto 14px",
@@ -54,6 +66,26 @@ export default function Login() {
         </div>
 
         <form onSubmit={handleSubmit}>
+          {/* Email */}
+          <div style={{ marginBottom: 14 }}>
+            <div style={{
+              fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)",
+              textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 8,
+            }}>
+              Email
+            </div>
+            <input
+              className="input"
+              type="email"
+              placeholder="usuario@mail.com"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(""); }}
+              autoFocus
+              style={{ width: "100%", fontSize: 14 }}
+            />
+          </div>
+
+          {/* Contraseña */}
           <div style={{ marginBottom: 8 }}>
             <div style={{
               fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)",
@@ -67,8 +99,7 @@ export default function Login() {
               placeholder="••••••••"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(""); }}
-              autoFocus
-              style={{ width: "100%", fontSize: 16, letterSpacing: "0.1em", textAlign: "center" }}
+              style={{ width: "100%", fontSize: 16, letterSpacing: "0.1em" }}
             />
           </div>
 
@@ -85,12 +116,32 @@ export default function Login() {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={loading || !password.trim()}
+            disabled={loading || !email.trim() || !password.trim()}
             style={{ width: "100%", marginTop: 20, fontSize: 14, padding: "12px" }}
           >
             {loading ? "Ingresando..." : "Ingresar →"}
           </button>
         </form>
+
+        {/* Separador */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "22px 0" }}>
+          <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>o</span>
+          <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+        </div>
+
+        {/* Google */}
+        <div style={{ display: "flex", justifyContent: "center" }}>
+          <GoogleLogin
+            onSuccess={handleGoogle}
+            onError={() => setError("Error al iniciar sesión con Google")}
+            text="signin_with"
+            shape="rectangular"
+            theme="outline"
+            size="large"
+            width="288"
+          />
+        </div>
       </div>
     </div>
   );
