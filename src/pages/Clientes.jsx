@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente } from "../utils/api";
+import * as XLSX from "xlsx";
+import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useNavigate } from "react-router-dom";
 
@@ -33,6 +34,46 @@ export default function Clientes() {
   };
 
   const refreshSearch = () => doSearch(search);
+
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      const { data: todos } = await getClientes();
+
+      const grupos = {};
+      for (const c of todos) {
+        const prov = (c.provincia?.trim() || "Sin provincia").toUpperCase();
+        if (!grupos[prov]) grupos[prov] = [];
+        grupos[prov].push(c);
+      }
+
+      const COLS = ["Nombre","Documento","Teléfono","Email","Domicilio","Localidad","Provincia","Cód. Postal","Contacto","Tipo","Condición IVA","Descuento (%)","Días Plazo","Transporte","Vendedor","Cuenta Pesos","Cuenta Dólares"];
+
+      const wb = XLSX.utils.book_new();
+      const provincias = Object.keys(grupos).sort();
+
+      for (const prov of provincias) {
+        const filas = grupos[prov].map((c) => [
+          c.name ?? "", c.document ?? "", c.phone ?? "", c.email ?? "",
+          c.domicilio ?? "", c.localidad ?? "", c.provincia ?? "",
+          c.codigo_postal ?? "", c.contacto ?? "", c.type ?? "",
+          c.condicion_iva ?? "", c.descuento ?? "", c.dias_plazo ?? "",
+          c.transporte ?? "", c.vendedor ?? "", c.cuenta_pesos ?? "", c.cuenta_dolares ?? "",
+        ]);
+        const ws = XLSX.utils.aoa_to_sheet([COLS, ...filas]);
+        ws["!cols"] = [30,18,14,28,30,18,18,10,18,10,16,10,10,14,16,24,24].map((w) => ({ wch: w }));
+        XLSX.utils.book_append_sheet(wb, ws, prov.replace(/[\\/*?:[\]]/g, "").slice(0, 31) || "SIN PROVINCIA");
+      }
+
+      XLSX.writeFile(wb, `clientes_por_provincia_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      addToast(`Excel exportado — ${todos.length} clientes en ${provincias.length} provincias`, "success");
+    } catch {
+      addToast("Error exportando clientes", "error");
+    }
+    setExporting(false);
+  };
 
   const openCrear = () => { setForm(EMPTY); setEditId(null); setModal("editar"); };
   const openEditar = (c) => {
@@ -93,7 +134,10 @@ export default function Clientes() {
             {clientes.length} resultado{clientes.length !== 1 ? "s" : ""}
           </span>
         )}
-        <button className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={openCrear}>
+        <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={handleExportExcel} disabled={exporting}>
+          {exporting ? "Exportando..." : "↓ Excel"}
+        </button>
+        <button className="btn btn-primary" onClick={openCrear}>
           + Nuevo cliente
         </button>
       </div>
