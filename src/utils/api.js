@@ -101,7 +101,7 @@ export const getRemitos    = (from, to) =>
 export const getRemito     = (id)   => api.get(`/remitos/${id}`);
 export const createRemito  = (data) => api.post("/remitos", data);
 export const updateRemito  = (id, data) => api.put(`/remitos/${id}`, data);
-export const deleteRemito  = (id)   => api.delete(`/remitos/${id}`);
+export const deleteRemito  = (id, password) => api.delete(`/remitos/${id}`, { data: { password } });
 
 // ── TRANSPORTES ───────────────────────────────────────────────
 export const getTransportes    = ()           => api.get("/transportes").then(r => r.data);
@@ -121,7 +121,7 @@ export const getComprobantes   = (from, to) =>
 export const getComprobante    = (id)        => api.get(`/comprobantes/${id}`);
 export const createComprobante = (data)      => api.post("/comprobantes", data);
 export const updateComprobante = (id, data)  => api.put(`/comprobantes/${id}`, data);
-export const deleteComprobante = (id)        => api.delete(`/comprobantes/${id}`);
+export const deleteComprobante = (id, password) => api.delete(`/comprobantes/${id}`, { data: { password } });
 export const getLastSalePrice  = (customer_id, product_id) =>
   api.get(`/comprobantes/last-price?customer_id=${customer_id}&product_id=${product_id}`);
 

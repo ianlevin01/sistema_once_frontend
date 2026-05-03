@@ -67,6 +67,9 @@ export default function Remitos({ initialCreating = false }) {
   const [itemPrice,   setItemPrice]   = useState("");
   const [itemDesc,    setItemDesc]    = useState("");
   const [saving,      setSaving]      = useState(false);
+  const [deleteModal,    setDeleteModal]    = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting,       setDeleting]       = useState(false);
 
   const qtyRef        = useRef(null);
   const priceRef      = useRef(null);
@@ -237,10 +240,17 @@ export default function Remitos({ initialCreating = false }) {
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este remito?")) return;
-    try { await deleteRemito(id); addToast("Eliminado", "success"); loadAll(appliedFrom, appliedTo); }
-    catch { addToast("Error eliminando", "error"); }
+  const handleDelete = (id) => { setDeleteModal(id); setDeletePassword(""); };
+  const confirmDelete = async () => {
+    if (!deletePassword.trim()) return;
+    setDeleting(true);
+    try {
+      await deleteRemito(deleteModal, deletePassword);
+      addToast("Eliminado", "success");
+      setDeleteModal(null); setDeletePassword("");
+      loadAll(appliedFrom, appliedTo);
+    } catch (err) { addToast(err?.response?.data?.message || "Clave incorrecta", "error"); }
+    finally { setDeleting(false); }
   };
 
   const openDetail = async (id) => {
@@ -252,6 +262,36 @@ export default function Remitos({ initialCreating = false }) {
   return (
     <>
       <ToastContainer />
+
+      {deleteModal && (
+        <div className="modal-overlay" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>
+          <div className="modal" style={{ maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Confirmar eliminación</span>
+              <button className="modal-close" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>
+              Esta acción revierte el stock. Ingresá la clave para continuar.
+            </p>
+            <div className="input-label">Clave de eliminación</div>
+            <input
+              className="input"
+              type="password"
+              placeholder="Clave..."
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmDelete()}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button className="btn btn-danger" onClick={confirmDelete} disabled={deleting || !deletePassword.trim()}>
+                {deleting ? "Eliminando..." : "Eliminar"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!creating ? (
         /* ── LISTADO ── */

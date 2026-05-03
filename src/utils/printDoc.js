@@ -84,7 +84,9 @@ const BASE_CSS = `
 // IMPRIMIR REMITO — 2 copias por hoja
 // ─────────────────────────────────────────────────────────────
 export function printRemitoPDF(remito, sinPrecios = false) {
-  const items = remito.items || [];
+  const items = (remito.items || []).slice().sort((a, b) =>
+    (a.name || a.description || "").localeCompare(b.name || b.description || "", "es")
+  );
   const total = items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
 
   const itemsHtml = items.map((it) => `
@@ -202,7 +204,9 @@ export function printComprobantePDF(doc) {
     unit_price: Number(it.unit_price || 0),
   });
 
-  const normalizedItems = items.map(normalizeItem);
+  const normalizedItems = items.map(normalizeItem).sort((a, b) =>
+    a.name.localeCompare(b.name, "es")
+  );
 
   // Total: usar el guardado en doc.total, o recalcular desde items
   // Para comprobantes USD: doc.total está en USD, pero unit_price de items está en ARS.

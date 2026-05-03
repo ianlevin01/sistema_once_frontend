@@ -621,6 +621,9 @@ export default function Comprobantes({ initialCreating = false }) {
   const [appliedFrom, setAppliedFrom] = useState(today());
   const [appliedTo,   setAppliedTo]   = useState(today());
   const filterDirty = from !== appliedFrom || to !== appliedTo;
+  const [deleteModal,    setDeleteModal]    = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting,       setDeleting]       = useState(false);
 
   // Form state
   const [tipo,       setTipo]       = useState("Presupuesto");
@@ -868,13 +871,17 @@ export default function Comprobantes({ initialCreating = false }) {
     setEsConsumidorFinal(false); setConsumidorFinalNombre(""); setDivisa("ARS");
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("¿Eliminar este comprobante? Se revertirá el stock y la cuenta corriente.")) return;
+  const handleDelete = (id) => { setDeleteModal(id); setDeletePassword(""); };
+  const confirmDelete = async () => {
+    if (!deletePassword.trim()) return;
+    setDeleting(true);
     try {
-      await deleteComprobante(id);
+      await deleteComprobante(deleteModal, deletePassword);
       addToast("Eliminado y stock revertido", "success");
+      setDeleteModal(null); setDeletePassword("");
       loadAll(appliedFrom, appliedTo);
-    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando", "error"); }
+    } catch (err) { addToast(err?.response?.data?.message || "Clave incorrecta", "error"); }
+    finally { setDeleting(false); }
   };
 
   const openDetail = async (id) => {
@@ -886,6 +893,36 @@ export default function Comprobantes({ initialCreating = false }) {
   return (
     <>
       <ToastContainer />
+
+      {deleteModal && (
+        <div className="modal-overlay" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>
+          <div className="modal" style={{ maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Confirmar eliminación</span>
+              <button className="modal-close" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>
+              Se revertirá el stock y la cuenta corriente. Ingresá la clave para continuar.
+            </p>
+            <div className="input-label">Clave de eliminación</div>
+            <input
+              className="input"
+              type="password"
+              placeholder="Clave..."
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmDelete()}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button className="btn btn-danger" onClick={confirmDelete} disabled={deleting || !deletePassword.trim()}>
+                {deleting ? "Eliminando..." : "Eliminar"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {!creating ? (
         /* ── LISTADO ── */
