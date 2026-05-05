@@ -8,6 +8,7 @@ const EMPTY_FORM = {
   name: "", code: "", barcode: "", box_code: "", description: "",
   category_id: "", active: true, costo_usd: "", tasa_iva: "", despacho: "",
   aduana: "", origen: "", qxb: "", fecha: "", video_url: "",
+  seccion: 1, peso: "",
 };
 
 const FMTARS = (v) => v != null ? `$${Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—";
@@ -314,6 +315,8 @@ export default function Products() {
       qxb:         selected.qxb         || "",
       fecha:       selected.fecha || selected.created_at?.slice(0,10) || "",
       video_url:   selected.video_url   || "",
+      seccion:     selected.seccion     ?? 1,
+      peso:        selected.peso        ?? "",
     });
     const imgs = selected.images || [];
     setImgSlots([
@@ -936,6 +939,40 @@ export default function Products() {
                     )}
                   </div>
                 )}
+              </div>
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:12 }}>
+            <div className="input-group" style={{ flex:"0 0 120px" }}>
+              <label className="input-label">Sección</label>
+              <input
+                className="input"
+                type="number"
+                min="1"
+                value={form.seccion}
+                onChange={(e) => {
+                  const n = parseInt(e.target.value, 10);
+                  setForm((prev) => ({ ...prev, seccion: isNaN(n) || n < 1 ? 1 : n }));
+                }}
+              />
+            </div>
+            <div className="input-group" style={{ flex:1 }}>
+              <label className="input-label" style={{ display:"flex", justifyContent:"space-between" }}>
+                <span>Peso (orden dentro de sección)</span>
+                <span style={{ fontWeight:600, color:"var(--accent)" }}>{form.peso !== "" ? form.peso : "auto"}</span>
+              </label>
+              <input
+                type="range"
+                min="10"
+                max="500"
+                step="10"
+                value={form.peso !== "" ? form.peso : 10}
+                onChange={(e) => setForm((prev) => ({ ...prev, peso: Number(e.target.value) }))}
+                style={{ width:"100%", accentColor:"var(--accent)", cursor:"pointer" }}
+              />
+              <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--text-muted)", marginTop:2 }}>
+                <span>10 (último)</span>
+                <span>500 (primero)</span>
               </div>
             </div>
           </div>

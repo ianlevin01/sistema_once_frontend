@@ -953,8 +953,8 @@ export default function WebOrders() {
                           </tr>
                         </thead>
                         <tbody>
-                          {selected.items.map((it, i) => (
-                            <tr key={i} style={{ borderBottom: i<selected.items.length-1?"1px solid var(--border)":"none" }}>
+                          {(selected.items||[]).map((it, i) => (
+                            <tr key={i} style={{ borderBottom: i<(selected.items||[]).length-1?"1px solid var(--border)":"none" }}>
                               <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.code||"—"}</td>
                               <td style={{ padding:"7px 8px", fontSize:12 }}>{it.name}</td>
                               <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, textAlign:"right" }}>{it.quantity}</td>

@@ -406,7 +406,7 @@ export default function Remitos({ initialCreating = false }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {selected.items.map((it, i) => (
+                        {(selected.items||[]).map((it, i) => (
                           <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
                             <td style={{ padding:"7px 8px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.code || "—"}</td>
                             <td style={{ padding:"7px 8px", fontSize:13 }}>{it.name || it.description || "—"}</td>

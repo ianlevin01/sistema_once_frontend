@@ -1031,7 +1031,7 @@ export default function Comprobantes({ initialCreating = false }) {
                         </tr>
                       </thead>
                       <tbody>
-                        {selected.items.map((it, i) => (
+                        {(selected.items||[]).map((it, i) => (
                           <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
                             <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.product_code || it.code || "—"}</td>
                             <td style={{ padding:"7px 10px", fontSize:13 }}>{it.product_name || it.name || "—"}</td>
