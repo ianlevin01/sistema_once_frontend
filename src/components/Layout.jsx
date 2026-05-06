@@ -23,7 +23,13 @@ const NAV_ADMIN = [
     items: [
       { to: "/clientes",         label: "Clientes",         icon: "👤" },
       { to: "/cuenta-corriente", label: "Cuenta Corriente", icon: "💳" },
-      { to: "/productos",        label: "Productos",        icon: "🏷️" },
+      {
+        label: "Productos", icon: "🏷️", rootPath: "/productos",
+        submenu: [
+          { to: "/productos",                label: "Catálogo"         },
+          { to: "/productos/ultimas-compras", label: "Últimas Compras" },
+        ],
+      },
       { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
       { to: "/transportes",      label: "Transportes",      icon: "🚚"   },
     ],
@@ -42,7 +48,13 @@ const NAV_VENDEDOR = [
     section: "Ventas",
     items: [
       { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
-      { to: "/productos",    label: "Productos",    icon: "🏷️" },
+      {
+        label: "Productos", icon: "🏷️", rootPath: "/productos",
+        submenu: [
+          { to: "/productos",                label: "Catálogo"         },
+          { to: "/productos/ultimas-compras", label: "Últimas Compras" },
+        ],
+      },
       { to: "/calculadora",  label: "Calculadora",  icon: "🧮" },
     ],
   },
@@ -62,7 +74,8 @@ const PAGE_TITLES = {
   "/pedidos-web":      "Pedidos Web",
   "/clientes":         "Clientes",
   "/cuenta-corriente": "Cuenta Corriente",
-  "/productos":        "Productos",
+  "/productos":                    "Productos",
+  "/productos/ultimas-compras":    "Últimas Compras",
   "/vendedores":       "Vendedores",
   "/usuarios":         "Usuarios del Sistema",
   "/configuracion":    "Configuración",
@@ -70,7 +83,8 @@ const PAGE_TITLES = {
 };
 
 function CajaNavItem({ item, location }) {
-  const isCajaActive = location.pathname.startsWith("/caja");
+  const rootPath = item.rootPath || "/caja";
+  const isCajaActive = location.pathname.startsWith(rootPath);
   const [open, setOpen] = useState(isCajaActive);
 
   return (

@@ -10,9 +10,9 @@
   --text:         #1a2236;
   --text-muted:   #526078;
   --text-dim:     #8fa0b8;
-  --accent:       #3392d4;
-  --accent-light: #eaf4fd;
-  --accent-hover: #2278b8;
+  --accent:       #1d6fb8;
+  --accent-light: #e8f2fb;
+  --accent-hover: #155d9e;
   --accent2:      #0ea5c9;
   --accent2-light:#e0f5fb;
   --danger:       #d93025;
@@ -62,7 +62,7 @@ html, body, #root {
 /* ══ SIDEBAR ═════════════════════════════════════════════════════════════════ */
 .sidebar {
   width: var(--sidebar-w);
-  background: #1a3a5c;
+  background: #2a6098;
   border-right: none;
   display: flex;
   flex-direction: column;

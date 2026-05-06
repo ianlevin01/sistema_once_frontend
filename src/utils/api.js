@@ -127,6 +127,8 @@ export const updateComprobante = (id, data)  => api.put(`/comprobantes/${id}`, d
 export const deleteComprobante = (id, password) => api.delete(`/comprobantes/${id}`, { data: { password } });
 export const getLastSalePrice  = (customer_id, product_id) =>
   api.get(`/comprobantes/last-price?customer_id=${customer_id}&product_id=${product_id}`);
+export const getUltimasCompras = (from, to) =>
+  api.get(`/comprobantes/ultimas-compras${from && to ? `?from=${from}&to=${to}` : ""}`);
 
 // ── CAJA LISTADO ──────────────────────────────────────────────
 export const getListadoCaja = (from, to) =>
