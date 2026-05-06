@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -8,7 +8,6 @@ const EMPTY_FORM = {
   name: "", code: "", barcode: "", box_code: "", description: "",
   category_id: "", active: true, costo_usd: "", tasa_iva: "", despacho: "",
   aduana: "", origen: "", qxb: "", fecha: "", video_url: "",
-  seccion: 1, peso: "",
 };
 
 const FMTARS = (v) => v != null ? `$${Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—";
@@ -140,6 +139,52 @@ export default function Products() {
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
+
+  // ── Price overrides ───────────────────────────────────────────────────────
+  const [overrideModal,   setOverrideModal]   = useState(false);
+  const [overrideForm,    setOverrideForm]    = useState({ pct_1:"", pct_2:"", pct_3:"", pct_4:"", pct_5:"" });
+  const [savingOverride,  setSavingOverride]  = useState(false);
+
+  const openOverrideModal = () => {
+    setOverrideForm({
+      pct_1: selected.ovr_pct_1 != null ? String(selected.ovr_pct_1) : "",
+      pct_2: selected.ovr_pct_2 != null ? String(selected.ovr_pct_2) : "",
+      pct_3: selected.ovr_pct_3 != null ? String(selected.ovr_pct_3) : "",
+      pct_4: selected.ovr_pct_4 != null ? String(selected.ovr_pct_4) : "",
+      pct_5: selected.ovr_pct_5 != null ? String(selected.ovr_pct_5) : "",
+    });
+    setOverrideModal(true);
+  };
+
+  const handleSaveOverride = async () => {
+    setSavingOverride(true);
+    try {
+      await setProductOverride(selected.id, {
+        pct_1: overrideForm.pct_1 !== "" ? Number(overrideForm.pct_1) : null,
+        pct_2: overrideForm.pct_2 !== "" ? Number(overrideForm.pct_2) : null,
+        pct_3: overrideForm.pct_3 !== "" ? Number(overrideForm.pct_3) : null,
+        pct_4: overrideForm.pct_4 !== "" ? Number(overrideForm.pct_4) : null,
+        pct_5: overrideForm.pct_5 !== "" ? Number(overrideForm.pct_5) : null,
+      });
+      addToast("Porcentajes guardados", "success");
+      setOverrideModal(false);
+      const { data } = await getProduct(selected.id);
+      setSelected(data);
+    } catch { addToast("Error guardando porcentajes", "error"); }
+    setSavingOverride(false);
+  };
+
+  const handleDeleteOverride = async () => {
+    setSavingOverride(true);
+    try {
+      await deleteProductOverride(selected.id);
+      addToast("Porcentajes restablecidos al global", "success");
+      setOverrideModal(false);
+      const { data } = await getProduct(selected.id);
+      setSelected(data);
+    } catch { addToast("Error", "error"); }
+    setSavingOverride(false);
+  };
 
   // ── Categorías ────────────────────────────────────────────────────────────
   const [categories,      setCategories]      = useState([]);
@@ -315,8 +360,6 @@ export default function Products() {
       qxb:         selected.qxb         || "",
       fecha:       selected.fecha || selected.created_at?.slice(0,10) || "",
       video_url:   selected.video_url   || "",
-      seccion:     selected.seccion     ?? 1,
-      peso:        selected.peso        ?? "",
     });
     const imgs = selected.images || [];
     setImgSlots([
@@ -504,7 +547,14 @@ export default function Products() {
                         </div>
                       )}
                       <div style={{ flex:1 }}>
-                        <LBL>Precios</LBL>
+                        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
+                          <LBL style={{ margin:0 }}>Precios</LBL>
+                          {!isVendedor && (
+                            <button className="btn btn-ghost" style={{ fontSize:11, padding:"3px 8px" }} onClick={openOverrideModal}>
+                              {selected.has_price_override ? "✏️ % personalizados" : "✏️ Porcentajes"}
+                            </button>
+                          )}
+                        </div>
                         <div style={{ border:"1px solid var(--border)", borderRadius:7, overflow:"hidden", background:"var(--bg2)" }}>
                           {isVendedor ? (
                             (() => {
@@ -544,8 +594,9 @@ export default function Products() {
                             })()
                           ) : (
                             <>
-                              <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                              <div style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
                                 <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"center" }}>%</span>
                                 <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
                                 <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
                               </div>
@@ -577,9 +628,13 @@ export default function Products() {
                                   usdVal = p.price_usd != null ? Number(p.price_usd)
                                          : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
                                 }
+                                const isOverridden = selected[`ovr_pct_${n}`] != null;
                                 return (
-                                  <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
+                                  <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
                                     <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:11, textAlign:"center", color: isOverridden ? "var(--warning)" : "var(--text-dim)", fontWeight: isOverridden ? 700 : 400 }}>
+                                      {p ? `${p.pct}%` : "—"}
+                                    </span>
                                     <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign:"right" }}>
                                       {arsVal != null ? FMTARS(arsVal) : "—"}
                                     </span>
@@ -942,40 +997,6 @@ export default function Products() {
               </div>
             </div>
           </div>
-          <div style={{ display:"flex", gap:12 }}>
-            <div className="input-group" style={{ flex:"0 0 120px" }}>
-              <label className="input-label">Sección</label>
-              <input
-                className="input"
-                type="number"
-                min="1"
-                value={form.seccion}
-                onChange={(e) => {
-                  const n = parseInt(e.target.value, 10);
-                  setForm((prev) => ({ ...prev, seccion: isNaN(n) || n < 1 ? 1 : n }));
-                }}
-              />
-            </div>
-            <div className="input-group" style={{ flex:1 }}>
-              <label className="input-label" style={{ display:"flex", justifyContent:"space-between" }}>
-                <span>Peso (orden dentro de sección)</span>
-                <span style={{ fontWeight:600, color:"var(--accent)" }}>{form.peso !== "" ? form.peso : "auto"}</span>
-              </label>
-              <input
-                type="range"
-                min="10"
-                max="500"
-                step="10"
-                value={form.peso !== "" ? form.peso : 10}
-                onChange={(e) => setForm((prev) => ({ ...prev, peso: Number(e.target.value) }))}
-                style={{ width:"100%", accentColor:"var(--accent)", cursor:"pointer" }}
-              />
-              <div style={{ display:"flex", justifyContent:"space-between", fontSize:10, color:"var(--text-muted)", marginTop:2 }}>
-                <span>10 (último)</span>
-                <span>500 (primero)</span>
-              </div>
-            </div>
-          </div>
           <div className="input-group">
             <label className="input-label">URL Video</label>
             <input ref={videoRef} className="input" value={form.video_url} onChange={f("video_url")} placeholder="https://youtube.com/..." />
@@ -985,6 +1006,48 @@ export default function Products() {
             <label htmlFor="active" style={{ fontSize:13, color:"var(--text-muted)", cursor:"pointer" }}>Producto activo</label>
           </div>
         </Modal>
+      )}
+
+      {/* ── Modal de porcentajes por producto ── */}
+      {overrideModal && selected && (
+        <div className="modal-overlay" onClick={() => setOverrideModal(false)}>
+          <div className="modal" style={{ maxWidth:380 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Porcentajes de precio</span>
+              <button className="modal-close" onClick={() => setOverrideModal(false)}>✕</button>
+            </div>
+            <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:16 }}>
+              Configuración personalizada para <strong>{selected.name}</strong>.<br/>
+              Dejá vacío en algún precio para usar el porcentaje global del sistema.
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+              {[1,2,3,4,5].map((n) => (
+                <div key={n}>
+                  <div className="input-label">Precio #{n} %</div>
+                  <input
+                    className="input"
+                    type="number"
+                    step="0.1"
+                    placeholder={`Global: ${selected[`global_pct_${n}`] ?? "?"}%`}
+                    value={overrideForm[`pct_${n}`]}
+                    onChange={(e) => setOverrideForm((f) => ({ ...f, [`pct_${n}`]: e.target.value }))}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display:"flex", gap:8, marginTop:20, flexWrap:"wrap" }}>
+              <button className="btn btn-primary" onClick={handleSaveOverride} disabled={savingOverride}>
+                {savingOverride ? "Guardando..." : "Guardar"}
+              </button>
+              {selected.has_price_override && (
+                <button className="btn btn-ghost" style={{ color:"var(--danger)" }} onClick={handleDeleteOverride} disabled={savingOverride}>
+                  Restablecer global
+                </button>
+              )}
+              <button className="btn btn-ghost" onClick={() => setOverrideModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

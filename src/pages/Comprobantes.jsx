@@ -21,7 +21,7 @@ const PRECIO_LBL = {
 };
 const TIPOS_CON_CONSUMIDOR_FINAL = ["Presupuesto","Devolucion","Nota de Pedido"];
 const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
-const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
+const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 // ── Componente de fila de item editable ────────────────────────
 function ItemRow({ item, idx, onRemove, onChangeQty, onChangePrice, onChangeDesc }) {
@@ -424,7 +424,7 @@ function LeftPanel({
             ) : custSel ? (
               <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
                 <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{custSel.name}</span>
-                <button onClick={() => { setCustSel(null); }} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
+                <button onClick={() => { setCustSel(null); setDivisa("ARS"); }} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
               </div>
             ) : (
               <>
@@ -590,7 +590,7 @@ function LeftPanel({
             {itemCount} ítem{itemCount !== 1 ? "s" : ""}
           </span>
           <span style={{ fontSize:15, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
-            {esConsumidorFinal && divisa === "USD" ? "USD " : "$"}{fmt(total)}
+            {divisa === "USD" ? "USD " : "$"}{fmt(total)}
           </span>
         </div>
         <button className="btn btn-primary" onClick={onSave} disabled={saving}
@@ -683,6 +683,14 @@ export default function Comprobantes({ initialCreating = false }) {
   const applyFilter = () => { setAppliedFrom(from); setAppliedTo(to); loadAll(from, to); };
   useEffect(() => { loadAll(today(), today()); }, []);
 
+  useEffect(() => {
+    if (editId || creating || initialCreating) {
+      document.title = editId ? "Editar comprobante — Once" : "Nuevo comprobante — Once";
+    } else {
+      document.title = "Comprobantes — Once";
+    }
+  }, [editId, creating, initialCreating]);
+
   useEffect(() => { if (!admiteConsumidorFinal) setEsConsumidorFinal(false); }, [tipo, admiteConsumidorFinal]);
 
   useEffect(() => {
@@ -714,9 +722,14 @@ export default function Comprobantes({ initialCreating = false }) {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
       const found  = prices.find((p) => p.price_type === priceType);
-      setItemPrice(found ? String(Number(found.price)) : "");
+      if (found) {
+        const raw = divisa === "USD" ? (found.price_usd ?? found.price) : found.price;
+        setItemPrice(String(Math.ceil(Number(raw) * 100) / 100));
+      } else {
+        setItemPrice("");
+      }
     }
-  }, [priceType, prodSel]);
+  }, [priceType, prodSel, divisa]);
 
   const fetchLastPrice = useCallback(async (productId) => {
     if (!custSel?.id || !productId || esReposicion || esConsumidorFinal) { setLastPrice(null); return; }
@@ -724,7 +737,7 @@ export default function Comprobantes({ initialCreating = false }) {
     catch { setLastPrice(null); }
   }, [custSel, esReposicion, esConsumidorFinal]);
 
-  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); };
+  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); setDivisa(c.divisa || "ARS"); };
   const selectProv = (p) => { setProvSel(p); setProvQuery(""); setProvResults([]); };
 
   const toggleConsumidorFinal = (val) => {
@@ -958,7 +971,14 @@ export default function Comprobantes({ initialCreating = false }) {
                   <tbody>
                     {comprobantes.map((c) => (
                       <tr key={c.id}>
-                        <td><span className="badge badge-accent">{c.tipo || "Presupuesto"}</span></td>
+                        <td>
+                          <span className="badge badge-accent">{c.tipo || "Presupuesto"}</span>
+                          {c.web_order_numero && (
+                            <span style={{ marginLeft:5, fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                              #{c.web_order_numero}
+                            </span>
+                          )}
+                        </td>
                         <td style={{ fontSize:14 }}>
                           {c.customer_name || c.supplier_name || (c.es_consumidor_final ? (c.consumidor_final_nombre || "Consumidor Final") : "—")}
                           {c.es_consumidor_final && (
@@ -1114,7 +1134,7 @@ export default function Comprobantes({ initialCreating = false }) {
                     <div style={{ textAlign:"right" }}>
                       <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
                       <div style={{ fontSize:28, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
-                        {esConsumidorFinal && divisa === "USD" ? "USD " : "$"}{fmt(total)}
+                        {divisa === "USD" ? "USD " : "$"}{fmt(total)}
                       </div>
                     </div>
                   </div>
@@ -1130,7 +1150,7 @@ export default function Comprobantes({ initialCreating = false }) {
                     <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)", fontWeight:700 }}>{prodSel.code}</span>
                     <span style={{ fontSize:13, color:"var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{prodSel.name}</span>
                     <span style={{ fontFamily:"var(--font-mono)", fontSize:13, color:"var(--accent)", fontWeight:700, flexShrink:0 }}>
-                      {esConsumidorFinal && divisa === "USD" ? "USD " : "$"}{fmt(Number(itemPrice || 0))}
+                      {divisa === "USD" ? "USD " : "$"}{fmt(Number(itemPrice || 0))}
                     </span>
                     <span style={{ fontSize:11, color:"var(--text-dim)", flexShrink:0 }}>← ingresá cantidad</span>
                   </div>
@@ -1155,7 +1175,7 @@ export default function Comprobantes({ initialCreating = false }) {
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
+                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} divisa={divisa} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>

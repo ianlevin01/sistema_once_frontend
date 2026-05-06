@@ -36,6 +36,15 @@ export default function Remitos({ initialCreating = false }) {
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
   const [creating,     setCreating]     = useState(initialCreating);
+
+  useEffect(() => {
+    if (editId || creating || initialCreating) {
+      document.title = editId ? "Editar remito — Once" : "Nuevo remito — Once";
+    } else {
+      document.title = "Remitos — Once";
+    }
+  }, [editId, creating, initialCreating]);
+
   const [from,         setFrom]         = useState(today());
   const [to,           setTo]           = useState(today());
   const [appliedFrom,  setAppliedFrom]  = useState(today());
@@ -176,7 +185,7 @@ export default function Remitos({ initialCreating = false }) {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
       const found  = prices.find((p) => p.price_type === priceType);
-      setItemPrice(found ? String(Number(found.price)) : "");
+      setItemPrice(found ? String(Math.ceil(Number(found.price) * 100) / 100) : "");
     }
   }, [priceType, prodSel]);
 

@@ -5,6 +5,7 @@ import { useVendedores } from "../utils/useVendedores";
 import { useAuth } from "../utils/useAuth";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { calcGanancia, getTasa } from "../utils/calcGanancia";
+import { printWebOrderPDF } from "../utils/printDoc";
 
 const COLORS = [
   { value:"pending", label:"Sin marcar",  bg:"var(--bg3)",           border:"var(--border)",  text:"var(--text-muted)" },
@@ -57,7 +58,7 @@ function EditModal({ order, onClose, onSaved, addToast }) {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
       const found  = prices.find((p) => p.price_type === priceType);
-      setItemPrice(found ? String(Number(found.price)) : "");
+      setItemPrice(found ? String(Math.ceil(Number(found.price) * 100) / 100) : "");
     }
   }, [priceType, prodSel]);
 
@@ -399,7 +400,7 @@ export default function WebOrders() {
     if (presProdSel) {
       const prices = presProdSel?.prices || presProdSel?.product_prices || [];
       const found  = prices.find((p) => p.price_type === presPriceType);
-      setPresItemPrice(found ? String(Number(found.price)) : "");
+      setPresItemPrice(found ? String(Math.ceil(Number(found.price) * 100) / 100) : "");
     }
   }, [presPriceType, presProdSel]);
 
@@ -429,8 +430,9 @@ export default function WebOrders() {
   const toggleReservado = async (id, current) => {
     try {
       await api.patch(`/web-orders/${id}/reservado`, { reservado: !current });
-      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, reservado: !current } : o));
-      if (selected?.id === id) setSelected((prev) => ({ ...prev, reservado: !current }));
+      const { data: refreshed } = await api.get(`/web-orders/${id}`);
+      setOrders((prev) => prev.map((o) => o.id === id ? { ...o, ...refreshed } : o));
+      if (selected?.id === id) setSelected(refreshed);
       addToast(!current ? "Pedido reservado" : "Reserva cancelada", "success");
     } catch { addToast("Error", "error"); }
   };
@@ -552,44 +554,7 @@ export default function WebOrders() {
 
   const printPDF = () => {
     if (!selected) return;
-    const win = window.open("", "_blank");
-    const items = selected.items || [];
-    const total = items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
-    win.document.write(`
-      <html><head><title>Pedido #${selected.numero || selected.id.slice(0,8)}</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 32px; font-size: 14px; }
-        h2   { margin-bottom: 4px; }
-        p    { margin: 2px 0; color: #555; }
-        table { width: 100%; border-collapse: collapse; margin-top: 24px; }
-        th   { text-align: left; border-bottom: 2px solid #000; padding: 8px 10px; font-size: 12px; text-transform: uppercase; }
-        td   { padding: 8px 10px; border-bottom: 1px solid #eee; }
-        .total { text-align: right; margin-top: 16px; font-size: 18px; font-weight: bold; }
-      </style></head><body>
-      <h2>Pedido N° ${selected.numero || "—"}</h2>
-      <p><b>${selected.customer_name}</b></p>
-      ${selected.customer_city  ? `<p>${selected.customer_city}</p>` : ""}
-      ${selected.customer_phone ? `<p>Tel: ${selected.customer_phone}</p>` : ""}
-      ${selected.customer_email ? `<p>${selected.customer_email}</p>` : ""}
-      ${selected.observaciones  ? `<p style="margin-top:8px;color:#333">${selected.observaciones}</p>` : ""}
-      <table>
-        <thead><tr><th>Código</th><th>Producto</th><th>Cantidad</th><th style="text-align:right">Precio unit.</th><th style="text-align:right">Total</th></tr></thead>
-        <tbody>
-          ${items.map((i) => `
-            <tr>
-              <td>${i.code || "—"}</td>
-              <td>${i.name}</td>
-              <td>${i.quantity}</td>
-              <td style="text-align:right">$${Number(i.unit_price||0).toLocaleString("es-AR",{minimumFractionDigits:2})}</td>
-              <td style="text-align:right">$${(i.quantity*Number(i.unit_price||0)).toLocaleString("es-AR",{minimumFractionDigits:2})}</td>
-            </tr>`).join("")}
-        </tbody>
-        <tfoot><tr><td colspan="4" style="text-align:right;font-weight:bold;padding-top:12px">TOTAL</td>
-          <td style="text-align:right;font-weight:bold;padding-top:12px">$${total.toLocaleString("es-AR",{minimumFractionDigits:2})}</td></tr></tfoot>
-      </table>
-      </body></html>`);
-    win.document.close();
-    win.print();
+    printWebOrderPDF(selected);
   };
 
   // ─────────────────────────────────────────────────────────────
@@ -846,6 +811,11 @@ export default function WebOrders() {
                           RESERVADO
                         </span>
                       )}
+                      {o.order_id && (
+                        <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", opacity:0.7 }}>
+                          NP vinculada
+                        </span>
+                      )}
                     </div>
                     <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color: c.text }}>
                       ${Number(o.total||0).toLocaleString("es-AR")}
@@ -879,9 +849,16 @@ export default function WebOrders() {
               {/* Header detalle */}
               <div style={{ padding:"14px 16px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>
-                    PEDIDO #{selected.numero}
-                  </span>
+                  <div style={{ display:"flex", flexDirection:"column", gap:2 }}>
+                    <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>
+                      PEDIDO WEB #{selected.numero}
+                    </span>
+                    {selected.order_id && (
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", fontWeight:700 }}>
+                        NOTA DE PEDIDO VINCULADA
+                      </span>
+                    )}
+                  </div>
                   <button onClick={() => setSelected(null)}
                     style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:18 }}>✕</button>
                 </div>

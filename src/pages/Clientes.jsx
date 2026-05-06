@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes } from "../utils/api";
+import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes, getVendedoresActivos } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useNavigate } from "react-router-dom";
 
-const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", codigo_postal: "", transporte: "", divisa: "ARS" };
+const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
 
 export default function Clientes() {
   const [clientes, setClientes]   = useState([]);
@@ -17,6 +17,11 @@ export default function Clientes() {
   const { addToast, ToastContainer } = useToast();
   const navigate = useNavigate();
   const debounceRef = useRef(null);
+  const [vendedores, setVendedores] = useState([]);
+
+  useEffect(() => {
+    getVendedoresActivos().then(({ data }) => setVendedores(data)).catch(() => {});
+  }, []);
 
   const doSearch = async (q) => {
     if (!q.trim()) { setClientes([]); return; }
@@ -79,7 +84,7 @@ export default function Clientes() {
   const openEditar = (c) => {
     setForm({ name: c.name || "", document: c.document || "", phone: c.phone || "",
       email: c.email || "", domicilio: c.domicilio || "", codigo_postal: c.codigo_postal || "",
-      transporte: c.transporte || "", divisa: c.divisa || "ARS" });
+      transporte: c.transporte || "", divisa: c.divisa || "ARS", vendedor: c.vendedor || "" });
     setEditId(c.id);
     setModal("editar");
   };
@@ -233,6 +238,15 @@ export default function Clientes() {
                 <select className="select" value={form.divisa} onChange={(e) => setForm((f) => ({ ...f, divisa: e.target.value }))}>
                   <option value="ARS">ARS</option>
                   <option value="USD">USD</option>
+                </select>
+              </div>
+              <div>
+                <div className="input-label">Vendedor</div>
+                <select className="select" value={form.vendedor} onChange={(e) => setForm((f) => ({ ...f, vendedor: e.target.value }))}>
+                  <option value="">— Sin asignar —</option>
+                  {vendedores.map((v) => (
+                    <option key={v.id} value={v.nombre}>{v.nombre}</option>
+                  ))}
                 </select>
               </div>
             </div>

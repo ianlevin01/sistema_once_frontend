@@ -2,10 +2,12 @@ import { useState, useEffect, useRef, useCallback, memo, forwardRef, useImperati
 import { createPortal } from "react-dom";
 import { searchProducts, getProduct } from "../utils/api";
 
-const extractPrice = (product, priceType) => {
+const extractPrice = (product, priceType, divisa = "ARS") => {
   const prices = product?.prices || product?.product_prices || [];
   const found  = prices.find((p) => p.price_type === priceType);
-  return found ? Number(found.price) : 0;
+  if (!found) return 0;
+  const raw = divisa === "USD" ? (found.price_usd ?? found.price) : found.price;
+  return Math.ceil(Number(raw) * 100) / 100;
 };
 
 const DROPDOWN_W = 780;
@@ -35,9 +37,10 @@ function calcDropdownPos(anchorEl, preferUp = false) {
 // Al ser un componente separado con memo, sus re-renders (cuando llega
 // la imagen o el detalle) NO afectan el layout de la lista de resultados,
 // eliminando el mouseLeave/mouseEnter espurio que causaba el flickering.
-const PreviewPanel = memo(({ product, loading, priceType }) => {
-  const photos = product?.images?.map((i) => i.url).filter(Boolean) || [];
-  const price  = product ? extractPrice(product, priceType) : 0;
+const PreviewPanel = memo(({ product, loading, priceType, divisa = "ARS" }) => {
+  const photos  = product?.images?.map((i) => i.url).filter(Boolean) || [];
+  const price   = product ? extractPrice(product, priceType, divisa) : 0;
+  const prefix  = divisa === "USD" ? "USD " : "$";
 
   return (
     <div style={{
@@ -114,7 +117,7 @@ const PreviewPanel = memo(({ product, loading, priceType }) => {
               fontWeight: 700,
               color:      "var(--accent)",
             }}>
-              ${price.toLocaleString("es-AR")}
+              {prefix}{price.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
           )}
         </div>
@@ -185,6 +188,7 @@ const ResultItem = memo(({ product, highlight, onMouseEnter, onMouseLeave, onMou
 
 const ProductSearchBar = forwardRef(function ProductSearchBar({
   priceType  = "precio_1",
+  divisa     = "ARS",
   onSelect,
   disabled,
   autoFocus,
@@ -203,6 +207,7 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
   const wrapperRef    = useRef(null);
   const listRef       = useRef(null);
   const hoverTimerRef = useRef(null);
+  const isFocusedRef  = useRef(false);
 
   // Permite que el padre llame prodSearchRef.current.focus()
   useImperativeHandle(ref, () => ({
@@ -218,17 +223,20 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
 
   // ── Búsqueda con debounce ──────────────────────────────────────
   useEffect(() => {
-    if (!query.trim()) { setResults([]); setOpen(false); return; }
+    const delay = query.trim() ? 300 : 0;
     const t = setTimeout(async () => {
       try {
         const { data } = await searchProducts(query);
         setResults(data);
         setActiveIdx(0);
         setHovered(null);
-        if (data.length > 0) { updateDropPos(); setOpen(true); }
-        else setOpen(false);
+        if (data.length > 0 && (query.trim() || isFocusedRef.current)) {
+          updateDropPos(); setOpen(true);
+        } else if (!data.length) {
+          setOpen(false);
+        }
       } catch {}
-    }, 300);
+    }, delay);
     return () => clearTimeout(t);
   }, [query, updateDropPos]);
 
@@ -313,7 +321,7 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
       try { const { data } = await getProduct(prod.id); detail = data; }
       catch { detail = prod; }
     }
-    onSelect?.({ product: detail, price: extractPrice(detail, priceType) });
+    onSelect?.({ product: detail, price: extractPrice(detail, priceType, divisa) });
   }, [detailCache, priceType, onSelect]);
 
   // ── Handlers de hover con debounce ────────────────────────────
@@ -376,6 +384,7 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
         product={previewProduct}
         loading={loadingDetail}
         priceType={priceType}
+        divisa={divisa}
       />
 
       <style>{`
@@ -403,12 +412,13 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);
-            if (!e.target.value) setOpen(false);
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
+            isFocusedRef.current = true;
             if (results.length) { updateDropPos(); setOpen(true); }
           }}
+          onBlur={() => { isFocusedRef.current = false; }}
           style={{ fontSize: 14 }}
           autoFocus={autoFocus}
           disabled={disabled}

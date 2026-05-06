@@ -1282,6 +1282,11 @@ export default function CajaListado() {
                           }}>
                             {n.tipo === "Nota de Pedido Web" ? "Web" : "Manual"}
                           </span>
+                          {n.web_order_numero && (
+                            <span style={{ marginLeft:5, fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                              #{n.web_order_numero}
+                            </span>
+                          )}
                         </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(n.created_at)}</td>
                         <td style={{ fontSize:14 }}>{n.customer_name||"—"}</td>

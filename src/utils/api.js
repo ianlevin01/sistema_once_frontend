@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -87,13 +87,16 @@ export const eliminarMovimientoCC = (movId)       => api.delete(`/cuenta-corrien
 export const getPriceConfig = () => api.get("/config/precios");
 
 // ── PRODUCTS ──────────────────────────────────────────────────
-export const searchProducts  = (name)     => api.get(`/products/search?name=${name}`);
-export const getProduct      = (id)       => api.get(`/products/${id}`);
-export const createProduct   = (data)     => api.post("/products", data);
-export const updateProduct   = (id, data) => api.put(`/products/${id}`, data);
-export const deleteProduct   = (id)       => api.delete(`/products/${id}`);
-export const getCategories   = ()         => api.get("/products/categories");
-export const createCategory  = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
+export const searchProducts       = (name)       => api.get(`/products/search?name=${name}`);
+export const getProduct           = (id)         => api.get(`/products/${id}`);
+export const createProduct        = (data)       => api.post("/products", data);
+export const updateProduct        = (id, data)   => api.put(`/products/${id}`, data);
+export const deleteProduct        = (id)         => api.delete(`/products/${id}`);
+export const getCategories        = ()           => api.get("/products/categories");
+export const createCategory       = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
+export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
+export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
+export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);
 
 // ── REMITOS ───────────────────────────────────────────────────
 export const getRemitos    = (from, to) =>

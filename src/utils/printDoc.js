@@ -81,6 +81,88 @@ const BASE_CSS = `
 `;
 
 // ─────────────────────────────────────────────────────────────
+// IMPRIMIR PEDIDO WEB
+// ─────────────────────────────────────────────────────────────
+export function printWebOrderPDF(order) {
+  const items = (order.items || []).slice().sort((a, b) =>
+    (a.name || "").localeCompare(b.name || "", "es")
+  );
+  const total = Number(order.total) || items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
+
+  const itemsHtml = items.map((it) => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;color:#555">${it.code || "—"}</td>
+      <td>${it.name || "—"}</td>
+      <td class="right" style="font-family:monospace">${it.quantity}</td>
+      <td class="right" style="font-family:monospace">$${fmtMoney(it.unit_price)}</td>
+      <td class="right" style="font-family:monospace;font-weight:700">$${fmtMoney(it.quantity * Number(it.unit_price || 0))}</td>
+    </tr>
+  `).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Pedido Web N° ${order.numero || "—"}</title>
+  <style>${BASE_CSS}</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="empresa">${order.customer_name || "—"}</div>
+      ${order.customer_city  ? `<div style="font-size:12px;color:#666">📍 ${order.customer_city}</div>` : ""}
+      ${order.customer_phone ? `<div style="font-size:12px;color:#666">📞 ${order.customer_phone}</div>` : ""}
+      ${order.customer_email ? `<div style="font-size:12px;color:#666">✉ ${order.customer_email}</div>` : ""}
+    </div>
+    <div class="doc-info">
+      <div class="doc-tipo">PEDIDO WEB</div>
+      <div>N° ${order.numero || "—"}</div>
+      <div>Fecha: ${fmtDate(order.created_at)}</div>
+      ${order.comprobante_numero ? `<div style="font-weight:700">Nota de Pedido #${order.comprobante_numero}</div>` : ""}
+      <div style="font-size:10px;color:#aaa;margin-top:4px">#${(order.id || "").slice(0, 8).toUpperCase()}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Productos (${items.length})</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:80px">Código</th>
+          <th>Descripción</th>
+          <th class="right" style="width:60px">Cant.</th>
+          <th class="right" style="width:110px">P. Unit.</th>
+          <th class="right" style="width:120px">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml || "<tr><td colspan='5' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
+      </tbody>
+      <tfoot>
+        <tr class="total-row">
+          <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
+          <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+
+  ${order.observaciones ? `
+  <div class="section">
+    <div class="section-title">Observaciones</div>
+    <div style="font-size:12px;color:#444;line-height:1.6">${order.observaciones}</div>
+  </div>` : ""}
+
+  <div class="footer">
+    Documento generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
 // IMPRIMIR REMITO — 2 copias por hoja
 // ─────────────────────────────────────────────────────────────
 export function printRemitoPDF(remito, sinPrecios = false) {
