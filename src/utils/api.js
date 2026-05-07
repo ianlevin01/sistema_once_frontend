@@ -96,6 +96,7 @@ export const updateProduct        = (id, data)   => api.put(`/products/${id}`, d
 export const deleteProduct        = (id)         => api.delete(`/products/${id}`);
 export const getCategories        = ()           => api.get("/products/categories");
 export const createCategory       = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
+export const subirProducto        = (id)         => api.patch(`/products/${id}/subir`);
 export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
 export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
 export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);

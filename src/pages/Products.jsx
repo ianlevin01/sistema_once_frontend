@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -418,6 +418,14 @@ export default function Products() {
     } catch { addToast("Error eliminando", "error"); }
   };
 
+  const handleSubir = async () => {
+    if (!selected) return;
+    try {
+      await subirProducto(selected.id);
+      addToast("Producto subido arriba", "success");
+    } catch { addToast("Error", "error"); }
+  };
+
   const f = (k) => (e) => setForm((prev) => ({
     ...prev, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
   }));
@@ -504,6 +512,12 @@ export default function Products() {
               {selected && <>
                 <button className="btn btn-ghost btn-sm" onClick={openEdit}>Editar</button>
                 <button className="btn btn-danger btn-sm" onClick={handleDelete}>Eliminar</button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={handleSubir}
+                  title="Mover arriba de todo"
+                  style={{ fontSize: 11, color: "var(--accent)" }}
+                >↑ Subir</button>
               </>}
             </div>
           </div>
