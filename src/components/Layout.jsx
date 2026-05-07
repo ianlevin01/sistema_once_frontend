@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
+
 import { useAuth } from "../utils/useAuth";
 
 const NAV_ADMIN = [
@@ -26,8 +27,9 @@ const NAV_ADMIN = [
       {
         label: "Productos", icon: "🏷️", rootPath: "/productos",
         submenu: [
-          { to: "/productos",                label: "Catálogo"         },
-          { to: "/productos/ultimas-compras", label: "Últimas Compras" },
+          { to: "/productos",                label: "Catálogo"            },
+          { to: "/productos/ultimas-compras", label: "Últimas Compras"   },
+          { to: "/catalogos",                label: "Imprimir catálogo"  },
         ],
       },
       { to: "/vendedores",       label: "Vendedores",       icon: "🧑‍💼" },
@@ -80,12 +82,19 @@ const PAGE_TITLES = {
   "/usuarios":         "Usuarios del Sistema",
   "/configuracion":    "Configuración",
   "/transportes":      "Transportes",
+  "/catalogos":        "Catálogos Personalizados",
 };
 
 function CajaNavItem({ item, location }) {
+  const navigate = useNavigate();
   const rootPath = item.rootPath || "/caja";
   const isCajaActive = location.pathname.startsWith(rootPath);
   const [open, setOpen] = useState(isCajaActive);
+
+  const handleClick = () => {
+    navigate(rootPath);
+    setOpen(true);
+  };
 
   return (
     <div>
@@ -93,7 +102,7 @@ function CajaNavItem({ item, location }) {
         className={"sidebar-link" + (isCajaActive ? " active" : "")}
         style={{ cursor: "pointer", userSelect: "none" }}
         title={item.label}
-        onClick={() => setOpen((v) => !v)}
+        onClick={handleClick}
       >
         <span className="icon">{item.icon}</span>
         <span className="link-label">{item.label}</span>

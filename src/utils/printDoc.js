@@ -669,6 +669,146 @@ export function printEtiquetasEnvio(remito) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// IMPRIMIR CATÁLOGO DE PRODUCTOS
+// items: [{ displayName, description, price, imageUrl }]
+// opts:  { columns: 2|3, title: string }
+// ─────────────────────────────────────────────────────────────
+export function printCatalogoPDF(items, opts = {}) {
+  const { columns = 3, title = "Catálogo de Productos" } = opts;
+
+  const cardsHtml = items.map((item) => `
+    <div class="card">
+      ${item.imageUrl
+        ? `<div class="card-img-wrap"><img src="${item.imageUrl}" class="card-img" alt="" /></div>`
+        : `<div class="card-img-wrap card-img-placeholder"><span>Sin foto</span></div>`}
+      <div class="card-body">
+        <div class="card-name">${item.displayName || "—"}</div>
+        ${item.description ? `<div class="card-desc">${item.description}</div>` : ""}
+        ${item.price != null ? `<div class="card-price">$${fmtMoney(item.price)}</div>` : ""}
+      </div>
+    </div>
+  `).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      padding: 28px 32px;
+    }
+    .catalog-header {
+      border-bottom: 3px solid #1d6fb8;
+      padding-bottom: 14px;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+    }
+    .catalog-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #111;
+    }
+    .catalog-sub {
+      font-size: 12px;
+      color: #888;
+      font-style: italic;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(${columns}, 1fr);
+      gap: 16px;
+    }
+    .card {
+      border: 1px solid #e0e0e0;
+      border-radius: 6px;
+      overflow: hidden;
+      break-inside: avoid;
+      page-break-inside: avoid;
+      background: #fff;
+    }
+    .card-img-wrap {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      background: #f5f5f5;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card-img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+    .card-img-placeholder {
+      color: #bbb;
+      font-size: 11px;
+    }
+    .card-body {
+      padding: 10px 12px 12px;
+      border-top: 1px solid #f0f0f0;
+    }
+    .card-name {
+      font-size: 13px;
+      font-weight: 700;
+      color: #111;
+      line-height: 1.3;
+      margin-bottom: 4px;
+    }
+    .card-desc {
+      font-size: 11px;
+      color: #666;
+      line-height: 1.4;
+      margin-bottom: 6px;
+    }
+    .card-price {
+      font-size: 16px;
+      font-weight: 800;
+      color: #1d6fb8;
+      font-variant-numeric: tabular-nums;
+    }
+    .catalog-footer {
+      margin-top: 28px;
+      padding-top: 10px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 10px;
+      color: #aaa;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 14px 18px; }
+      @page { margin: 1cm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="catalog-header">
+    <div class="catalog-title">${title}</div>
+    <div class="catalog-sub">${items.length} producto${items.length !== 1 ? "s" : ""}</div>
+  </div>
+
+  <div class="grid">
+    ${cardsHtml || "<p style='color:#aaa;grid-column:1/-1;text-align:center;padding:40px'>Sin productos</p>"}
+  </div>
+
+  <div class="catalog-footer">
+    Catálogo generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · oncepuntos.com.ar
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
 // Helper: abrir ventana de impresión
 // ─────────────────────────────────────────────────────────────
 function openPrintWindow(html) {
