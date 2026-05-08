@@ -1,13 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import {
-  searchCustomers, createComprobante, deleteComprobante,
+  searchCustomers, createComprobante, deleteComprobante, deleteRemito,
   getListadoCaja, getCashMovements, getCobranzasCC, getComprobante,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
-import { printComprobantePDF, printRemitoPDF } from "../utils/printDoc";
+import { printComprobantePDF, printRemitoPDF, downloadComprobantePDF, downloadRemitoPDF } from "../utils/printDoc";
 
 // ── Constantes ────────────────────────────────────────────────
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
@@ -729,8 +729,13 @@ function SeccionCobranzas({ cobranzas, divisa }) {
           );
         })}
         <div style={{ marginLeft:"auto", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"10px 20px", textAlign:"center" }}>
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Total {divisa}</div>
-          <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>{fmtVal(total)}</div>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:10, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:4 }}>Efectivo {divisa}</div>
+          <div style={{ fontFamily:"var(--font-mono)", fontSize:22, fontWeight:800, color:"var(--accent)" }}>{fmtVal(totalPorMetodo["Efectivo"] || 0)}</div>
+          {total !== (totalPorMetodo["Efectivo"] || 0) && (
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", marginTop:2 }}>
+              Total todos: {fmtVal(total)}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -864,9 +869,20 @@ function SeccionDevoluciones({ presupuestos }) {
                     −{fmtVal(p.total)}
                   </td>
                   <td>
-                    <button className="btn btn-ghost btn-sm"
-                      onClick={() => imprimirComprobante(p.id)}
-                      title="Imprimir">🖨️</button>
+                    <div style={{ display:"flex", gap:6 }}>
+                      <button className="btn btn-ghost btn-sm"
+                        onClick={() => handleViewComprobante(p.id)}
+                        title="Ver">👁</button>
+                      <button className="btn btn-ghost btn-sm"
+                        onClick={() => imprimirComprobante(p.id)}
+                        title="Imprimir">🖨️</button>
+                      <button className="btn btn-ghost btn-sm"
+                        onClick={() => window.open(`/comprobantes/editar/${p.id}`, "_blank")}
+                        title="Editar">✏️</button>
+                      <button className="btn btn-danger btn-sm btn-icon"
+                        onClick={() => handleDeletePresupuesto(p.id)}
+                        title="Eliminar">🗑️</button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -911,6 +927,8 @@ export default function CajaListado() {
   const vendedores = useVendedores();
   const presModal  = usePresModal({ addToast, onSuccess: load, vendedores, user });
 
+  const [viewItem, setViewItem] = useState(null);
+
   // ── Helper de impresión con fetch del comprobante completo ───
   const imprimirComprobante = async (id) => {
     try {
@@ -918,6 +936,15 @@ export default function CajaListado() {
       printComprobantePDF(data);
     } catch {
       addToast("Error cargando comprobante para imprimir", "error");
+    }
+  };
+
+  const handleViewComprobante = async (id) => {
+    try {
+      const { data } = await getComprobante(id);
+      setViewItem(data);
+    } catch {
+      addToast("Error cargando comprobante", "error");
     }
   };
 
@@ -1041,21 +1068,33 @@ export default function CajaListado() {
   const hayDatosUSD = cobranzasUSD.length > 0 || presUSD.length > 0 || cashMovsManualesUSD.length > 0;
 
   const handleDeleteNota = async (id) => {
-    if (!confirm("¿Eliminar esta nota de pedido? Se liberará el stock en reserva.")) return;
+    const pwd = prompt("Ingresá la clave para eliminar la nota de pedido (se liberará el stock en reserva):");
+    if (pwd === null) return;
     try {
-      await deleteComprobante(id);
+      await deleteComprobante(id, pwd);
       setNotasPedido((prev) => prev.filter((n) => n.id !== id));
       addToast("Eliminado", "success");
-    } catch { addToast("Error eliminando", "error"); }
+    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando", "error"); }
+  };
+
+  const handleDeleteRemito = async (id) => {
+    const pwd = prompt("Ingresá la clave para eliminar el remito:");
+    if (pwd === null) return;
+    try {
+      await deleteRemito(id, pwd);
+      setRemitos((prev) => prev.filter((r) => r.id !== id));
+      addToast("Remito eliminado", "success");
+    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando remito", "error"); }
   };
 
   const handleDeletePresupuesto = async (id) => {
-    if (!confirm("¿Eliminar este presupuesto? Se revertirá el stock y la cuenta corriente.")) return;
+    const pwd = prompt("Ingresá la clave para eliminar el presupuesto (se revertirá el stock y la cuenta corriente):");
+    if (pwd === null) return;
     try {
-      await deleteComprobante(id);
+      await deleteComprobante(id, pwd);
       setPresupuestos((prev) => prev.filter((p) => p.id !== id));
       addToast("Eliminado", "success");
-    } catch { addToast("Error eliminando", "error"); }
+    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando", "error"); }
   };
 
   // ── RENDER ───────────────────────────────────────────────────
@@ -1124,6 +1163,9 @@ export default function CajaListado() {
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm"
+                              onClick={() => handleViewComprobante(p.id)}
+                              title="Ver">👁</button>
                             <button className="btn btn-ghost btn-sm"
                               onClick={() => imprimirComprobante(p.id)}
                               title="Imprimir">🖨️</button>
@@ -1209,6 +1251,9 @@ export default function CajaListado() {
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm"
+                              onClick={() => handleViewComprobante(p.id)}
+                              title="Ver">👁</button>
+                            <button className="btn btn-ghost btn-sm"
                               onClick={() => imprimirComprobante(p.id)}
                               title="Imprimir">🖨️</button>
                             <button className="btn btn-ghost btn-sm"
@@ -1269,7 +1314,7 @@ export default function CajaListado() {
               <div className="table-wrap">
                 <table>
                   <thead>
-                    <tr><th>Tipo</th><th>Fecha</th><th>Cliente</th><th style={{ textAlign:"right" }}>Importe</th><th>Acciones</th></tr>
+                    <tr><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Depósito</th><th style={{ textAlign:"right" }}>Importe</th><th>Acciones</th></tr>
                   </thead>
                   <tbody>
                     {notasPedido.map((n) => (
@@ -1290,13 +1335,16 @@ export default function CajaListado() {
                         </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(n.created_at)}</td>
                         <td style={{ fontSize:14 }}>{n.customer_name||"—"}</td>
+                        <td style={{ fontSize:12, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{n.warehouse_name||"—"}</td>
                         <td style={{ textAlign:"right", fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
                           ${fmt(n.total)}
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(n)} title="Imprimir">🖨️</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => presModal.openFor(n)}>→ Presupuesto</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleViewComprobante(n.id)} title="Ver">👁</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => imprimirComprobante(n.id)} title="Imprimir">🖨️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${n.id}`, "_blank")} title="Editar">✏️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => presModal.openFor(n)}>→ Pres.</button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteNota(n.id)}>🗑️</button>
                           </div>
                         </td>
@@ -1337,7 +1385,11 @@ export default function CajaListado() {
                           ${fmt(r.total)}
                         </td>
                         <td>
-                          <button className="btn btn-ghost btn-sm" onClick={() => printRemitoPDF(r)}>🖨️</button>
+                          <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => printRemitoPDF(r)} title="Imprimir">🖨️</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/remitos/editar/${r.id}`, "_blank")} title="Editar">✏️</button>
+                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteRemito(r.id)} title="Eliminar">🗑️</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1480,6 +1532,65 @@ export default function CajaListado() {
             );
           })()}
         </>
+      )}
+
+      {/* ── Modal ver comprobante ── */}
+      {viewItem && (
+        <div className="modal-overlay" onClick={() => setViewItem(null)}>
+          <div className="modal" style={{ maxWidth:600 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">{viewItem.tipo||"Comprobante"} — {viewItem.customer_name||viewItem.supplier_name||"—"}</span>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(viewItem)}>🖨️ Imprimir</button>
+                <button className="btn btn-ghost btn-sm" onClick={() => downloadComprobantePDF(viewItem)}>⬇ PDF</button>
+                <button className="modal-close" onClick={() => setViewItem(null)}>✕</button>
+              </div>
+            </div>
+            <div style={{ padding:"0 0 16px", display:"flex", gap:10, flexWrap:"wrap" }}>
+              {viewItem.status && <span className="badge badge-success">{viewItem.status}</span>}
+              <span style={{ fontFamily:"var(--font-mono)", fontSize:14, color:"var(--accent)", fontWeight:700 }}>
+                {viewItem.divisa==="USD" ? "USD " : "$"}{fmt(viewItem.total)}
+              </span>
+              {viewItem.payment_method && <span style={{ fontSize:13, color:"var(--text-muted)" }}>{viewItem.payment_method}</span>}
+              {viewItem.vendedor && <span style={{ fontSize:13, color:"var(--text-muted)" }}>Vend: {viewItem.vendedor}</span>}
+              {viewItem.warehouse_name && <span style={{ fontSize:13, color:"var(--text-muted)" }}>Dep: {viewItem.warehouse_name}</span>}
+              <span style={{ fontSize:12, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
+                {viewItem.created_at ? new Date(viewItem.created_at).toLocaleDateString("es-AR",{timeZone:"America/Argentina/Buenos_Aires"}) : ""}
+              </span>
+            </div>
+            {viewItem.texto_libre && (
+              <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px", marginBottom:14, fontSize:13, color:"var(--text-muted)" }}>
+                {viewItem.texto_libre}
+              </div>
+            )}
+            {viewItem.items?.length > 0 && (
+              <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden" }}>
+                <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
+                  <thead>
+                    <tr style={{ background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                      <th style={{ padding:"8px 10px", textAlign:"left", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>Cód.</th>
+                      <th style={{ padding:"8px 10px", textAlign:"left", fontSize:11 }}>Descripción</th>
+                      <th style={{ padding:"8px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>Cant.</th>
+                      <th style={{ padding:"8px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:10, color:"var(--text-dim)" }}>Precio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {viewItem.items.map((it, i) => (
+                      <tr key={i} style={{ borderBottom:"1px solid var(--border)" }}>
+                        <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.product_code||it.code||"—"}</td>
+                        <td style={{ padding:"7px 10px" }}>{it.product_name||it.name||it.description||"—"}</td>
+                        <td style={{ padding:"7px 10px", textAlign:"right", fontFamily:"var(--font-mono)" }}>{it.quantity}</td>
+                        <td style={{ padding:"7px 10px", textAlign:"right", fontFamily:"var(--font-mono)", color:"var(--accent)", fontWeight:700 }}>
+                          {viewItem.divisa==="USD" ? "USD " : "$"}{fmt(it.unit_price)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </>
   );

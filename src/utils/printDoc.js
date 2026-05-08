@@ -165,7 +165,7 @@ export function printWebOrderPDF(order) {
 // ─────────────────────────────────────────────────────────────
 // IMPRIMIR REMITO — 2 copias por hoja
 // ─────────────────────────────────────────────────────────────
-export function printRemitoPDF(remito, sinPrecios = false) {
+function buildRemitoHtml(remito, sinPrecios = false) {
   const items = (remito.items || []).slice().sort((a, b) =>
     (a.name || a.description || "").localeCompare(b.name || b.description || "", "es")
   );
@@ -266,13 +266,17 @@ export function printRemitoPDF(remito, sinPrecios = false) {
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  return html;
+}
+
+export function printRemitoPDF(remito, sinPrecios = false) {
+  openPrintWindow(buildRemitoHtml(remito, sinPrecios));
 }
 
 // ─────────────────────────────────────────────────────────────
 // IMPRIMIR COMPROBANTE (presupuesto, devolución, reposición, etc.)
 // ─────────────────────────────────────────────────────────────
-export function printComprobantePDF(doc) {
+function buildComprobanteHtml(doc) {
   const items  = doc.items || [];
   const divisa = doc.divisa || "ARS";
   const prefix = currencyPrefix(divisa);
@@ -394,7 +398,11 @@ export function printComprobantePDF(doc) {
 </body>
 </html>`;
 
-  openPrintWindow(html);
+  return html;
+}
+
+export function printComprobantePDF(doc) {
+  openPrintWindow(buildComprobanteHtml(doc));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -824,4 +832,62 @@ function openPrintWindow(html) {
     w.focus();
     w.print();
   }, 300);
+}
+
+// ─────────────────────────────────────────────────────────────
+// Helper: descargar HTML como PDF usando html2pdf.js
+// ─────────────────────────────────────────────────────────────
+async function downloadAsPdf(fullHtml, filename) {
+  let iframe = null;
+  try {
+    const mod = await import("html2pdf.js");
+    const html2pdf = mod.default ?? mod;
+
+    // Renderizar el HTML completo en un iframe oculto para que
+    // <head>/<style> se apliquen correctamente (innerHTML los descarta).
+    iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-10000px;left:0;width:794px;height:1123px;border:none;";
+    document.body.appendChild(iframe);
+
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error("timeout")), 10000);
+      iframe.onload = () => { clearTimeout(t); resolve(); };
+      iframe.srcdoc = fullHtml;
+    });
+
+    // Pausa breve para que los estilos terminen de aplicarse
+    await new Promise((r) => setTimeout(r, 300));
+
+    await html2pdf()
+      .set({
+        margin: 0.8,
+        filename: `${filename}.pdf`,
+        html2canvas: { scale: 2, logging: false, useCORS: true, backgroundColor: "#fff" },
+        jsPDF: { unit: "cm", format: "a4", orientation: "portrait" },
+      })
+      .from(iframe.contentDocument.body)
+      .save();
+  } catch (err) {
+    console.error("[downloadAsPdf]", err);
+    alert("No se pudo generar el PDF. Intentá de nuevo.");
+  } finally {
+    if (iframe?.parentNode) iframe.parentNode.removeChild(iframe);
+  }
+}
+
+export async function downloadComprobantePDF(doc) {
+  const entityName = doc.customer_name
+    || doc.supplier_name
+    || (doc.es_consumidor_final ? (doc.consumidor_final_nombre || "Consumidor Final") : null)
+    || "comprobante";
+  const tipo     = (doc.tipo || "Comprobante").replace(/\s+/g, "-");
+  const filename = `${tipo}-${entityName}-${(doc.id || "").slice(0, 8)}`
+    .toLowerCase().replace(/[^a-z0-9-]/g, "");
+  await downloadAsPdf(buildComprobanteHtml(doc), filename);
+}
+
+export async function downloadRemitoPDF(remito, sinPrecios = false) {
+  const filename = `remito-${remito.origen || ""}-${remito.destino || ""}-${(remito.id || "").slice(0, 8)}`
+    .toLowerCase().replace(/[^a-z0-9-]/g, "");
+  await downloadAsPdf(buildRemitoHtml(remito, sinPrecios), filename);
 }

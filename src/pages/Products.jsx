@@ -381,7 +381,7 @@ export default function Products() {
       });
       if (modal === "edit") {
         imgSlots.forEach((slot) => {
-          if (slot.existingKey) fd.append("keepImages", slot.existingKey);
+          fd.append("keepImages", slot.existingKey || "");
         });
       }
       imgSlots.forEach((slot) => {

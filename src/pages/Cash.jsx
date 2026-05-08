@@ -4,7 +4,7 @@ import { getCashMovements, createCashMovement } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
 const SOURCES = ["venta", "gasto", "ajuste", "retiro", "ingreso manual", "otro"];
-const EMPTY = { type: "ingreso", source: "venta", amount: "", divisa: "ARS" };
+const EMPTY = { type: "ingreso", source: "venta", amount: "", divisa: "ARS", description: "" };
 
 export default function Cash() {
   const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
@@ -53,6 +53,9 @@ export default function Cash() {
   const handleSave = async () => {
     if (!form.amount || isNaN(form.amount) || Number(form.amount) <= 0) {
       addToast("Ingresá un monto válido", "error"); return;
+    }
+    if (!form.description.trim()) {
+      addToast("Ingresá una observación", "error"); return;
     }
     try {
       await createCashMovement({ ...form, amount: Number(form.amount) });
@@ -148,7 +151,7 @@ export default function Cash() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>Tipo</th><th>Fuente</th><th>Divisa</th><th>Monto</th><th>Fecha</th></tr>
+                <tr><th>Tipo</th><th>Fuente</th><th>Observaciones</th><th>Divisa</th><th>Monto</th><th>Fecha</th></tr>
               </thead>
               <tbody>
                 {movements.map((m) => {
@@ -161,6 +164,7 @@ export default function Cash() {
                         </span>
                       </td>
                       <td style={{ color:"var(--text-muted)", fontSize:12 }}>{m.source || "—"}</td>
+                      <td style={{ fontSize:12, color:"var(--text-dim)", maxWidth:200 }}>{m.description || "—"}</td>
                       <td>
                         <span style={{
                           fontSize:11, fontFamily:"var(--font-mono)",
@@ -238,6 +242,19 @@ export default function Cash() {
                 placeholder="0.00"
               />
             </div>
+          </div>
+          <div className="input-group">
+            <label className="input-label">Observaciones *</label>
+            <input
+              className="input"
+              value={form.description}
+              onChange={f("description")}
+              placeholder="Detalle del movimiento..."
+              style={{ borderColor: !form.description.trim() ? "var(--danger)" : undefined }}
+            />
+            {!form.description.trim() && (
+              <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>Campo obligatorio</div>
+            )}
           </div>
         </Modal>
       )}

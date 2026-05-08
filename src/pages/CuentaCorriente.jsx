@@ -274,14 +274,21 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
             </div>
           </div>
           <div className="input-group">
-            <label className="input-label">Concepto (opcional)</label>
+            <label className="input-label">Observaciones *</label>
             <input className="input" value={form.concepto} onChange={setF("concepto")}
-              placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."} />
+              placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."}
+              style={{ borderColor: !form.concepto.trim() ? "var(--danger)" : undefined }} />
+            {!form.concepto.trim() && (
+              <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>Campo obligatorio</div>
+            )}
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => onConfirm({ ...form, cotizacion_manual: cotizUsada })} disabled={saving}>
+          <button className="btn btn-primary" onClick={() => {
+            if (!form.concepto.trim()) return;
+            onConfirm({ ...form, cotizacion_manual: cotizUsada });
+          }} disabled={saving || !form.concepto.trim()}>
             {saving ? "Guardando..." : mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"}
           </button>
         </div>

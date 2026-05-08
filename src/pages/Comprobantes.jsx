@@ -9,7 +9,7 @@ import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
-import { printComprobantePDF } from "../utils/printDoc";
+import { printComprobantePDF, downloadComprobantePDF } from "../utils/printDoc";
 
 // ── Constantes ─────────────────────────────────────────────────
 const TIPOS   = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedor"];
@@ -796,7 +796,7 @@ export default function Comprobantes({ initialCreating = false }) {
         tipo, vendedor, price_type: priceType, texto_libre: textoLibre,
         es_consumidor_final:     esConsumidorFinal,
         consumidor_final_nombre: esConsumidorFinal ? (consumidorFinalNombre || "Consumidor Final") : null,
-        divisa:                  esConsumidorFinal ? divisa : "ARS",
+        divisa:                  divisa,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante creado", "success");
@@ -838,13 +838,22 @@ export default function Comprobantes({ initialCreating = false }) {
         }
       }
 
-      setItems((c.items || []).map((it) => ({
+      const rawItems = c.items || [];
+      // Para comprobantes en USD: items están almacenados en ARS, derivar cotización y convertir
+      let cotizEdit = null;
+      if (c.divisa === "USD" && Number(c.total) > 0) {
+        const totalARS = rawItems.reduce((acc, it) => acc + Number(it.unit_price) * Number(it.quantity), 0);
+        if (totalARS > 0) cotizEdit = totalARS / Number(c.total);
+      }
+      setItems(rawItems.map((it) => ({
         product_id:  it.product_id,
         code:        it.product_code || it.code || "",
         name:        it.product_name || it.name || "",
         description: it.product_name || it.name || "",
-        quantity:    it.quantity,
-        unit_price:  Number(it.unit_price),
+        quantity:    Number(it.quantity),
+        unit_price:  cotizEdit
+          ? Math.round((Number(it.unit_price) / cotizEdit) * 100) / 100
+          : Number(it.unit_price),
       })));
     } catch { addToast("Error cargando comprobante", "error"); }
   };
@@ -863,7 +872,7 @@ export default function Comprobantes({ initialCreating = false }) {
         supplier_id:             esReposicion ? (provSel?.id || null) : null,
         es_consumidor_final:     esConsumidorFinal,
         consumidor_final_nombre: esConsumidorFinal ? (consumidorFinalNombre || "Consumidor Final") : null,
-        divisa:                  esConsumidorFinal ? divisa : "ARS",
+        divisa:                  divisa,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante actualizado", "success");
@@ -1000,6 +1009,7 @@ export default function Comprobantes({ initialCreating = false }) {
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
                             <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
+                            <button className="btn btn-ghost btn-sm" title="Descargar PDF" onClick={async () => { const { data } = await getComprobante(c.id); downloadComprobantePDF(data); }}>⬇</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}>✏️</button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)}>🗑️</button>
                           </div>
@@ -1020,6 +1030,7 @@ export default function Comprobantes({ initialCreating = false }) {
                   <span className="modal-title">{selected.tipo || "Comprobante"} — {selected.id?.slice(0,8)}…</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(selected)}>🖨 Imprimir</button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => downloadComprobantePDF(selected)}>⬇ PDF</button>
                     <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                   </div>
                 </div>

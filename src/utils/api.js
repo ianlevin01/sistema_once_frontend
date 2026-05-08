@@ -87,7 +87,7 @@ export const eliminarMovimientoCC = (movId)       => api.delete(`/cuenta-corrien
 export const getPriceConfig = () => api.get("/config/precios");
 
 // ── PRODUCTS ──────────────────────────────────────────────────
-export const searchProducts       = (name)       => api.get(`/products/search?name=${name}`);
+export const searchProducts       = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);
 export const getProductsForCatalog = (categoryId) =>
   api.get(`/products?category_id=${categoryId}&limit=300&sort=name_asc`);
 export const getProduct           = (id)         => api.get(`/products/${id}`);

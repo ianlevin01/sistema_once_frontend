@@ -207,7 +207,7 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
   const wrapperRef    = useRef(null);
   const listRef       = useRef(null);
   const hoverTimerRef = useRef(null);
-  const isFocusedRef  = useRef(false);
+  const searchIdRef   = useRef(0);
 
   // Permite que el padre llame prodSearchRef.current.focus()
   useImperativeHandle(ref, () => ({
@@ -223,20 +223,23 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
 
   // ── Búsqueda con debounce ──────────────────────────────────────
   useEffect(() => {
-    const delay = query.trim() ? 300 : 0;
+    if (!query.trim()) {
+      setResults([]);
+      setOpen(false);
+      return;
+    }
+    const id = ++searchIdRef.current;
     const t = setTimeout(async () => {
       try {
         const { data } = await searchProducts(query);
+        if (id !== searchIdRef.current) return; // respuesta obsoleta, ignorar
         setResults(data);
         setActiveIdx(0);
         setHovered(null);
-        if (data.length > 0 && (query.trim() || isFocusedRef.current)) {
-          updateDropPos(); setOpen(true);
-        } else if (!data.length) {
-          setOpen(false);
-        }
+        if (data.length > 0) { updateDropPos(); setOpen(true); }
+        else setOpen(false);
       } catch {}
-    }, delay);
+    }, 300);
     return () => clearTimeout(t);
   }, [query, updateDropPos]);
 
@@ -415,10 +418,9 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => {
-            isFocusedRef.current = true;
             if (results.length) { updateDropPos(); setOpen(true); }
           }}
-          onBlur={() => { isFocusedRef.current = false; }}
+          onBlur={() => {}}
           style={{ fontSize: 14 }}
           autoFocus={autoFocus}
           disabled={disabled}
