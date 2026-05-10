@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./utils/useAuth";
-import Layout          from "./components/Layout";
+import Layout, { VENDEDOR_HOME, isPathAllowedForVendedor } from "./components/Layout";
 import Login           from "./pages/Login";
 import Comprobantes    from "./pages/Comprobantes";
 import Remitos         from "./pages/Remitos";
@@ -18,25 +18,32 @@ import Clientes        from "./pages/Clientes";
 import UltimasCompras from "./pages/UltimasCompras";
 import CatalogosPersonalizados from "./pages/CatalogosPersonalizados";
 
-// Ruta protegida: redirige a /login si no hay sesión
+// Ruta protegida: redirige a /login si no hay sesión.
+// Si el usuario es vendedor y la ruta no está permitida, redirige a su home.
 function PrivateRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" replace />;
+  const { isAuthenticated, user } = useAuth();
+  const location = useLocation();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role === "vendedor" && !isPathAllowedForVendedor(location.pathname)) {
+    return <Navigate to={VENDEDOR_HOME} replace />;
+  }
+  return children;
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
+  const homePath = user?.role === "vendedor" ? VENDEDOR_HOME : "/comprobantes";
 
   return (
     <Routes>
       {/* Login */}
       <Route
         path="/login"
-        element={isAuthenticated ? <Navigate to="/comprobantes" replace /> : <Login />}
+        element={isAuthenticated ? <Navigate to={homePath} replace /> : <Login />}
       />
 
       {/* Rutas protegidas */}
-      <Route path="/" element={<PrivateRoute><Navigate to="/comprobantes" replace /></PrivateRoute>} />
+      <Route path="/" element={<PrivateRoute><Navigate to={homePath} replace /></PrivateRoute>} />
 
       <Route path="/comprobantes" element={
         <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>
@@ -97,7 +104,7 @@ function AppRoutes() {
       } />
 
       {/* Fallback */}
-      <Route path="*" element={<Navigate to="/comprobantes" replace />} />
+      <Route path="*" element={<Navigate to={homePath} replace />} />
     </Routes>
   );
 }

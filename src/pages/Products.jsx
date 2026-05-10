@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, exportProducts, importProductsDiff, importProductsApply, getWarehouses } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -13,10 +13,7 @@ const EMPTY_FORM = {
 const FMTARS = (v) => v != null ? `$${Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 })}` : "—";
 const FMTUSD = (v) => v != null ? `USD ${Number(v).toLocaleString("en-US", { minimumFractionDigits: 2 })}` : "—";
 
-const WAREHOUSES_DEFAULT = [
-  "Alfred","Saldo","Oficina ML","Camarin",
-  "Salon Teatro","Oficina","Tertulia","Past 280","Peron Lejos",
-];
+const WAREHOUSES_DEFAULT = [];
 
 const VAL  = (v) => (v !== undefined && v !== null && v !== "") ? v : null;
 const FMT  = (v) => v != null ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 }) : "—";
@@ -140,6 +137,18 @@ export default function Products() {
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
 
+  // ── Tab / Import-Export ───────────────────────────────────────────────────
+  const [activeTab,      setActiveTab]      = useState("catalogo");
+  const [importFile,     setImportFile]     = useState(null);
+  const [importFileName, setImportFileName] = useState("");
+  const [includeStock,   setIncludeStock]   = useState(true);
+  const [diffLoading,    setDiffLoading]    = useState(false);
+  const [diffResult,     setDiffResult]     = useState(null);
+  const [selectedCodes,  setSelectedCodes]  = useState(new Set());
+  const [expandedRows,   setExpandedRows]   = useState(new Set());
+  const [applying,       setApplying]       = useState(false);
+  const fileInputRef = useRef(null);
+
   // ── Price overrides ───────────────────────────────────────────────────────
   const [overrideModal,   setOverrideModal]   = useState(false);
   const [overrideForm,    setOverrideForm]    = useState({ pct_1:"", pct_2:"", pct_3:"", pct_4:"", pct_5:"" });
@@ -185,6 +194,13 @@ export default function Products() {
     } catch { addToast("Error", "error"); }
     setSavingOverride(false);
   };
+
+  // ── Warehouses ───────────────────────────────────────────────────────────
+  const [warehouseList, setWarehouseList] = useState([]);
+
+  useEffect(() => {
+    getWarehouses().then(({ data }) => setWarehouseList(data || [])).catch(() => {});
+  }, []);
 
   // ── Categorías ────────────────────────────────────────────────────────────
   const [categories,      setCategories]      = useState([]);
@@ -426,6 +442,87 @@ export default function Products() {
     } catch { addToast("Error", "error"); }
   };
 
+  // ── Import/Export handlers ───────────────────────────────────────────────
+  const handleExport = async () => {
+    try {
+      addToast("Generando Excel...", "info");
+      const { data } = await exportProducts();
+      const url = URL.createObjectURL(new Blob([data]));
+      const a = document.createElement("a");
+      a.href = url; a.download = "productos.xlsx"; a.click();
+      URL.revokeObjectURL(url);
+    } catch { addToast("Error generando Excel", "error"); }
+  };
+
+  const handleFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImportFile(file);
+    setImportFileName(file.name);
+    setDiffResult(null);
+    setSelectedCodes(new Set());
+    setExpandedRows(new Set());
+  };
+
+  const handleAnalyze = async () => {
+    if (!importFile) return;
+    setDiffLoading(true);
+    setDiffResult(null);
+    setSelectedCodes(new Set());
+    setExpandedRows(new Set());
+    try {
+      const { data } = await importProductsDiff(importFile, includeStock);
+      setDiffResult(data);
+      const actionable = (data.diff || []).filter((d) => d.status === "modified" || d.status === "new");
+      setSelectedCodes(new Set(actionable.map((d) => d.code)));
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error analizando Excel", "error");
+    }
+    setDiffLoading(false);
+  };
+
+  const handleApply = async () => {
+    if (!importFile || selectedCodes.size === 0) return;
+    setApplying(true);
+    try {
+      const { data } = await importProductsApply(importFile, includeStock, [...selectedCodes]);
+      addToast(`${data.applied} producto${data.applied !== 1 ? "s" : ""} actualizados`, "success");
+      setDiffResult(null);
+      setImportFile(null);
+      setImportFileName("");
+      setSelectedCodes(new Set());
+      setExpandedRows(new Set());
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error aplicando cambios", "error");
+    }
+    setApplying(false);
+  };
+
+  const toggleRowExpand = (code) => setExpandedRows((prev) => {
+    const next = new Set(prev);
+    if (next.has(code)) next.delete(code); else next.add(code);
+    return next;
+  });
+
+  const toggleCode = (code) => setSelectedCodes((prev) => {
+    const next = new Set(prev);
+    if (next.has(code)) next.delete(code); else next.add(code);
+    return next;
+  });
+
+  const actionableDiff = (diffResult?.diff || []).filter((d) => d.status === "modified" || d.status === "new");
+  const allSelected = actionableDiff.length > 0 && actionableDiff.every((d) => selectedCodes.has(d.code));
+
+  const FIELD_LABELS = {
+    name: "Nombre", costo_usd: "Costo USD", qxb: "QxB",
+    category: "Rubro", category_name: "Rubro", barcode: "Barcode", box_code: "Box Code",
+    punto_pedido: "Pto. Pedido", active: "Estado",
+    precio_1: "Precio #1", precio_2: "Precio #2", precio_3: "Precio #3",
+    precio_4: "Precio #4", precio_5: "Precio #5",
+    stock: "Stock",
+  };
+
   const f = (k) => (e) => setForm((prev) => ({
     ...prev, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
   }));
@@ -450,9 +547,9 @@ export default function Products() {
     ? stock.map((s) => ({
         name:     s.warehouse?.name || s.warehouse_name || s.warehouse_id,
         qty:      s.quantity,
-        reserved: Number(s.reserved) || 0,   // ← reservas por depósito
+        reserved: Number(s.reserved) || 0,
       }))
-    : WAREHOUSES_DEFAULT.map((w) => ({ name: w, qty: null, reserved: 0 }));
+    : warehouseList.map((w) => ({ name: w.name, qty: null, reserved: 0 }));
 
   const lastCosts = [...costs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
   const selectedPhotos = selected?.images?.length
@@ -483,7 +580,23 @@ export default function Products() {
   return (
     <>
       <ToastContainer />
-      <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-24px", overflow:"hidden" }}>
+      <div style={{ display:"flex", flexDirection:"column", height:"calc(100vh - 56px)", margin:"-24px", overflow:"hidden" }}>
+
+        {/* ══ TAB BAR ════════════════════════════════════════════════════════ */}
+        <div style={{ display:"flex", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0 }}>
+          {[["catalogo","Catálogo"],["import","Actualización masiva"]].map(([tab, label]) => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding:"10px 20px", border:"none", background:"none", cursor:"pointer",
+              fontSize:13, fontFamily:"var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
+              color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
+              borderBottom: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
+              transition:"all 0.15s",
+            }}>{label}</button>
+          ))}
+        </div>
+
+        {activeTab === "catalogo" ? (
+        <div style={{ display:"flex", flex:1, overflow:"hidden" }}>
 
         {/* ══ PANEL IZQUIERDO — DETALLE ══════════════════════════════════════ */}
         <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg)" }}>
@@ -869,6 +982,215 @@ export default function Products() {
             </div>
           )}
         </div>
+        </div>
+        ) : (
+        /* ══ PESTAÑA ACTUALIZACIÓN MASIVA ═════════════════════════════════ */
+        <div style={{ flex:1, overflowY:"auto", background:"var(--bg)", padding:"28px 32px", display:"flex", flexDirection:"column", gap:28 }}>
+
+          {/* ── Exportar ── */}
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:8, padding:"20px 24px" }}>
+            <div style={{ fontSize:14, fontWeight:600, color:"var(--text)", marginBottom:6 }}>Exportar catálogo</div>
+            <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:14 }}>
+              Descargá el catálogo completo en Excel con precios calculados, stock por depósito y todos los campos editables.
+            </div>
+            <button className="btn btn-primary btn-sm" onClick={handleExport}>
+              ⬇ Descargar Excel completo
+            </button>
+          </div>
+
+          {/* ── Importar ── */}
+          <div style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:8, padding:"20px 24px" }}>
+            <div style={{ fontSize:14, fontWeight:600, color:"var(--text)", marginBottom:6 }}>Importar Excel</div>
+            <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:16 }}>
+              Subí el Excel exportado con cambios. El sistema mostrará solo las diferencias antes de aplicar.
+            </div>
+            <div style={{ display:"flex", gap:12, alignItems:"center", flexWrap:"wrap" }}>
+              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={handleFileChange} />
+              <button className="btn btn-ghost btn-sm" onClick={() => fileInputRef.current?.click()}>
+                {importFileName ? `📄 ${importFileName}` : "Seleccionar archivo..."}
+              </button>
+              <label style={{ display:"flex", alignItems:"center", gap:7, fontSize:13, color:"var(--text-muted)", cursor:"pointer", userSelect:"none" }}>
+                <input
+                  type="checkbox"
+                  checked={includeStock}
+                  onChange={(e) => { setIncludeStock(e.target.checked); setDiffResult(null); setSelectedCodes(new Set()); }}
+                  style={{ accentColor:"var(--accent)", width:14, height:14 }}
+                />
+                Incluir actualización de stock
+              </label>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={handleAnalyze}
+                disabled={!importFile || diffLoading}
+              >
+                {diffLoading ? "Analizando..." : "Analizar diferencias"}
+              </button>
+            </div>
+          </div>
+
+          {/* ── Resultados del diff ── */}
+          {diffResult && (
+            <div style={{ display:"flex", flexDirection:"column", gap:16 }}>
+
+              {/* Resumen */}
+              <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                {[
+                  ["Modificados", diffResult.summary?.changed ?? 0, "var(--warning)"],
+                  ["Nuevos",      diffResult.summary?.newProducts ?? 0, "var(--accent)"],
+                  ["Sin cambios", diffResult.summary?.unchanged ?? 0, "var(--text-dim)"],
+                  ["Total",       diffResult.summary?.total ?? 0, "var(--text)"],
+                ].map(([label, val, color]) => (
+                  <div key={label} style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:7, padding:"10px 18px", display:"flex", flexDirection:"column", gap:2, minWidth:100 }}>
+                    <span style={{ fontSize:11, color:"var(--text-muted)", fontFamily:"var(--font-sans)" }}>{label}</span>
+                    <span style={{ fontSize:20, fontWeight:700, color, fontFamily:"var(--font-mono)" }}>{val}</span>
+                  </div>
+                ))}
+              </div>
+
+              {actionableDiff.length === 0 ? (
+                <div style={{ padding:"32px", textAlign:"center", color:"var(--text-dim)", fontSize:13, background:"var(--bg2)", borderRadius:8, border:"1px solid var(--border)" }}>
+                  No hay diferencias — el catálogo está actualizado.
+                </div>
+              ) : (
+                <>
+                  {/* Controles de selección + aplicar */}
+                  <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                    <label style={{ display:"flex", alignItems:"center", gap:7, fontSize:12, color:"var(--text-muted)", cursor:"pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={() => setSelectedCodes(allSelected ? new Set() : new Set(actionableDiff.map((d) => d.code)))}
+                        style={{ accentColor:"var(--accent)", width:14, height:14 }}
+                      />
+                      Seleccionar todos
+                    </label>
+                    <span style={{ fontSize:12, color:"var(--text-dim)" }}>
+                      {selectedCodes.size} de {actionableDiff.length} seleccionados
+                    </span>
+                    <div style={{ marginLeft:"auto" }}>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={handleApply}
+                        disabled={selectedCodes.size === 0 || applying}
+                      >
+                        {applying ? "Aplicando..." : `Aplicar ${selectedCodes.size} cambio${selectedCodes.size !== 1 ? "s" : ""}`}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Tabla de diferencias */}
+                  <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+                    {/* Header */}
+                    <div style={{ display:"grid", gridTemplateColumns:"32px 70px 1fr 1fr auto", gap:0, padding:"8px 14px", background:"var(--bg3)", borderBottom:"1px solid var(--border)", fontSize:11, fontWeight:600, color:"var(--text-muted)", fontFamily:"var(--font-sans)", textTransform:"uppercase", letterSpacing:"0.04em" }}>
+                      <span></span>
+                      <span>Código</span>
+                      <span>Nombre</span>
+                      <span>Cambios</span>
+                      <span></span>
+                    </div>
+
+                    {actionableDiff.map((row) => {
+                      const isChecked  = selectedCodes.has(row.code);
+                      const isExpanded = expandedRows.has(row.code);
+                      const changes    = row.changes || [];
+                      const isNew      = row.status === "new";
+
+                      return (
+                        <div key={row.code} style={{ borderBottom:"1px solid var(--border)" }}>
+                          {/* Row principal */}
+                          <div style={{ display:"grid", gridTemplateColumns:"32px 70px 1fr 1fr auto", gap:0, padding:"10px 14px", alignItems:"center", background: isChecked ? "var(--accent-light)" : "var(--bg2)", cursor:"pointer" }}
+                            onClick={() => toggleCode(row.code)}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleCode(row.code)}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ accentColor:"var(--accent)", width:14, height:14 }}
+                            />
+                            <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", fontWeight:600 }}>
+                              {row.code}
+                            </span>
+                            <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                              <span style={{ fontSize:12, color:"var(--text)", fontWeight: isNew ? 600 : 400 }}>
+                                {row.incoming?.name || row.current?.name || "—"}
+                              </span>
+                              {isNew && (
+                                <span style={{ fontSize:10, padding:"1px 7px", borderRadius:3, background:"var(--accent)", color:"#fff", fontWeight:600 }}>NUEVO</span>
+                              )}
+                            </div>
+                            <div style={{ display:"flex", gap:5, flexWrap:"wrap" }}>
+                              {changes.slice(0, 6).map((ch) => (
+                                <span key={ch.field} style={{ fontSize:10, padding:"2px 7px", borderRadius:3, background:"rgba(234,179,8,0.15)", border:"1px solid rgba(234,179,8,0.4)", color:"#92400e", fontWeight:500 }}>
+                                  {FIELD_LABELS[ch.field] || ch.field}
+                                </span>
+                              ))}
+                              {changes.length > 6 && (
+                                <span style={{ fontSize:10, color:"var(--text-dim)" }}>+{changes.length - 6}</span>
+                              )}
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); toggleRowExpand(row.code); }}
+                              style={{ background:"none", border:"none", cursor:"pointer", color:"var(--text-dim)", fontSize:11, padding:"2px 8px", borderRadius:4 }}
+                            >
+                              {isExpanded ? "▲" : "▼"}
+                            </button>
+                          </div>
+
+                          {/* Detalle expandido */}
+                          {isExpanded && (
+                            <div style={{ padding:"12px 14px 14px 56px", background:"var(--bg3)", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:6 }}>
+                              {isNew ? (
+                                <div style={{ fontSize:12, color:"var(--text-dim)" }}>
+                                  Producto nuevo — se creará con los datos del Excel.
+                                </div>
+                              ) : changes.length === 0 ? (
+                                <div style={{ fontSize:12, color:"var(--text-dim)" }}>Sin detalle disponible.</div>
+                              ) : (
+                                <div style={{ display:"grid", gridTemplateColumns:"140px 1fr 1fr", gap:0 }}>
+                                  <span style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", padding:"4px 0" }}>Campo</span>
+                                  <span style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", padding:"4px 0" }}>Actual</span>
+                                  <span style={{ fontSize:10, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", padding:"4px 0" }}>Nuevo</span>
+                                  {changes.map((ch) => (
+                                    <React.Fragment key={ch.field}>
+                                      <span style={{ fontSize:12, color:"var(--text-muted)", padding:"3px 0", borderTop:"1px solid var(--border)" }}>
+                                        {FIELD_LABELS[ch.field] || ch.field}
+                                      </span>
+                                      <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--danger)", padding:"3px 8px 3px 0", borderTop:"1px solid var(--border)", textDecoration:"line-through", opacity:0.7 }}>
+                                        {ch.from != null ? String(ch.from) : "—"}
+                                      </span>
+                                      <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--success)", padding:"3px 0", borderTop:"1px solid var(--border)", fontWeight:600 }}>
+                                        {ch.to != null ? String(ch.to) : "—"}
+                                      </span>
+                                    </React.Fragment>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Botón aplicar al final también */}
+                  {selectedCodes.size > 0 && (
+                    <div style={{ display:"flex", justifyContent:"flex-end" }}>
+                      <button
+                        className="btn btn-primary"
+                        onClick={handleApply}
+                        disabled={applying}
+                      >
+                        {applying ? "Aplicando..." : `Aplicar ${selectedCodes.size} cambio${selectedCodes.size !== 1 ? "s" : ""}`}
+                      </button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+        )}{/* end tab conditional */}
+
       </div>
 
       {/* ══ MODAL NUEVO / EDITAR ══════════════════════════════════════════════ */}

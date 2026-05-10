@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -100,6 +100,22 @@ export const subirProducto        = (id)         => api.patch(`/products/${id}/s
 export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
 export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
 export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);
+export const exportProducts = ()                 => api.get("/products/export", { responseType: "blob" });
+export const importProductsDiff = (file, includeStock) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("apply", "false");
+  fd.append("includeStock", includeStock ? "true" : "false");
+  return api.post("/products/import", fd);
+};
+export const importProductsApply = (file, includeStock, codes) => {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("apply", "true");
+  fd.append("includeStock", includeStock ? "true" : "false");
+  fd.append("selectedCodes", JSON.stringify(codes));
+  return api.post("/products/import", fd);
+};
 
 // ── REMITOS ───────────────────────────────────────────────────
 export const getRemitos    = (from, to) =>

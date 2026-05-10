@@ -978,17 +978,22 @@ export default function Comprobantes({ initialCreating = false }) {
                     <tr><th>Tipo</th><th>Cliente / Proveedor</th><th>Vendedor</th><th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
-                    {comprobantes.map((c) => (
-                      <tr key={c.id}>
+                    {comprobantes.map((c) => {
+                      const isDeleted = !!c.deleted_at;
+                      const deletedTooltip = isDeleted
+                        ? `Eliminado por ${c.deleted_by_name || "—"} el ${new Date(c.deleted_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}`
+                        : "";
+                      return (
+                      <tr key={c.id} style={isDeleted ? { opacity: 0.55 } : undefined} title={deletedTooltip}>
                         <td>
-                          <span className="badge badge-accent">{c.tipo || "Presupuesto"}</span>
+                          <span className="badge badge-accent" style={isDeleted ? { textDecoration: "line-through" } : undefined}>{c.tipo || "Presupuesto"}</span>
                           {c.web_order_numero && (
                             <span style={{ marginLeft:5, fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
                               #{c.web_order_numero}
                             </span>
                           )}
                         </td>
-                        <td style={{ fontSize:14 }}>
+                        <td style={{ fontSize:14, textDecoration: isDeleted ? "line-through" : undefined }}>
                           {c.customer_name || c.supplier_name || (c.es_consumidor_final ? (c.consumidor_final_nombre || "Consumidor Final") : "—")}
                           {c.es_consumidor_final && (
                             <span style={{ marginLeft:6, fontSize:10, fontFamily:"var(--font-mono)", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:3, padding:"1px 5px", color:"var(--text-dim)" }}>
@@ -997,11 +1002,32 @@ export default function Comprobantes({ initialCreating = false }) {
                           )}
                         </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{c.vendedor || "—"}</td>
-                        <td style={{ fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14 }}>
+                        <td style={{ fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", fontSize:14, textDecoration: isDeleted ? "line-through" : undefined }}>
                           {c.divisa === "USD" ? "USD " : "$"}{fmt(c.total)}
                         </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{c.payment_method || "—"}</td>
-                        <td><span className="badge badge-success">{c.status}</span></td>
+                        <td>
+                          <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                            {isDeleted
+                              ? <span className="badge badge-danger">ELIMINADO</span>
+                              : <span className="badge badge-success">{c.status}</span>}
+                            {c.created_by_name && (
+                              <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>
+                                creó: <strong style={{ color:"var(--text-dim)" }}>{c.created_by_name}</strong>
+                              </span>
+                            )}
+                            {c.edited_by_name && !isDeleted && (
+                              <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>
+                                editó: <strong style={{ color:"var(--text-dim)" }}>{c.edited_by_name}</strong>
+                              </span>
+                            )}
+                            {isDeleted && c.deleted_by_name && (
+                              <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--danger)" }}>
+                                eliminó: <strong>{c.deleted_by_name}</strong>
+                              </span>
+                            )}
+                          </div>
+                        </td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>
                           {c.created_at ? new Date(c.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—"}
                         </td>
@@ -1010,12 +1036,25 @@ export default function Comprobantes({ initialCreating = false }) {
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
                             <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
                             <button className="btn btn-ghost btn-sm" title="Descargar PDF" onClick={async () => { const { data } = await getComprobante(c.id); downloadComprobantePDF(data); }}>⬇</button>
-                            <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}>✏️</button>
-                            <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDelete(c.id)}>🗑️</button>
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}
+                              disabled={isDeleted}
+                              title={isDeleted ? "No se puede editar un comprobante eliminado" : "Editar"}
+                              style={isDeleted ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+                            >✏️</button>
+                            <button
+                              className="btn btn-danger btn-sm btn-icon"
+                              onClick={() => handleDelete(c.id)}
+                              disabled={isDeleted}
+                              title={isDeleted ? "Ya eliminado" : "Eliminar"}
+                              style={isDeleted ? { opacity: 0.4, cursor: "not-allowed" } : undefined}
+                            >🗑️</button>
                           </div>
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -1035,7 +1074,9 @@ export default function Comprobantes({ initialCreating = false }) {
                   </div>
                 </div>
                 <div style={{ display:"flex", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-                  <span className="badge badge-success">{selected.status}</span>
+                  {selected.deleted_at
+                    ? <span className="badge badge-danger">ELIMINADO</span>
+                    : <span className="badge badge-success">{selected.status}</span>}
                   <span style={{ fontFamily:"var(--font-mono)", fontSize:14, color:"var(--accent)", fontWeight:700 }}>
                     Total: {selected.divisa === "USD" ? "USD " : "$"}{fmt(selected.total)}
                   </span>
@@ -1045,6 +1086,23 @@ export default function Comprobantes({ initialCreating = false }) {
                   {selected.vendedor && <span style={{ fontSize:13, color:"var(--text-muted)" }}>Vend: {selected.vendedor}</span>}
                   {selected.price_type && <span style={{ fontSize:12, color:"var(--text-dim)" }}>{PRECIO_LBL[selected.price_type]}</span>}
                 </div>
+
+                {/* Auditoría: creado / editado / eliminado */}
+                {(selected.created_by_name || selected.edited_by_name || selected.deleted_at) && (
+                  <div style={{ display:"flex", gap:14, flexWrap:"wrap", marginBottom:14, padding:"8px 12px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>
+                    {selected.created_by_name && (
+                      <span><span style={{ color:"var(--text-dim)" }}>Creado por:</span> <strong style={{ color:"var(--text)" }}>{selected.created_by_name}</strong>{selected.created_at && <> · {new Date(selected.created_at).toLocaleString("es-AR", { timeZone:"America/Argentina/Buenos_Aires" })}</>}</span>
+                    )}
+                    {selected.edited_by_name && (
+                      <span><span style={{ color:"var(--text-dim)" }}>Editado por:</span> <strong style={{ color:"var(--text)" }}>{selected.edited_by_name}</strong></span>
+                    )}
+                    {selected.deleted_at && (
+                      <span style={{ color:"var(--danger)" }}>
+                        <span style={{ color:"var(--text-dim)" }}>Eliminado por:</span> <strong>{selected.deleted_by_name || "—"}</strong> · {new Date(selected.deleted_at).toLocaleString("es-AR", { timeZone:"America/Argentina/Buenos_Aires" })}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {selected.texto_libre && (
                   <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px", marginBottom:14, fontSize:13, color:"var(--text-muted)" }}>
                     {selected.texto_libre}

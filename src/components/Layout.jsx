@@ -47,26 +47,20 @@ const NAV_ADMIN = [
 
 const NAV_VENDEDOR = [
   {
-    section: "Ventas",
+    section: "Operaciones",
     items: [
-      { to: "/pedidos-web",  label: "Pedidos Web",  icon: "🌐" },
-      {
-        label: "Productos", icon: "🏷️", rootPath: "/productos",
-        submenu: [
-          { to: "/productos",                label: "Catálogo"         },
-          { to: "/productos/ultimas-compras", label: "Últimas Compras" },
-        ],
-      },
-      { to: "/calculadora",  label: "Calculadora",  icon: "🧮" },
-    ],
-  },
-  {
-    section: "Mi cuenta",
-    items: [
-      { to: "/configuracion", label: "Configuración", icon: "⚙️" },
+      { to: "/remitos",   label: "Remitos Internos", icon: "📦" },
+      { to: "/productos", label: "Productos",        icon: "🏷️" },
     ],
   },
 ];
+
+const VENDEDOR_ALLOWED_PATHS = ["/remitos", "/productos"];
+export const VENDEDOR_HOME = "/remitos";
+
+export function isPathAllowedForVendedor(pathname) {
+  return VENDEDOR_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
 
 const PAGE_TITLES = {
   "/comprobantes":     "Comprobantes",
