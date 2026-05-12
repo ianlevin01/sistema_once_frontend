@@ -6,6 +6,7 @@ const ROLES = ["admin", "superadmin", "vendedor", "deposito", "caja"];
 const EMPTY  = { name: "", email: "", password: "", role: "vendedor", warehouse_id: "", active: true };
 
 export default function Usuarios() {
+  useEffect(() => { document.title = "Usuarios — Once"; }, []);
   const [users,      setUsers]      = useState([]);
   const [warehouses, setWarehouses] = useState([]);
   const [loading,    setLoading]    = useState(true);

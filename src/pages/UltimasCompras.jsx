@@ -7,6 +7,7 @@ const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDig
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString("es-AR", { day:"2-digit", month:"2-digit", year:"2-digit", timeZone:"America/Argentina/Buenos_Aires" }) : "—";
 
 export default function UltimasCompras() {
+  useEffect(() => { document.title = "Últimas compras — Once"; }, []);
   const [rows,    setRows]    = useState([]);
   const [loading, setLoading] = useState(true);
   const [from,    setFrom]    = useState("");

@@ -7,6 +7,7 @@ const SOURCES = ["venta", "gasto", "ajuste", "retiro", "ingreso manual", "otro"]
 const EMPTY = { type: "ingreso", source: "venta", amount: "", divisa: "ARS", description: "" };
 
 export default function Cash() {
+  useEffect(() => { document.title = "Caja — Once"; }, []);
   const today = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
 
   const [movements, setMovements] = useState([]);

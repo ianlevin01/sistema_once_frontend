@@ -746,8 +746,11 @@ export default function Comprobantes({ initialCreating = false }) {
     else     { setConsumidorFinalNombre(""); setDivisa("ARS"); }
   };
 
+  const [searchActive, setSearchActive] = useState(false);
+
   const handleProdSelect = ({ product, price }) => {
     setProdSel(product);
+    setSearchActive(false);
     setItemDesc(product.name);
     setItemPrice(price > 0 ? String(price) : "");
     if (!esConsumidorFinal) fetchLastPrice(product.id);
@@ -1244,7 +1247,7 @@ export default function Comprobantes({ initialCreating = false }) {
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} divisa={divisa} onSelect={handleProdSelect} autoFocus={!prodSel} dropUp />
+                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} divisa={divisa} onSelect={handleProdSelect} onSearchFocus={() => setSearchActive(true)} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
@@ -1267,6 +1270,35 @@ export default function Comprobantes({ initialCreating = false }) {
                   + Agregar
                 </button>
               </div>
+
+              {/* Stock por depósito del producto seleccionado */}
+              {prodSel && !searchActive && (() => {
+                const stockRows = (prodSel.stock || []).filter((s) => s.warehouse_name);
+                if (!stockRows.length) return null;
+                return (
+                  <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:8, padding:"7px 10px", background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:7 }}>
+                    <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center", marginRight:4 }}>
+                      Stock:
+                    </span>
+                    {stockRows.map((s) => {
+                      const qty = Number(s.quantity) || 0;
+                      const pos = qty > 0;
+                      return (
+                        <span key={s.warehouse_id} style={{
+                          display:"inline-flex", alignItems:"center", gap:5,
+                          padding:"2px 10px", borderRadius:5, fontSize:12,
+                          border:`1px solid ${pos ? "var(--accent)" : "var(--border)"}`,
+                          background: pos ? "var(--accent-dim)" : "var(--bg2)",
+                          fontFamily:"var(--font-mono)",
+                        }}>
+                          <span style={{ fontSize:11, color:"var(--text-muted)" }}>{s.warehouse_name}</span>
+                          <span style={{ fontWeight:700, color: pos ? "var(--accent)" : "var(--text-dim)" }}>{qty}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>

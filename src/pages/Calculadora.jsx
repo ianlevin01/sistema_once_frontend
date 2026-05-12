@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../utils/useAuth";
 import { calcGanancia, TRAMOS } from "../utils/calcGanancia";
 
 const FMT = (v) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: 2 });
 
 export default function Calculadora() {
+  useEffect(() => { document.title = "Calculadora — Once"; }, []);
   const { user } = useAuth();
   const pctVendedor = Number(user?.pct_vendedor ?? 0);
 

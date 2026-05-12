@@ -961,6 +961,7 @@ function TabGeneral({ cotizacion }) {
 // Página principal
 // ─────────────────────────────────────────────────────────────
 export default function CuentaCorriente() {
+  useEffect(() => { document.title = "Cuenta corriente — Once"; }, []);
   const [tab,        setTab]        = useState("clientes");
   const [cotizacion, setCotizacion] = useState(0);
   const { addToast, ToastContainer } = useToast();

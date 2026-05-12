@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
 
 export default function Clientes() {
+  useEffect(() => { document.title = "Clientes — Once"; }, []);
   const [clientes, setClientes]   = useState([]);
   const [loading,  setLoading]    = useState(false);
   const [search,   setSearch]     = useState("");

@@ -911,6 +911,7 @@ function SeccionDevoluciones({ presupuestos }) {
 // Componente principal
 // ─────────────────────────────────────────────────────────────
 export default function CajaListado() {
+  useEffect(() => { document.title = "Listado de caja — Once"; }, []);
   const [from, setFrom] = useState(today());
   const [to,   setTo]   = useState(today());
   const [loading, setLoading] = useState(false);

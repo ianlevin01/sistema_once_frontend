@@ -187,9 +187,10 @@ const ResultItem = memo(({ product, highlight, onMouseEnter, onMouseLeave, onMou
 ));
 
 const ProductSearchBar = forwardRef(function ProductSearchBar({
-  priceType  = "precio_1",
-  divisa     = "ARS",
+  priceType     = "precio_1",
+  divisa        = "ARS",
   onSelect,
+  onSearchFocus,
   disabled,
   autoFocus,
   dropUp: preferUp = false,
@@ -419,6 +420,7 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
           onKeyDown={handleKeyDown}
           onFocus={() => {
             if (results.length) { updateDropPos(); setOpen(true); }
+            onSearchFocus?.();
           }}
           onBlur={() => {}}
           style={{ fontSize: 14 }}

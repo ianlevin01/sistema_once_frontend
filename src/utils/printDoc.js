@@ -54,7 +54,7 @@ const BASE_CSS = `
   th.right, td.right { text-align: right; }
   td { padding: 7px 8px; border-bottom: 1px solid #e0e0e0; }
   tbody tr:last-child td { border-bottom: none; }
-  tbody tr:nth-child(even) { background: #f7f7f7; }
+  tbody tr:nth-child(even) { background: #e2e2e2; }
   .total-row { border-top: 2px solid #111; font-weight: 800; font-size: 14px; }
   .total-row td { padding: 10px 8px; }
   .footer {

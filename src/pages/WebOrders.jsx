@@ -351,6 +351,7 @@ function EditModal({ order, onClose, onSaved, addToast }) {
 // Componente principal WebOrders
 // ─────────────────────────────────────────────────────────────
 export default function WebOrders() {
+  useEffect(() => { document.title = "Pedidos web — Once"; }, []);
   const vendedores = useVendedores();
   const [orders,   setOrders]   = useState([]);
   const [loading,  setLoading]  = useState(true);

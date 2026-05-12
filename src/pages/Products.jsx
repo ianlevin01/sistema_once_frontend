@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, exportProducts, importProductsDiff, importProductsApply, getWarehouses } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -123,6 +123,7 @@ function ImageGallery({ photos }) {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function Products() {
+  useEffect(() => { document.title = "Productos — Once"; }, []);
   const [query,         setQuery]         = useState("");
   const [results,       setResults]       = useState([]);
   const [selected,      setSelected]      = useState(null);
@@ -148,6 +149,28 @@ export default function Products() {
   const [expandedRows,   setExpandedRows]   = useState(new Set());
   const [applying,       setApplying]       = useState(false);
   const fileInputRef = useRef(null);
+
+  // ── Agregar stock ────────────────────────────────────────────────────────
+  const [stockModal,  setStockModal]  = useState(false);
+  const [stockQty,    setStockQty]    = useState("");
+  const [stockSaving, setStockSaving] = useState(false);
+
+  const handleAgregarStock = async () => {
+    const qty = Number(stockQty);
+    if (!qty || qty <= 0) { addToast("Ingresá una cantidad válida", "error"); return; }
+    setStockSaving(true);
+    try {
+      await agregarStock(selected.id, qty);
+      addToast(`+${qty} unidades agregadas al depósito`, "success");
+      setStockModal(false);
+      setStockQty("");
+      const { data } = await getProduct(selected.id);
+      setSelected(data);
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error agregando stock", "error");
+    }
+    setStockSaving(false);
+  };
 
   // ── Price overrides ───────────────────────────────────────────────────────
   const [overrideModal,   setOverrideModal]   = useState(false);
@@ -849,8 +872,39 @@ export default function Products() {
                           {FMTN(totalStock)}
                         </span>
                       )}
+                      {!isVendedor && (
+                        <button
+                          onClick={() => { setStockQty(""); setStockModal(true); }}
+                          style={{ background:"rgba(255,255,255,0.25)", border:"1px solid rgba(255,255,255,0.4)", color:"#fff", borderRadius:4, padding:"2px 8px", fontSize:12, fontWeight:700, cursor:"pointer", lineHeight:1.4 }}
+                          title="Agregar stock a tu depósito"
+                        >+ Agregar</button>
+                      )}
                     </div>
                   </div>
+
+                  {stockModal && (
+                    <div style={{ padding:"12px 14px", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0 }}>
+                      <div style={{ fontSize:11, fontWeight:600, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:8 }}>
+                        Agregar unidades a tu depósito
+                      </div>
+                      <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                        <input
+                          className="input"
+                          type="number" min="1" step="1"
+                          placeholder="Cantidad"
+                          value={stockQty}
+                          onChange={(e) => setStockQty(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") handleAgregarStock(); if (e.key === "Escape") setStockModal(false); }}
+                          style={{ flex:1, height:32, fontSize:13, textAlign:"center", fontFamily:"var(--font-mono)" }}
+                          autoFocus
+                        />
+                        <button className="btn btn-primary btn-sm" onClick={handleAgregarStock} disabled={stockSaving}>
+                          {stockSaving ? "..." : "Agregar"}
+                        </button>
+                        <button className="btn btn-ghost btn-sm" onClick={() => setStockModal(false)}>✕</button>
+                      </div>
+                    </div>
+                  )}
 
                   <div style={{ flex:1, overflowY:"auto" }}>
                     {stockRows.map((row, i) => {

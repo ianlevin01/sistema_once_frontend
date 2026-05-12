@@ -6,6 +6,7 @@ import RemitoTransporteTab from "./RemitoTransporteTab";
 const EMPTY = { codigo: "", razon_social: "", domicilio: "", telefono: "", email: "" };
 
 export default function Transportes() {
+  useEffect(() => { document.title = "Transportes — Once"; }, []);
   const [activeTab, setActiveTab] = useState("transportes");
   const [list,    setList]    = useState([]);
   const [loading, setLoading] = useState(true);

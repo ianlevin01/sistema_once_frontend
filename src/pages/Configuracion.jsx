@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../utils/useToast";
 import api from "../utils/api";
+import { getWarehouses, createWarehouse } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 
 const fmt  = (v, dec = 2) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -22,12 +23,18 @@ function calcPrecios(costoUsd, config) {
 }
 
 export default function Configuracion() {
+  useEffect(() => { document.title = "Configuración — Once"; }, []);
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
 
   const [loading, setLoading] = useState(true);
   const [saving,  setSaving]  = useState(false);
+
+  // ── Depósitos ─────────────────────────────────────────────────
+  const [warehouses,    setWarehouses]    = useState([]);
+  const [newWhName,     setNewWhName]     = useState("");
+  const [savingWh,      setSavingWh]      = useState(false);
 
   // ── Estado admin ──────────────────────────────────────────────
   const [config, setConfig] = useState({
@@ -43,15 +50,19 @@ export default function Configuracion() {
     if (isVendedor) { setLoading(false); return; }
     (async () => {
       try {
-        const { data } = await api.get("/config/precios");
+        const [{ data: cfg }, { data: whs }] = await Promise.all([
+          api.get("/config/precios"),
+          getWarehouses(),
+        ]);
         setConfig({
-          cotizacion_dolar: String(data.cotizacion_dolar),
-          pct_1: String(data.pct_1),
-          pct_2: String(data.pct_2),
-          pct_3: String(data.pct_3),
-          pct_4: String(data.pct_4),
-          pct_5: String(data.pct_5),
+          cotizacion_dolar: String(cfg.cotizacion_dolar),
+          pct_1: String(cfg.pct_1),
+          pct_2: String(cfg.pct_2),
+          pct_3: String(cfg.pct_3),
+          pct_4: String(cfg.pct_4),
+          pct_5: String(cfg.pct_5),
         });
+        setWarehouses(whs || []);
       } catch {
         addToast("Error cargando configuración", "error");
       }
@@ -99,6 +110,22 @@ export default function Configuracion() {
       addToast("Error guardando porcentaje", "error");
     }
     setSaving(false);
+  };
+
+  const handleAddWarehouse = async () => {
+    const name = newWhName.trim();
+    if (!name) { addToast("Ingresá un nombre para el depósito", "error"); return; }
+    setSavingWh(true);
+    try {
+      const { data } = await createWarehouse(name);
+      setWarehouses((prev) => [...prev, data]);
+      setNewWhName("");
+      addToast(`Depósito "${name}" creado`, "success");
+    } catch (err) {
+      const msg = err?.response?.data?.message || "Error creando depósito";
+      addToast(msg, "error");
+    }
+    setSavingWh(false);
   };
 
   const precios = calcPrecios(costoDemo, config);
@@ -300,6 +327,47 @@ export default function Configuracion() {
               </code>
               Así nunca tenés que actualizar los precios individualmente.
             </div>
+          </div>
+        </div>
+
+        {/* ── Depósitos ── */}
+        <div style={{ marginTop:32 }}>
+          <div className="card" style={{ padding:"24px 24px" }}>
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:16 }}>
+              Depósitos (warehouses)
+            </div>
+
+            <div style={{ display:"flex", gap:10, marginBottom:16 }}>
+              <input
+                className="input"
+                placeholder="Nombre del nuevo depósito"
+                value={newWhName}
+                onChange={(e) => setNewWhName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleAddWarehouse()}
+                style={{ flex:1, maxWidth:320 }}
+              />
+              <button className="btn btn-primary btn-sm" onClick={handleAddWarehouse} disabled={savingWh}>
+                {savingWh ? "Creando..." : "+ Agregar depósito"}
+              </button>
+            </div>
+
+            {warehouses.length === 0 ? (
+              <div style={{ fontSize:13, color:"var(--text-dim)", padding:"12px 0" }}>No hay depósitos cargados.</div>
+            ) : (
+              <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+                {warehouses.map((w, i) => (
+                  <div key={w.id} style={{
+                    display:"flex", alignItems:"center", justifyContent:"space-between",
+                    padding:"10px 16px",
+                    borderBottom: i < warehouses.length - 1 ? "1px solid var(--border)" : "none",
+                    background: i % 2 === 0 ? "transparent" : "var(--bg2)",
+                  }}>
+                    <span style={{ fontSize:14, color:"var(--text)" }}>{w.name}</span>
+                    <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{w.id.slice(0, 8).toUpperCase()}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

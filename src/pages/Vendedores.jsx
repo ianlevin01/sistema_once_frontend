@@ -22,6 +22,7 @@ const ROW = ({ label, value, mono }) => (
 );
 
 export default function Vendedores() {
+  useEffect(() => { document.title = "Vendedores — Once"; }, []);
   const [vendedores,    setVendedores]    = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [selected,      setSelected]      = useState(null);

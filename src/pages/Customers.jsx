@@ -14,6 +14,7 @@ const COND_IVA   = ["Resp. Inscripto","Resp. Monotributo","Consumidor Final","Ex
 const TRANSPORTES = ["DON ALFREDO","VIA CARGO","CORREO","OCA","ANDREANI","RETIRA"];
 
 export default function Customers() {
+  useEffect(() => { document.title = "Clientes — Once"; }, []);
   const [query,    setQuery]    = useState("");
   const [results,  setResults]  = useState([]);
   const [selected, setSelected] = useState(null);

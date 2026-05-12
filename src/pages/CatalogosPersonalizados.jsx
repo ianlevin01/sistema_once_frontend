@@ -4,6 +4,7 @@ import { printCatalogoPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
 export default function CatalogosPersonalizados() {
+  useEffect(() => { document.title = "Catálogos — Once"; }, []);
   const [categories,   setCategories]   = useState([]);
   const [selectedCat,  setSelectedCat]  = useState("");
   const [products,     setProducts]     = useState([]);

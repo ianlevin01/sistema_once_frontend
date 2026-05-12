@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../utils/useAuth";
 
 export default function Login() {
+  useEffect(() => { document.title = "Iniciar sesión — Once"; }, []);
   const { login, loginWithGoogle } = useAuth();
   const [email,    setEmail]    = useState("");
   const [password, setPassword] = useState("");
