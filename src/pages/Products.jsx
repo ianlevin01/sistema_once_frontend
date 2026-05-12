@@ -133,7 +133,8 @@ export default function Products() {
   const [form,          setForm]          = useState(EMPTY_FORM);
   const [saving,        setSaving]        = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
-  const listRef = useRef(null);
+  const listRef     = useRef(null);
+  const searchIdRef = useRef(0);
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
@@ -305,13 +306,20 @@ export default function Products() {
 
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   useEffect(() => {
+    const id = ++searchIdRef.current;
     if (!query.trim()) { setResults([]); return; }
     const t = setTimeout(async () => {
       setLoadingList(true);
-      try { const { data } = await searchProducts(query); setResults(data); }
-      catch { addToast("Error buscando productos", "error"); }
+      try {
+        const { data } = await searchProducts(query);
+        if (id !== searchIdRef.current) return;
+        setResults(data);
+        setSelectedIndex(-1);
+      } catch {
+        if (id !== searchIdRef.current) return;
+        addToast("Error buscando productos", "error");
+      }
       setLoadingList(false);
-      setSelectedIndex(-1);
     }, 300);
     return () => clearTimeout(t);
   }, [query]);

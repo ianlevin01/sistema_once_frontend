@@ -224,12 +224,12 @@ const ProductSearchBar = forwardRef(function ProductSearchBar({
 
   // ── Búsqueda con debounce ──────────────────────────────────────
   useEffect(() => {
+    const id = ++searchIdRef.current;
     if (!query.trim()) {
       setResults([]);
       setOpen(false);
       return;
     }
-    const id = ++searchIdRef.current;
     const t = setTimeout(async () => {
       try {
         const { data } = await searchProducts(query);
