@@ -223,24 +223,28 @@ export default function Remitos({ initialCreating = false }) {
     };
     try {
       if (editId) {
-        await updateRemito(editId, payload);
+        const { data: updatedRemito } = await updateRemito(editId, payload);
         addToast("Remito actualizado", "success");
-        setTimeout(() => window.close(), 800);
+        window.opener?.location.reload();
+        if (confirm("¿Querés imprimir el remito?")) {
+          const remitoPrint = { ...updatedRemito, origen, destino, customer_name: userSel?.name || null, items };
+          printRemitoPDF(remitoPrint, sinPrecios);
+        }
+        setTimeout(() => window.close(), 300);
         return;
       }
       const { data: newRemito } = await createRemito({ ...payload, user_id: null });
       addToast("Remito creado", "success");
-      if (initialCreating) { setTimeout(() => window.close(), 800); return; }
-      setCreating(false); resetForm(); loadAll();
-      const remitoPrint = {
-        ...newRemito,
-        origen, destino,
-        customer_name: userSel?.name || null,
-        items,
-      };
-      if (confirm("¿Querés imprimir el remito ahora?")) {
-        printRemitoPDF(remitoPrint, sinPrecios);
+      if (initialCreating) {
+        window.opener?.location.reload();
+        const remitoPrint = { ...newRemito, origen, destino, customer_name: userSel?.name || null, items };
+        if (confirm("¿Querés imprimir el remito?")) { printRemitoPDF(remitoPrint, sinPrecios); }
+        setTimeout(() => window.close(), 300);
+        return;
       }
+      setCreating(false); resetForm(); loadAll();
+      const remitoPrint = { ...newRemito, origen, destino, customer_name: userSel?.name || null, items };
+      if (confirm("¿Querés imprimir el remito ahora?")) { printRemitoPDF(remitoPrint, sinPrecios); }
     } catch { addToast(editId ? "Error actualizando remito" : "Error creando remito", "error"); }
     setSaving(false);
   };

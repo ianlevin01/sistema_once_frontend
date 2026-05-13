@@ -1017,10 +1017,10 @@ export default function Products() {
                   onMouseEnter={(e) => { if (!isSelected) e.currentTarget.style.background = "var(--bg3)"; }}
                   onMouseLeave={(e) => { if (!isSelected) e.currentTarget.style.background = "transparent"; }}
                 >
-                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color: isSelected ? "var(--accent)" : "var(--text-dim)", width:56, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis" }}>
+                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color: isSelected ? "var(--accent)" : "var(--text-muted)", width:56, flexShrink:0, overflow:"hidden", textOverflow:"ellipsis" }}>
                     {p.code || "—"}
                   </span>
-                  <span style={{ fontSize:12, color: isSelected ? "var(--text)" : "var(--text-muted)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: isSelected ? 500 : 400 }}>
+                  <span style={{ fontSize:12, color: isSelected ? "var(--text)" : "var(--text)", flex:1, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", fontWeight: isSelected ? 700 : 600 }}>
                     {p.name}
                   </span>
                 </div>

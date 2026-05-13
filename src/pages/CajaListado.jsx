@@ -831,7 +831,7 @@ function SeccionReposiciones({ reposiciones, divisa }) {
 // ─────────────────────────────────────────────────────────────
 // Sección devoluciones de clientes
 // ─────────────────────────────────────────────────────────────
-function SeccionDevoluciones({ presupuestos }) {
+function SeccionDevoluciones({ presupuestos, onView, onPrint, onDelete }) {
   const devoluciones = presupuestos.filter((p) => p.tipo === "Devolucion");
   if (devoluciones.length === 0) return null;
 
@@ -871,16 +871,16 @@ function SeccionDevoluciones({ presupuestos }) {
                   <td>
                     <div style={{ display:"flex", gap:6 }}>
                       <button className="btn btn-ghost btn-sm"
-                        onClick={() => handleViewComprobante(p.id)}
+                        onClick={() => onView(p.id)}
                         title="Ver">👁</button>
                       <button className="btn btn-ghost btn-sm"
-                        onClick={() => imprimirComprobante(p.id)}
+                        onClick={() => onPrint(p.id)}
                         title="Imprimir">🖨️</button>
                       <button className="btn btn-ghost btn-sm"
                         onClick={() => window.open(`/comprobantes/editar/${p.id}`, "_blank")}
                         title="Editar">✏️</button>
                       <button className="btn btn-danger btn-sm btn-icon"
-                        onClick={() => handleDeletePresupuesto(p.id)}
+                        onClick={() => onDelete(p.id)}
                         title="Eliminar">🗑️</button>
                     </div>
                   </td>
@@ -929,6 +929,9 @@ export default function CajaListado() {
   const presModal  = usePresModal({ addToast, onSuccess: load, vendedores, user });
 
   const [viewItem, setViewItem] = useState(null);
+  const [deleteModal,    setDeleteModal]    = useState(null);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleting,       setDeleting]       = useState(false);
 
   // ── Helper de impresión con fetch del comprobante completo ───
   const imprimirComprobante = async (id) => {
@@ -1088,14 +1091,18 @@ export default function CajaListado() {
     } catch (err) { addToast(err?.response?.data?.message || "Error eliminando remito", "error"); }
   };
 
-  const handleDeletePresupuesto = async (id) => {
-    const pwd = prompt("Ingresá la clave para eliminar el presupuesto (se revertirá el stock y la cuenta corriente):");
-    if (pwd === null) return;
+  const handleDeletePresupuesto = (id) => { setDeleteModal(id); setDeletePassword(""); };
+
+  const confirmDeletePresupuesto = async () => {
+    if (!deletePassword.trim()) return;
+    setDeleting(true);
     try {
-      await deleteComprobante(id, pwd);
-      setPresupuestos((prev) => prev.filter((p) => p.id !== id));
-      addToast("Eliminado", "success");
-    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando", "error"); }
+      await deleteComprobante(deleteModal, deletePassword);
+      setPresupuestos((prev) => prev.filter((p) => p.id !== deleteModal));
+      addToast("Eliminado y stock revertido", "success");
+      setDeleteModal(null); setDeletePassword("");
+    } catch (err) { addToast(err?.response?.data?.message || "Clave incorrecta", "error"); }
+    finally { setDeleting(false); }
   };
 
   // ── RENDER ───────────────────────────────────────────────────
@@ -1103,6 +1110,35 @@ export default function CajaListado() {
     <>
       <ToastContainer />
       <PresModal m={presModal} />
+
+      {deleteModal && (
+        <div className="modal-overlay" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>
+          <div className="modal" style={{ maxWidth: 360 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Confirmar eliminación</span>
+              <button className="modal-close" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 16 }}>
+              Se revertirá el stock y la cuenta corriente. Ingresá la clave para continuar.
+            </p>
+            <input
+              className="input"
+              type="password"
+              placeholder="Clave..."
+              value={deletePassword}
+              onChange={(e) => setDeletePassword(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmDeletePresupuesto()}
+              autoFocus
+            />
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              <button className="btn btn-danger" onClick={confirmDeletePresupuesto} disabled={deleting || !deletePassword.trim()}>
+                {deleting ? "Eliminando..." : "Eliminar"}
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setDeleteModal(null); setDeletePassword(""); }}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filtros */}
       <div style={{ display:"flex", gap:10, marginBottom:24, alignItems:"center", flexWrap:"wrap" }}>
@@ -1294,7 +1330,7 @@ export default function CajaListado() {
           )}
 
           {/* ── DEVOLUCIONES ── */}
-          <SeccionDevoluciones presupuestos={presupuestos} />
+          <SeccionDevoluciones presupuestos={presupuestos} onView={handleViewComprobante} onPrint={imprimirComprobante} onDelete={handleDeletePresupuesto} />
 
           {/* ── REPOSICIONES + DEVOL A PROVEEDOR ARS ── */}
           <SeccionReposiciones reposiciones={reposiciones} divisa="ARS" />

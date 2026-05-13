@@ -26,12 +26,12 @@ const COND_IVA    = ["Resp. Inscripto", "Resp. Monotributo", "Consumidor Final",
 const METODOS_COBRANZA = ["Efectivo", "Cheque", "Depósito", "Tarjeta", "Mercpago"];
 
 const EMPTY_CLIENTE = {
-  name: "", document: "", domicilio: "", codigo_postal: "",
-  phone: "", transporte: "", divisa: "ARS",
+  name: "", document: "", domicilio: "", localidad: "", provincia: "",
+  codigo_postal: "", phone: "", transporte: "", divisa: "ARS",
 };
 const EMPTY_PROVEEDOR = {
-  name: "", document: "", domicilio: "", codigo_postal: "",
-  phone: "", transporte: "", divisa: "ARS",
+  name: "", document: "", domicilio: "", localidad: "", provincia: "",
+  codigo_postal: "", phone: "", transporte: "", divisa: "ARS",
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -140,6 +140,10 @@ function EntityForm({ form, setForm, mode }) {
         <FormInput label="CUIT / CUIL" value={form.document} onChange={set("document")} placeholder="20-12345678-9" />
       </div>
       <FormInput label="Domicilio"     value={form.domicilio}     onChange={set("domicilio")}     placeholder="Dirección" />
+      <div className="grid-2">
+        <FormInput label="Localidad"     value={form.localidad}     onChange={set("localidad")} />
+        <FormInput label="Provincia"     value={form.provincia}     onChange={set("provincia")} />
+      </div>
       <FormInput label="Código Postal" value={form.codigo_postal} onChange={set("codigo_postal")} placeholder="1234" />
       <FormInput label="Teléfono"      value={form.phone}         onChange={set("phone")} />
       {mode === "cliente" && (
@@ -166,6 +170,8 @@ function EntityFicha({ selected, mode }) {
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 14 }}>Datos</div>
         <FieldRow label="Nombre"        value={selected.name} />
         <FieldRow label="Domicilio"     value={selected.domicilio} />
+        <FieldRow label="Localidad"     value={selected.localidad} />
+        <FieldRow label="Provincia"     value={selected.provincia} />
         <FieldRow label="Código Postal" value={selected.codigo_postal} mono />
         <FieldRow label="CUIT / CUIL"   value={selected.document} mono />
         <FieldRow label="Teléfono"      value={selected.phone} mono />
@@ -184,12 +190,13 @@ function EntityFicha({ selected, mode }) {
 // Modal de cobranza
 // ─────────────────────────────────────────────────────────────
 function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCuenta, cotizacion, saving }) {
-  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS" });
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS", fecha: todayStr() });
   const [cotizacionCustom, setCotizacionCustom] = useState("");
 
   useEffect(() => {
     if (open) {
-      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta });
+      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, fecha: todayStr() });
       setCotizacionCustom(String(cotizacion || ""));
     }
   }, [open, divisaCuenta, cotizacion]);
@@ -252,6 +259,10 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
             </div>
           )}
           <div className="input-group">
+            <label className="input-label">Fecha</label>
+            <input className="input" type="date" value={form.fecha} onChange={setF("fecha")} />
+          </div>
+          <div className="input-group">
             <label className="input-label">Monto ({form.divisa_cobro})</label>
             <input className="input" type="number" min="0" step="0.01" value={form.monto} onChange={setF("monto")} autoFocus />
             {previewConversion() && (
@@ -274,21 +285,16 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
             </div>
           </div>
           <div className="input-group">
-            <label className="input-label">Observaciones *</label>
+            <label className="input-label">Observaciones</label>
             <input className="input" value={form.concepto} onChange={setF("concepto")}
-              placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."}
-              style={{ borderColor: !form.concepto.trim() ? "var(--danger)" : undefined }} />
-            {!form.concepto.trim() && (
-              <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 3 }}>Campo obligatorio</div>
-            )}
+              placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."} />
           </div>
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
           <button className="btn btn-primary" onClick={() => {
-            if (!form.concepto.trim()) return;
             onConfirm({ ...form, cotizacion_manual: cotizUsada });
-          }} disabled={saving || !form.concepto.trim()}>
+          }} disabled={saving}>
             {saving ? "Guardando..." : mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"}
           </button>
         </div>
@@ -301,7 +307,7 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
 // Modal de edición de movimiento
 // ─────────────────────────────────────────────────────────────
 function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }) {
-  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "" });
+  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "", fecha: "" });
 
   useEffect(() => {
     if (open && movimiento) {
@@ -309,6 +315,7 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
         monto:       String(Number(movimiento.monto || 0)),
         concepto:    movimiento.concepto || "",
         metodo_pago: movimiento.metodo_pago || "",
+        fecha:       movimiento.created_at ? new Date(movimiento.created_at).toISOString().slice(0, 10) : "",
       });
     }
   }, [open, movimiento]);
@@ -333,9 +340,11 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
               {movimiento.tipo === "debito" ? "Débito" : "Pago / Cobro"}
             </span>
             <span>Original: {fmtMonto(movimiento.monto, divisaCC)}</span>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--text-dim)" }}>
-              {fmtDate(movimiento.created_at)}
-            </span>
+          </div>
+
+          <div className="input-group">
+            <label className="input-label">Fecha</label>
+            <input className="input" type="date" value={form.fecha} onChange={setF("fecha")} />
           </div>
 
           <div className="input-group">
@@ -605,6 +614,7 @@ function EntityPanel({
         monto, concepto: formCobranza.concepto || (mode === "proveedor" ? "Pago a proveedor" : "Cobranza"),
         metodo_pago: formCobranza.metodo_pago, divisa_cobro: formCobranza.divisa_cobro,
         cotizacion_manual: formCobranza.cotizacion_manual ?? null,
+        fecha: formCobranza.fecha || null,
       });
       addToast(mode === "proveedor" ? "Pago registrado" : "Cobranza registrada", "success");
       setModalCobranza(false);
@@ -623,6 +633,7 @@ function EntityPanel({
         monto:       form.monto ? Number(form.monto) : undefined,
         concepto:    form.concepto,
         metodo_pago: form.metodo_pago || null,
+        fecha:       form.fecha || null,
       });
       addToast("Movimiento actualizado", "success");
       setMovEditando(null);

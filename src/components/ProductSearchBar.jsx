@@ -158,7 +158,7 @@ const ResultItem = memo(({ product, highlight, onMouseEnter, onMouseLeave, onMou
     <span style={{
       fontFamily:   "var(--font-mono)",
       fontSize:     11,
-      color:        highlight ? "var(--accent)" : "var(--text-dim)",
+      color:        highlight ? "var(--accent)" : "var(--text-muted, #888)",
       width:        80,
       flexShrink:   0,
       overflow:     "hidden",

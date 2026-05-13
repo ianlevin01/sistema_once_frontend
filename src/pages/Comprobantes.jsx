@@ -789,7 +789,7 @@ export default function Comprobantes({ initialCreating = false }) {
 
     setSaving(true);
     try {
-      await createComprobante({
+      const { data: nuevoComp } = await createComprobante({
         customer_id:             esReposicion ? null : (esConsumidorFinal ? null : custSel.id),
         supplier_id:             esReposicion ? provSel.id : null,
         warehouse_id:            user?.warehouse_id || null,
@@ -803,7 +803,14 @@ export default function Comprobantes({ initialCreating = false }) {
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante creado", "success");
-      if (initialCreating) { setTimeout(() => window.close(), 800); return; }
+      if (initialCreating) {
+        window.opener?.location.reload();
+        if (confirm("¿Querés imprimir el comprobante?")) {
+          try { const { data: full } = await getComprobante(nuevoComp.id); printComprobantePDF(full); } catch { printComprobantePDF(nuevoComp); }
+        }
+        setTimeout(() => window.close(), 300);
+        return;
+      }
       setCreating(false); resetForm(); loadAll(appliedFrom, appliedTo);
     } catch { addToast("Error creando comprobante", "error"); }
     setSaving(false);
@@ -879,7 +886,12 @@ export default function Comprobantes({ initialCreating = false }) {
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante actualizado", "success");
-      if (editId) { setTimeout(() => window.close(), 800); return; }
+      if (editId) {
+        window.opener?.location.reload();
+        if (confirm("¿Querés imprimir el comprobante?")) { const { data: c } = await getComprobante(editingId); printComprobantePDF(c); }
+        setTimeout(() => window.close(), 300);
+        return;
+      }
       setCreating(false); setEditingId(null); resetForm(); loadAll(appliedFrom, appliedTo);
     } catch (err) { addToast(err?.response?.data?.message || "Error actualizando", "error"); }
     setSaving(false);

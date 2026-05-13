@@ -4,7 +4,7 @@ import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCu
 import { useToast } from "../utils/useToast";
 import { useNavigate } from "react-router-dom";
 
-const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
+const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", localidad: "", provincia: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
 
 export default function Clientes() {
   useEffect(() => { document.title = "Clientes — Once"; }, []);
@@ -84,7 +84,8 @@ export default function Clientes() {
   const openCrear = () => { setForm(EMPTY); setEditId(null); setModal("editar"); };
   const openEditar = (c) => {
     setForm({ name: c.name || "", document: c.document || "", phone: c.phone || "",
-      email: c.email || "", domicilio: c.domicilio || "", codigo_postal: c.codigo_postal || "",
+      email: c.email || "", domicilio: c.domicilio || "", localidad: c.localidad || "",
+      provincia: c.provincia || "", codigo_postal: c.codigo_postal || "",
       transporte: c.transporte || "", divisa: c.divisa || "ARS", vendedor: c.vendedor || "" });
     setEditId(c.id);
     setModal("editar");
@@ -226,6 +227,8 @@ export default function Clientes() {
                 { label: "Teléfono", key: "phone" },
                 { label: "Email", key: "email" },
                 { label: "Domicilio", key: "domicilio", full: true },
+                { label: "Localidad", key: "localidad" },
+                { label: "Provincia", key: "provincia" },
                 { label: "Código Postal", key: "codigo_postal" },
                 { label: "Transporte", key: "transporte" },
               ].map(({ label, key, full }) => (
