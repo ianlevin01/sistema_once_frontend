@@ -191,12 +191,15 @@ function EntityFicha({ selected, mode }) {
 // ─────────────────────────────────────────────────────────────
 function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCuenta, cotizacion, saving }) {
   const todayStr = () => new Date().toISOString().slice(0, 10);
-  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS", fecha: todayStr() });
+  // Para clientes: haber=cobro (baja saldo), debe=cargo (sube saldo)
+  // Para proveedores: debe=pago/crédito (baja deuda), haber=cargo (sube deuda)
+  const defaultTipoMov = mode === "proveedor" ? "debe" : "haber";
+  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS", fecha: todayStr(), tipo_mov: defaultTipoMov });
   const [cotizacionCustom, setCotizacionCustom] = useState("");
 
   useEffect(() => {
     if (open) {
-      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, fecha: todayStr() });
+      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, fecha: todayStr(), tipo_mov: defaultTipoMov });
       setCotizacionCustom(String(cotizacion || ""));
     }
   }, [open, divisaCuenta, cotizacion]);
@@ -225,10 +228,32 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <span className="modal-title">{mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"} — {selectedName}</span>
+          <span className="modal-title">Registrar movimiento — {selectedName}</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {/* Debe / Haber selector */}
+          <div className="input-group">
+            <label className="input-label">Tipo de movimiento</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {[
+                { val: "debe",  label: mode === "proveedor" ? "DEBE — reduce deuda" : "DEBE — cargo al cliente" },
+                { val: "haber", label: mode === "proveedor" ? "HABER — suma deuda"   : "HABER — cobro del cliente" },
+              ].map(({ val, label }) => (
+                <button key={val} type="button"
+                  onClick={() => setForm((p) => ({ ...p, tipo_mov: val }))}
+                  style={{
+                    flex: 1, padding: "9px 0", borderRadius: 6, cursor: "pointer", fontSize: 12,
+                    border: `2px solid ${form.tipo_mov === val ? "var(--accent)" : "var(--border)"}`,
+                    background: form.tipo_mov === val ? "var(--accent-dim)" : "var(--bg3)",
+                    color: form.tipo_mov === val ? "var(--accent)" : "var(--text-dim)",
+                    fontWeight: form.tipo_mov === val ? 700 : 400,
+                  }}
+                >{label}</button>
+              ))}
+            </div>
+          </div>
+
           <div style={{ padding: "8px 12px", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 6, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--text-muted)" }}>
             <span>Cuenta en</span><DivisaBadge divisa={divisaCuenta} /><span>— saldo se actualiza en {divisaCuenta}</span>
           </div>
@@ -295,7 +320,7 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
           <button className="btn btn-primary" onClick={() => {
             onConfirm({ ...form, cotizacion_manual: cotizUsada });
           }} disabled={saving}>
-            {saving ? "Guardando..." : mode === "proveedor" ? "Registrar pago" : "Registrar cobranza"}
+            {saving ? "Guardando..." : `Registrar ${form.tipo_mov === "debe" ? "Debe" : "Haber"}`}
           </button>
         </div>
       </div>
@@ -611,10 +636,11 @@ function EntityPanel({
     setSavingCobranza(true);
     try {
       await registrarCobranzaFn(selected.id, {
-        monto, concepto: formCobranza.concepto || (mode === "proveedor" ? "Pago a proveedor" : "Cobranza"),
+        monto, concepto: formCobranza.concepto || "",
         metodo_pago: formCobranza.metodo_pago, divisa_cobro: formCobranza.divisa_cobro,
         cotizacion_manual: formCobranza.cotizacion_manual ?? null,
         fecha: formCobranza.fecha || null,
+        tipo_mov: formCobranza.tipo_mov || (mode === "proveedor" ? "debe" : "haber"),
       });
       addToast(mode === "proveedor" ? "Pago registrado" : "Cobranza registrada", "success");
       setModalCobranza(false);
@@ -737,7 +763,7 @@ function EntityPanel({
               </>
             ) : viewCC && selected ? (
               <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
-                {mode === "proveedor" ? "Registrar pago" : "+ Registrar cobranza"}
+                + Registrar Debe / Haber
               </button>
             ) : (
               <>

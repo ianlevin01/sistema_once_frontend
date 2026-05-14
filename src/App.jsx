@@ -16,6 +16,7 @@ import Calculadora   from "./pages/Calculadora";
 import Transportes   from "./pages/Transportes";
 import Clientes        from "./pages/Clientes";
 import UltimasCompras from "./pages/UltimasCompras";
+import StockMovimientos from "./pages/StockMovimientos";
 import CatalogosPersonalizados from "./pages/CatalogosPersonalizados";
 
 // Ruta protegida: redirige a /login si no hay sesión.
@@ -80,6 +81,9 @@ function AppRoutes() {
       } />
       <Route path="/productos/ultimas-compras" element={
         <PrivateRoute><Layout><UltimasCompras /></Layout></PrivateRoute>
+      } />
+      <Route path="/stock-movimientos" element={
+        <PrivateRoute><Layout><StockMovimientos /></Layout></PrivateRoute>
       } />
       <Route path="/vendedores" element={
         <PrivateRoute><Layout><Vendedores /></Layout></PrivateRoute>

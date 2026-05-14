@@ -745,7 +745,7 @@ function SeccionCobranzas({ cobranzas, divisa }) {
 // ─────────────────────────────────────────────────────────────
 // Sección reposiciones / devol a proveedor
 // ─────────────────────────────────────────────────────────────
-function SeccionReposiciones({ reposiciones, divisa }) {
+function SeccionReposiciones({ reposiciones, divisa, onView, onPrint, onDelete }) {
   const filtered = reposiciones.filter((r) => (r.divisa || "ARS") === divisa);
   if (filtered.length === 0) return null;
 
@@ -792,10 +792,15 @@ function SeccionReposiciones({ reposiciones, divisa }) {
                   {r.tipo === "Devol a proveedor" ? "−" : ""}{fmtVal(r.total)}
                 </td>
                 <td>
-                  <button className="btn btn-ghost btn-sm"
-                    onClick={() => printComprobantePDF({ ...r, tipo: r.tipo })}
-                    title="Imprimir">🖨️
-                  </button>
+                  <div style={{ display:"flex", gap:6 }}>
+                    {onView && <button className="btn btn-ghost btn-sm" onClick={() => onView(r.id)} title="Ver">👁</button>}
+                    <button className="btn btn-ghost btn-sm"
+                      onClick={() => onPrint ? onPrint(r.id) : printComprobantePDF({ ...r, tipo: r.tipo })}
+                      title="Imprimir">🖨️
+                    </button>
+                    <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/comprobantes/editar/${r.id}`, "_blank")} title="Editar">✏️</button>
+                    {onDelete && <button className="btn btn-danger btn-sm btn-icon" onClick={() => onDelete(r.id)} title="Eliminar">🗑️</button>}
+                  </div>
                 </td>
               </tr>
             ))}
@@ -1333,10 +1338,10 @@ export default function CajaListado() {
           <SeccionDevoluciones presupuestos={presupuestos} onView={handleViewComprobante} onPrint={imprimirComprobante} onDelete={handleDeletePresupuesto} />
 
           {/* ── REPOSICIONES + DEVOL A PROVEEDOR ARS ── */}
-          <SeccionReposiciones reposiciones={reposiciones} divisa="ARS" />
+          <SeccionReposiciones reposiciones={reposiciones} divisa="ARS" onView={handleViewComprobante} onPrint={imprimirComprobante} onDelete={handleDeletePresupuesto} />
 
           {/* ── REPOSICIONES + DEVOL A PROVEEDOR USD ── */}
-          <SeccionReposiciones reposiciones={reposiciones} divisa="USD" />
+          <SeccionReposiciones reposiciones={reposiciones} divisa="USD" onView={handleViewComprobante} onPrint={imprimirComprobante} onDelete={handleDeletePresupuesto} />
 
           {/* ── RESERVAS ── */}
           {notasPedido.length > 0 && (
@@ -1423,6 +1428,7 @@ export default function CajaListado() {
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => handleViewComprobante(r.id)} title="Ver">👁</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => printRemitoPDF(r)} title="Imprimir">🖨️</button>
                             <button className="btn btn-ghost btn-sm" onClick={() => window.open(`/remitos/editar/${r.id}`, "_blank")} title="Editar">✏️</button>
                             <button className="btn btn-danger btn-sm btn-icon" onClick={() => handleDeleteRemito(r.id)} title="Eliminar">🗑️</button>

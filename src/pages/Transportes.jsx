@@ -3,7 +3,7 @@ import { getTransportes, createTransporte, updateTransporte, deleteTransporte } 
 import { useToast } from "../utils/useToast";
 import RemitoTransporteTab from "./RemitoTransporteTab";
 
-const EMPTY = { codigo: "", razon_social: "", domicilio: "", telefono: "", email: "" };
+const EMPTY = { codigo: "", razon_social: "", domicilio: "", localidad: "", telefono: "", email: "" };
 
 export default function Transportes() {
   useEffect(() => { document.title = "Transportes — Once"; }, []);
@@ -30,7 +30,7 @@ export default function Transportes() {
   useEffect(() => { load(); }, []);
 
   const openNew  = () => { setForm(EMPTY); setEditing("new"); };
-  const openEdit = (t) => { setForm({ codigo: t.codigo, razon_social: t.razon_social, domicilio: t.domicilio || "", telefono: t.telefono, email: t.email || "" }); setEditing(t); };
+  const openEdit = (t) => { setForm({ codigo: t.codigo, razon_social: t.razon_social, domicilio: t.domicilio || "", localidad: t.localidad || "", telefono: t.telefono, email: t.email || "" }); setEditing(t); };
   const cancel   = () => { setEditing(null); setForm(EMPTY); };
 
   const save = async () => {
@@ -139,10 +139,14 @@ export default function Transportes() {
               <input className="input" value={form.telefono} onChange={(e) => set("telefono", e.target.value)} placeholder="Ej: (011) 4xxx-xxxx" />
             </div>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 16 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 12, marginBottom: 16 }}>
             <div>
               <div className="input-label">Domicilio</div>
               <input className="input" value={form.domicilio} onChange={(e) => set("domicilio", e.target.value)} placeholder="Dirección completa" />
+            </div>
+            <div>
+              <div className="input-label">Localidad</div>
+              <input className="input" value={form.localidad} onChange={(e) => set("localidad", e.target.value)} placeholder="Ciudad" />
             </div>
             <div>
               <div className="input-label">Email</div>
@@ -170,7 +174,7 @@ export default function Transportes() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-                {["Código","Razón Social","Domicilio","Teléfono","Email",""].map((h) => (
+                {["Código","Razón Social","Domicilio","Localidad","Teléfono","Email",""].map((h) => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>{h}</th>
                 ))}
               </tr>
@@ -187,6 +191,7 @@ export default function Transportes() {
                   <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12 }}>{t.codigo}</td>
                   <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>{t.razon_social}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-dim)" }}>{t.domicilio || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-dim)" }}>{t.localidad || "—"}</td>
                   <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12 }}>{t.telefono}</td>
                   <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-dim)" }}>{t.email || "—"}</td>
                   <td style={{ padding: "10px 14px", textAlign: "right" }}>

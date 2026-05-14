@@ -480,6 +480,8 @@ export function printRemitoTransporte(remito) {
     }
     .dest-row { display: flex; justify-content: space-between; font-size: 13px; }
     .dest-name { font-size: 15px; font-weight: 700; margin: 4px 0 6px; }
+    .dest-addr     { font-size: 13px; margin-bottom: 2px; }
+    .dest-location { font-size: 12px; color: #444; margin-bottom: 4px; }
     .dest-cuit { font-size: 12px; color: #444; }
     /* ── Cuerpo ── */
     .cuerpo {
@@ -540,7 +542,10 @@ export function printRemitoTransporte(remito) {
         <span>Señores: <span class="dest-name">${remito.customer_name || "—"}</span></span>
         <span style="font-weight:700">${label}</span>
       </div>
-      <div style="margin-bottom:4px">—</div>
+      ${remito.customer_domicilio ? `<div class="dest-addr">${remito.customer_domicilio}</div>` : ""}
+      ${(remito.customer_localidad || remito.customer_provincia)
+        ? `<div class="dest-location">${[remito.customer_localidad, remito.customer_provincia].filter(Boolean).join(" — ")}</div>`
+        : ""}
       <div class="dest-cuit">
         CUIT: ${remito.customer_document || "0"}&nbsp;&nbsp;&nbsp;
         ${remito.customer_condicion_iva || "IVA RESPONSABLE INSCRIPTO"}
@@ -558,8 +563,8 @@ export function printRemitoTransporte(remito) {
       <span class="transporte-label">Transporte:&nbsp;&nbsp;</span>
       <span style="font-weight:700">${remito.transporte_nombre || "—"}</span>
       ${remito.transporte_domicilio
-        ? `<div class="transporte-dir">${remito.transporte_domicilio}</div>`
-        : ""}
+        ? `<div class="transporte-dir">${remito.transporte_domicilio}${remito.transporte_localidad ? ` - ${remito.transporte_localidad}` : ""}</div>`
+        : remito.transporte_localidad ? `<div class="transporte-dir">${remito.transporte_localidad}</div>` : ""}
     </div>
   </div>`).join("");
 
@@ -576,31 +581,32 @@ export function printRemitoTransporte(remito) {
 export function printEtiquetasEnvio(remito) {
   const bultos = remito.bultos || 1;
 
-  const customerAddr = [remito.customer_domicilio, remito.customer_localidad].filter(Boolean).join(", ");
-
   const etiqueta = `
     <div class="label">
-      <div class="label-body">
-        <div class="lbl-row">
-          <span class="lbl-key">PARA:</span>
+      <div class="lbl-para-key">PARA:</div>
+      <div class="lbl-name">${remito.customer_name || "—"}</div>
+      ${remito.customer_domicilio ? `<div class="lbl-address">${remito.customer_domicilio}</div>` : ""}
+      ${(remito.customer_localidad || remito.customer_provincia) ? `
+        <div class="lbl-location">
+          <span class="lbl-city">${remito.customer_localidad || ""}</span>
+          <span class="lbl-province">${remito.customer_provincia || ""}</span>
+        </div>` : ""}
+      <hr class="lbl-divider" />
+      <div class="lbl-envia-row">
+        <span class="lbl-envia-label">Envía:</span>
+        <div class="lbl-envia-val">${remito.envia || "—"}</div>
+      </div>
+      <hr class="lbl-divider" />
+      <div class="lbl-bottom">
+        <div class="lbl-transport-info">
+          <div class="lbl-transport-key">Transporte:</div>
+          <div class="lbl-transport-name">${remito.transporte_nombre || "—"}</div>
+          ${remito.transporte_domicilio ? `<div class="lbl-transport-dir">${remito.transporte_domicilio}</div>` : ""}
+          ${remito.transporte_localidad ? `<div class="lbl-transport-dir">${remito.transporte_localidad}</div>` : ""}
         </div>
-        <div class="lbl-name">*${remito.customer_name || "—"}</div>
-        ${customerAddr ? `<div class="lbl-address">${customerAddr}</div>` : ""}
-        <div style="margin: 6px 0; border-top: 1px dashed #aaa;"></div>
-        <div class="lbl-row">
-          <span class="lbl-key">Envía:</span>
-          <span class="lbl-val">${remito.envia || "—"}</span>
-        </div>
-        <div style="height:6px"></div>
-        <div class="lbl-transport-row">
-          <div class="lbl-transport-info">
-            <div class="lbl-key">Transporte:</div>
-            <div class="lbl-transport-name">${remito.transporte_nombre || "—"}</div>
-            ${remito.transporte_domicilio
-              ? `<div class="lbl-transport-dir">${remito.transporte_domicilio}</div>`
-              : ""}
-          </div>
-          <div class="lbl-bultos">${bultos}</div>
+        <div class="lbl-bultos-box">
+          <div class="lbl-bultos-label">BULTOS:</div>
+          <div class="lbl-bultos-num">${bultos}</div>
         </div>
       </div>
     </div>`;
@@ -612,50 +618,44 @@ export function printEtiquetasEnvio(remito) {
   <title>Etiquetas de Envío</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      background: #fff;
-    }
+    body { font-family: Arial, Helvetica, sans-serif; background: #fff; }
     html, body { height: 100%; }
     .grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
       grid-template-rows: 1fr 1fr;
-      width: 100%;
-      height: 100%;
-      gap: 0;
+      width: 100%; height: 100%; gap: 0;
     }
     .label {
-      border: 1px solid #bbb;
-      padding: 18px 16px;
-      page-break-inside: avoid;
+      border: 1px solid #888;
+      padding: 12pt 14pt;
+      display: flex; flex-direction: column;
       overflow: hidden;
+      page-break-inside: avoid;
     }
-    .label-body { height: 100%; display: flex; flex-direction: column; justify-content: space-between; }
-    .lbl-key     { font-size: 10px; text-transform: uppercase; color: #666; letter-spacing: 0.06em; }
-    .lbl-val     { font-size: 12px; font-weight: 600; }
-    .lbl-name    { font-size: 18px; font-weight: 800; margin: 2px 0; }
-    .lbl-address { font-size: 15px; color: #222; font-weight: 600; margin-bottom: 4px; }
-    .lbl-row     { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; }
-    .lbl-transport-row {
-      display: flex;
-      align-items: flex-end;
-      justify-content: space-between;
-      gap: 8px;
-      margin-top: 4px;
+    .lbl-para-key { font-size: 9pt; text-transform: uppercase; color: #555; letter-spacing: 0.08em; margin-bottom: 2pt; }
+    .lbl-name     { font-size: 24pt; font-weight: 800; font-style: italic; line-height: 1.1; margin-bottom: 4pt; }
+    .lbl-address  { font-size: 16pt; font-weight: 700; font-style: italic; margin-bottom: 3pt; }
+    .lbl-location { display: flex; justify-content: space-between; font-size: 12pt; font-weight: 600; font-style: italic; }
+    .lbl-city     { flex: 1; }
+    .lbl-province { text-align: right; }
+    .lbl-divider  { border: none; border-top: 1px dashed #999; margin: 6pt 0; }
+    .lbl-envia-row { }
+    .lbl-envia-label { font-size: 10pt; font-style: italic; color: #444; }
+    .lbl-envia-val   { font-size: 13pt; font-weight: 700; margin-top: 2pt; }
+    .lbl-bottom {
+      display: flex; align-items: flex-end; justify-content: space-between;
+      gap: 8pt; flex: 1; margin-top: 2pt;
     }
     .lbl-transport-info { flex: 1; }
-    .lbl-transport-name { font-size: 11px; font-weight: 700; }
-    .lbl-transport-dir  { font-size: 10px; color: #555; line-height: 1.3; }
-    .lbl-bultos {
-      font-size: 48px;
-      font-weight: 900;
-      line-height: 1;
-      color: #111;
-      text-align: right;
-      min-width: 54px;
-      border: 2px solid #111;
-      padding: 2px 10px;
+    .lbl-transport-key  { font-size: 9pt; color: #555; }
+    .lbl-transport-name { font-size: 11pt; font-weight: 700; margin: 2pt 0; }
+    .lbl-transport-dir  { font-size: 8pt; color: #444; line-height: 1.4; }
+    .lbl-bultos-box     { text-align: center; flex-shrink: 0; }
+    .lbl-bultos-label   { font-size: 8pt; text-transform: uppercase; letter-spacing: 0.06em; color: #444; margin-bottom: 2pt; }
+    .lbl-bultos-num     {
+      font-size: 40pt; font-weight: 900; line-height: 1;
+      border: 2px solid #111; padding: 2pt 8pt; text-align: center;
     }
     @media print {
       html, body { height: 100%; margin: 0; }

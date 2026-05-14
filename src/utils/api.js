@@ -169,4 +169,7 @@ export const deleteWebOrder       = (id)            => api.delete(`/web-orders/$
 export const setWebOrderColor     = (id, color)     => api.patch(`/web-orders/${id}/color`, { color });
 export const setWebOrderReservado = (id, reservado) => api.patch(`/web-orders/${id}/reservado`, { reservado });
 
+// ── STOCK MOVIMIENTOS ─────────────────────────────────────────
+export const getStockMovimientos = (params) => api.get("/stock/movements", { params });
+
 export default api;

@@ -306,7 +306,7 @@ function LeftPanel({
           provSel ? (
             <div style={{ background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, padding:"8px 10px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
               <span style={{ fontSize:13, color:"var(--accent)", fontWeight:600 }}>{provSel.name}</span>
-              <button onClick={() => setProvSel(null)} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
+              <button onClick={() => { setProvSel(null); setDivisa("ARS"); }} style={{ background:"none", border:"none", color:"var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
             </div>
           ) : (
             <>
@@ -738,7 +738,7 @@ export default function Comprobantes({ initialCreating = false }) {
   }, [custSel, esReposicion, esConsumidorFinal]);
 
   const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); setDivisa(c.divisa || "ARS"); };
-  const selectProv = (p) => { setProvSel(p); setProvQuery(""); setProvResults([]); };
+  const selectProv = (p) => { setProvSel(p); setProvQuery(""); setProvResults([]); setDivisa(p.divisa || "ARS"); };
 
   const toggleConsumidorFinal = (val) => {
     setEsConsumidorFinal(val);

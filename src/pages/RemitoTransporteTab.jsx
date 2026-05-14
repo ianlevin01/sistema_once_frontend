@@ -42,7 +42,7 @@ export default function RemitoTransporteTab() {
 
   // Campos
   const [transpId,  setTranspId]  = useState("");
-  const [envia,     setEnvia]     = useState(user?.name || "");
+  const [envia,     setEnvia]     = useState(user?.warehouse_name || "");
   const [bultos,    setBultos]    = useState(1);
   const [valor,     setValor]     = useState("");
   const [saving,    setSaving]    = useState(false);

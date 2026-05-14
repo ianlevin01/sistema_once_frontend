@@ -29,6 +29,7 @@ const NAV_ADMIN = [
         submenu: [
           { to: "/productos",                label: "Catálogo"            },
           { to: "/productos/ultimas-compras", label: "Últimas Compras"   },
+          { to: "/stock-movimientos",        label: "Movimientos de Stock" },
           { to: "/catalogos",                label: "Imprimir catálogo"  },
         ],
       },
@@ -72,6 +73,7 @@ const PAGE_TITLES = {
   "/cuenta-corriente": "Cuenta Corriente",
   "/productos":                    "Productos",
   "/productos/ultimas-compras":    "Últimas Compras",
+  "/stock-movimientos":           "Movimientos de Stock",
   "/vendedores":       "Vendedores",
   "/usuarios":         "Usuarios del Sistema",
   "/configuracion":    "Configuración",
