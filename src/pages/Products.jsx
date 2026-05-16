@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -138,6 +138,49 @@ export default function Products() {
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
+
+  // ── Reorder ──────────────────────────────────────────────────────────────
+  const [reorderN,        setReorderN]        = useState("50");
+  const [reorderItems,    setReorderItems]    = useState([]);
+  const [reorderLoading,  setReorderLoading]  = useState(false);
+  const [reorderSaving,   setReorderSaving]   = useState(false);
+  const [dragFrom,        setDragFrom]        = useState(null);
+
+  const loadReorderItems = async () => {
+    const n = Math.max(1, Math.min(500, Number(reorderN) || 50));
+    setReorderLoading(true);
+    try {
+      const { data } = await getProductsForReorder(n);
+      setReorderItems(Array.isArray(data) ? data : data.products ?? []);
+    } catch { addToast("Error cargando productos", "error"); }
+    setReorderLoading(false);
+  };
+
+  const handleReorderDragStart = (e, i) => {
+    setDragFrom(i);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleReorderDragOver = (e, i) => {
+    e.preventDefault();
+    if (dragFrom === null || dragFrom === i) return;
+    setReorderItems((prev) => {
+      const next = [...prev];
+      const [item] = next.splice(dragFrom, 1);
+      next.splice(i, 0, item);
+      setDragFrom(i);
+      return next;
+    });
+  };
+
+  const handleReorderSave = async () => {
+    setReorderSaving(true);
+    try {
+      await reorderProducts(reorderItems.map((p) => p.id));
+      addToast("Orden guardado", "success");
+    } catch { addToast("Error guardando orden", "error"); }
+    setReorderSaving(false);
+  };
 
   // ── Tab / Import-Export ───────────────────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState("catalogo");
@@ -615,7 +658,7 @@ export default function Products() {
 
         {/* ══ TAB BAR ════════════════════════════════════════════════════════ */}
         <div style={{ display:"flex", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0 }}>
-          {[["catalogo","Catálogo"],["import","Actualización masiva"]].map(([tab, label]) => (
+          {[["catalogo","Catálogo"],["import","Actualización masiva"],["ordenar","Ordenar"]].map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding:"10px 20px", border:"none", background:"none", cursor:"pointer",
               fontSize:13, fontFamily:"var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
@@ -978,7 +1021,7 @@ export default function Products() {
         </div>
 
         {/* ══ PANEL DERECHO — LISTA ══════════════════════════════════════════ */}
-        <div style={{ width:290, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
+        <div style={{ width:360, flexShrink:0, display:"flex", flexDirection:"column", background:"var(--bg2)", borderLeft:"1px solid var(--border)" }}>
           <div style={{ padding:"12px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
             <div className="search-bar">
               <span className="search-icon">🔍</span>
@@ -1044,6 +1087,69 @@ export default function Products() {
             </div>
           )}
         </div>
+        </div>
+        ) : activeTab === "ordenar" ? (
+        /* ══ PESTAÑA ORDENAR ══════════════════════════════════════════════ */
+        <div style={{ flex:1, overflowY:"auto", background:"var(--bg)", padding:"28px 32px" }}>
+          <div style={{ maxWidth:900 }}>
+            <div style={{ fontSize:15, fontWeight:700, color:"var(--text)", marginBottom:6 }}>Ordenar productos</div>
+            <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:20 }}>
+              Cargá los primeros N productos (ordenados por más reciente) y arrastralos para definir el orden en que aparecen en la tienda.
+            </div>
+            <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:24 }}>
+              <div className="input-group" style={{ margin:0 }}>
+                <label className="input-label">Cantidad de productos</label>
+                <input
+                  className="input" type="number" min="1" max="500" step="1"
+                  value={reorderN} onChange={(e) => setReorderN(e.target.value)}
+                  style={{ width:100, textAlign:"center", fontFamily:"var(--font-mono)" }}
+                />
+              </div>
+              <button className="btn btn-primary btn-sm" onClick={loadReorderItems} disabled={reorderLoading}>
+                {reorderLoading ? "Cargando..." : "Cargar productos"}
+              </button>
+              {reorderItems.length > 0 && (
+                <button className="btn btn-ghost btn-sm" onClick={handleReorderSave} disabled={reorderSaving}>
+                  {reorderSaving ? "Guardando..." : "💾 Guardar orden"}
+                </button>
+              )}
+            </div>
+            {reorderItems.length > 0 && (
+              <>
+                <div style={{ fontSize:11, color:"var(--text-dim)", marginBottom:10, fontFamily:"var(--font-mono)" }}>
+                  {reorderItems.length} productos · arrastrá para reordenar
+                </div>
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(180px, 1fr))", gap:8 }}>
+                  {reorderItems.map((p, i) => (
+                    <div
+                      key={p.id}
+                      draggable
+                      onDragStart={(e) => handleReorderDragStart(e, i)}
+                      onDragOver={(e) => handleReorderDragOver(e, i)}
+                      onDragEnd={() => setDragFrom(null)}
+                      style={{
+                        padding:"10px 12px", borderRadius:7, cursor:"grab",
+                        border:`2px solid ${dragFrom === i ? "var(--accent)" : "var(--border)"}`,
+                        background: dragFrom === i ? "var(--accent-dim)" : "var(--bg2)",
+                        userSelect:"none", transition:"border-color 0.1s, background 0.1s",
+                        display:"flex", flexDirection:"column", gap:4,
+                      }}
+                    >
+                      <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        <span style={{ fontSize:9, color:"var(--text-dim)", fontFamily:"var(--font-mono)", minWidth:24, textAlign:"right" }}>#{i+1}</span>
+                        <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)", background:"var(--accent-light)", padding:"1px 6px", borderRadius:3, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:90 }}>
+                          {p.code || "—"}
+                        </span>
+                      </div>
+                      <div style={{ fontSize:12, color:"var(--text)", fontWeight:500, lineHeight:1.3, wordBreak:"break-word" }}>
+                        {p.name}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
         ) : (
         /* ══ PESTAÑA ACTUALIZACIÓN MASIVA ═════════════════════════════════ */

@@ -9,7 +9,7 @@ import {
   getCCProveedor, registrarCobranzaProveedor,
   editarMovimientoProv, eliminarMovimientoProv,
   getCCProveedoresSummary,
-  getPriceConfig, getTransportes, getComprobante,
+  getPriceConfig, getTransportes, getComprobante, getVendedoresActivos,
 } from "../utils/api";
 import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
@@ -187,140 +187,159 @@ function EntityFicha({ selected, mode }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Modal de cobranza
+// Modal de cobranza (multi-método)
 // ─────────────────────────────────────────────────────────────
 function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCuenta, cotizacion, saving }) {
   const todayStr = () => new Date().toISOString().slice(0, 10);
-  // Para clientes: haber=cobro (baja saldo), debe=cargo (sube saldo)
-  // Para proveedores: debe=pago/crédito (baja deuda), haber=cargo (sube deuda)
   const defaultTipoMov = mode === "proveedor" ? "debe" : "haber";
-  const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: "ARS", fecha: todayStr(), tipo_mov: defaultTipoMov });
-  const [cotizacionCustom, setCotizacionCustom] = useState("");
+  const emptyFila = () => ({ monto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, cotizacionCustom: String(cotizacion || "") });
+
+  const [tipoMov,  setTipoMov]  = useState(defaultTipoMov);
+  const [concepto, setConcepto] = useState("");
+  const [fecha,    setFecha]    = useState(todayStr());
+  const [filas,    setFilas]    = useState([emptyFila()]);
 
   useEffect(() => {
     if (open) {
-      setForm({ monto: "", concepto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, fecha: todayStr(), tipo_mov: defaultTipoMov });
-      setCotizacionCustom(String(cotizacion || ""));
+      setTipoMov(defaultTipoMov);
+      setConcepto("");
+      setFecha(todayStr());
+      setFilas([emptyFila()]);
     }
   }, [open, divisaCuenta, cotizacion]);
 
   if (!open) return null;
 
-  const setF = (key) => (e) => setForm((p) => ({ ...p, [key]: e.target.value }));
-  const setDivisaCobro = (d) => setForm((p) => ({ ...p, divisa_cobro: d }));
-  const setMetodo = (m) => setForm((p) => ({ ...p, metodo_pago: m }));
+  const setFila   = (i, key, val) => setFilas((prev) => prev.map((f, idx) => idx === i ? { ...f, [key]: val } : f));
+  const addFila   = () => setFilas((prev) => [...prev, emptyFila()]);
+  const removeFila = (i) => setFilas((prev) => prev.filter((_, idx) => idx !== i));
 
-  const cotizUsada = Number(cotizacionCustom) || cotizacion;
-
-  const previewConversion = () => {
-    const monto = Number(form.monto);
-    if (!monto || !cotizUsada || form.divisa_cobro === divisaCuenta) return null;
-    if (form.divisa_cobro === "ARS" && divisaCuenta === "USD") {
+  const previewConversion = (fila) => {
+    const monto = Number(fila.monto);
+    const cotizUsada = Number(fila.cotizacionCustom) || cotizacion;
+    if (!monto || !cotizUsada || fila.divisa_cobro === divisaCuenta) return null;
+    if (fila.divisa_cobro === "ARS" && divisaCuenta === "USD")
       return `= USD ${(monto / cotizUsada).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizUsada.toLocaleString("es-AR")})`;
-    }
-    if (form.divisa_cobro === "USD" && divisaCuenta === "ARS") {
+    if (fila.divisa_cobro === "USD" && divisaCuenta === "ARS")
       return `= $${(monto * cotizUsada).toLocaleString("es-AR", { minimumFractionDigits: 2 })} (cotiz. $${cotizUsada.toLocaleString("es-AR")})`;
-    }
     return null;
   };
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <span className="modal-title">Registrar movimiento — {selectedName}</span>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
         <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-          {/* Debe / Haber selector */}
+
+          {/* DEBE / HABER */}
           <div className="input-group">
             <label className="input-label">Tipo de movimiento</label>
             <div style={{ display: "flex", gap: 8 }}>
-              {[
-                { val: "debe",  label: mode === "proveedor" ? "DEBE — reduce deuda" : "DEBE — cargo al cliente" },
-                { val: "haber", label: mode === "proveedor" ? "HABER — suma deuda"   : "HABER — cobro del cliente" },
-              ].map(({ val, label }) => (
-                <button key={val} type="button"
-                  onClick={() => setForm((p) => ({ ...p, tipo_mov: val }))}
-                  style={{
-                    flex: 1, padding: "9px 0", borderRadius: 6, cursor: "pointer", fontSize: 12,
-                    border: `2px solid ${form.tipo_mov === val ? "var(--accent)" : "var(--border)"}`,
-                    background: form.tipo_mov === val ? "var(--accent-dim)" : "var(--bg3)",
-                    color: form.tipo_mov === val ? "var(--accent)" : "var(--text-dim)",
-                    fontWeight: form.tipo_mov === val ? 700 : 400,
-                  }}
-                >{label}</button>
+              {["debe", "haber"].map((val) => (
+                <button key={val} type="button" onClick={() => setTipoMov(val)} style={{
+                  flex: 1, padding: "9px 0", borderRadius: 6, cursor: "pointer",
+                  fontSize: 13, fontWeight: tipoMov === val ? 700 : 400, textTransform: "uppercase",
+                  border: `2px solid ${tipoMov === val ? "var(--accent)" : "var(--border)"}`,
+                  background: tipoMov === val ? "var(--accent-dim)" : "var(--bg3)",
+                  color: tipoMov === val ? "var(--accent)" : "var(--text-dim)",
+                }}>{val}</button>
               ))}
             </div>
           </div>
 
+          {/* Info cuenta */}
           <div style={{ padding: "8px 12px", background: "var(--bg3)", border: "1px solid var(--border)", borderRadius: 6, display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "var(--text-muted)" }}>
             <span>Cuenta en</span><DivisaBadge divisa={divisaCuenta} /><span>— saldo se actualiza en {divisaCuenta}</span>
           </div>
-          <div className="input-group">
-            <label className="input-label">Divisa del cobro / pago real</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              {["ARS", "USD"].map((d) => (
-                <button key={d} type="button" onClick={() => setDivisaCobro(d)} style={{
-                  flex: 1, padding: "10px 0", borderRadius: 6, cursor: "pointer",
-                  border: `2px solid ${form.divisa_cobro === d ? (d === "USD" ? "var(--success)" : "var(--accent)") : "var(--border)"}`,
-                  background: form.divisa_cobro === d ? (d === "USD" ? "rgba(52,211,153,0.12)" : "var(--accent-dim)") : "var(--bg3)",
-                  color: form.divisa_cobro === d ? (d === "USD" ? "var(--success)" : "var(--accent)") : "var(--text-muted)",
-                  fontWeight: form.divisa_cobro === d ? 700 : 400, fontFamily: "var(--font-mono)", fontSize: 13,
-                }}>
-                  {d === "USD" ? "💵 USD" : "🪙 ARS"}
-                </button>
-              ))}
-            </div>
-          </div>
-          {form.divisa_cobro !== divisaCuenta && (
-            <div className="input-group">
-              <label className="input-label">Cotización manual (ARS por USD)</label>
-              <input className="input" type="number" min="0" step="0.01"
-                value={cotizacionCustom}
-                onChange={(e) => setCotizacionCustom(e.target.value)}
-                placeholder={String(cotizacion)}
-              />
-            </div>
-          )}
+
+          {/* Fecha y concepto */}
           <div className="input-group">
             <label className="input-label">Fecha</label>
-            <input className="input" type="date" value={form.fecha} onChange={setF("fecha")} />
-          </div>
-          <div className="input-group">
-            <label className="input-label">Monto ({form.divisa_cobro})</label>
-            <input className="input" type="number" min="0" step="0.01" value={form.monto} onChange={setF("monto")} autoFocus />
-            {previewConversion() && (
-              <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(255,200,0,0.08)", border: "1px solid rgba(255,200,0,0.25)", borderRadius: 5, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
-                ⇄ {previewConversion()}
-              </div>
-            )}
-          </div>
-          <div className="input-group">
-            <label className="input-label">Método de pago</label>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {METODOS_COBRANZA.map((m) => (
-                <button key={m} type="button" onClick={() => setMetodo(m)} style={{
-                  padding: "7px 16px", borderRadius: 6, border: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
-                  background: form.metodo_pago === m ? "var(--accent)" : "var(--bg3)",
-                  color:      form.metodo_pago === m ? "#fff"          : "var(--text-muted)",
-                  fontWeight: form.metodo_pago === m ? 700             : 400,
-                }}>{m}</button>
-              ))}
-            </div>
+            <input className="input" type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
           </div>
           <div className="input-group">
             <label className="input-label">Observaciones</label>
-            <input className="input" value={form.concepto} onChange={setF("concepto")}
+            <input className="input" value={concepto} onChange={(e) => setConcepto(e.target.value)}
               placeholder={mode === "proveedor" ? "Pago a proveedor, NC, etc." : "Cobranza, seña, etc."} />
           </div>
+
+          {/* Separador */}
+          <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em", borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
+            Métodos de pago
+          </div>
+
+          {/* Filas */}
+          {filas.map((fila, i) => (
+            <div key={i} style={{ border: "1px solid var(--border)", borderRadius: 8, padding: "12px 14px", background: "var(--bg2)", display: "flex", flexDirection: "column", gap: 10, position: "relative" }}>
+              {filas.length > 1 && (
+                <button type="button" onClick={() => removeFila(i)} style={{ position: "absolute", top: 8, right: 10, background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 16, lineHeight: 1, padding: "0 4px" }}>✕</button>
+              )}
+              <div className="input-group">
+                <label className="input-label">Divisa del cobro</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {["ARS", "USD"].map((d) => (
+                    <button key={d} type="button" onClick={() => setFila(i, "divisa_cobro", d)} style={{
+                      flex: 1, padding: "8px 0", borderRadius: 6, cursor: "pointer",
+                      border: `2px solid ${fila.divisa_cobro === d ? (d === "USD" ? "var(--success)" : "var(--accent)") : "var(--border)"}`,
+                      background: fila.divisa_cobro === d ? (d === "USD" ? "rgba(52,211,153,0.12)" : "var(--accent-dim)") : "var(--bg3)",
+                      color: fila.divisa_cobro === d ? (d === "USD" ? "var(--success)" : "var(--accent)") : "var(--text-muted)",
+                      fontWeight: fila.divisa_cobro === d ? 700 : 400, fontFamily: "var(--font-mono)", fontSize: 13,
+                    }}>{d === "USD" ? "💵 USD" : "🪙 ARS"}</button>
+                  ))}
+                </div>
+              </div>
+              {fila.divisa_cobro !== divisaCuenta && (
+                <div className="input-group">
+                  <label className="input-label">Cotización manual (ARS por USD)</label>
+                  <input className="input" type="number" min="0" step="0.01"
+                    value={fila.cotizacionCustom}
+                    onChange={(e) => setFila(i, "cotizacionCustom", e.target.value)}
+                    placeholder={String(cotizacion)}
+                  />
+                </div>
+              )}
+              <div className="input-group">
+                <label className="input-label">Monto ({fila.divisa_cobro})</label>
+                <input className="input" type="number" min="0" step="0.01" value={fila.monto}
+                  onChange={(e) => setFila(i, "monto", e.target.value)} autoFocus={i === 0} />
+                {previewConversion(fila) && (
+                  <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(255,200,0,0.08)", border: "1px solid rgba(255,200,0,0.25)", borderRadius: 5, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
+                    ⇄ {previewConversion(fila)}
+                  </div>
+                )}
+              </div>
+              <div className="input-group">
+                <label className="input-label">Método de pago</label>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {METODOS_COBRANZA.map((m) => (
+                    <button key={m} type="button" onClick={() => setFila(i, "metodo_pago", m)} style={{
+                      padding: "7px 16px", borderRadius: 6, border: "1px solid var(--border)", cursor: "pointer", fontSize: 13,
+                      background: fila.metodo_pago === m ? "var(--accent)" : "var(--bg3)",
+                      color:      fila.metodo_pago === m ? "#fff"          : "var(--text-muted)",
+                      fontWeight: fila.metodo_pago === m ? 700             : 400,
+                    }}>{m}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {/* Agregar fila */}
+          <button type="button" onClick={addFila} style={{
+            padding: "8px 0", borderRadius: 6, border: "1.5px dashed var(--border)",
+            background: "transparent", color: "var(--text-dim)", cursor: "pointer",
+            fontSize: 13, fontFamily: "var(--font-mono)",
+          }}>
+            + Agregar otro método de pago
+          </button>
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-          <button className="btn btn-primary" onClick={() => {
-            onConfirm({ ...form, cotizacion_manual: cotizUsada });
-          }} disabled={saving}>
-            {saving ? "Guardando..." : `Registrar ${form.tipo_mov === "debe" ? "Debe" : "Haber"}`}
+          <button className="btn btn-primary" onClick={() => onConfirm({ tipo_mov: tipoMov, concepto, fecha, filas })} disabled={saving}>
+            {saving ? "Guardando..." : `Registrar ${tipoMov === "debe" ? "Debe" : "Haber"}`}
           </button>
         </div>
       </div>
@@ -630,18 +649,23 @@ function EntityPanel({
 
   const handleVerCC = () => { setViewCC(true); if (!cc) loadCC(selected.id); };
 
-  const handleCobranza = async (formCobranza) => {
-    const monto = Number(formCobranza.monto);
-    if (!monto || monto <= 0) { addToast("Monto inválido", "error"); return; }
+  const handleCobranza = async ({ tipo_mov, concepto, fecha, filas }) => {
+    const validFilas = filas.filter((f) => Number(f.monto) > 0);
+    if (validFilas.length === 0) { addToast("Ingresá al menos un monto válido", "error"); return; }
     setSavingCobranza(true);
     try {
-      await registrarCobranzaFn(selected.id, {
-        monto, concepto: formCobranza.concepto || "",
-        metodo_pago: formCobranza.metodo_pago, divisa_cobro: formCobranza.divisa_cobro,
-        cotizacion_manual: formCobranza.cotizacion_manual ?? null,
-        fecha: formCobranza.fecha || null,
-        tipo_mov: formCobranza.tipo_mov || (mode === "proveedor" ? "debe" : "haber"),
-      });
+      for (const fila of validFilas) {
+        const cotizUsada = Number(fila.cotizacionCustom) || cotizacion;
+        await registrarCobranzaFn(selected.id, {
+          monto:             Number(fila.monto),
+          concepto:          concepto || "",
+          metodo_pago:       fila.metodo_pago,
+          divisa_cobro:      fila.divisa_cobro,
+          cotizacion_manual: cotizUsada || null,
+          fecha:             fecha || null,
+          tipo_mov:          tipo_mov || (mode === "proveedor" ? "debe" : "haber"),
+        });
+      }
       addToast(mode === "proveedor" ? "Pago registrado" : "Cobranza registrada", "success");
       setModalCobranza(false);
       loadCC(selected.id);
@@ -876,27 +900,35 @@ function EntityPanel({
 function TabGeneral({ cotizacion }) {
   const [cuentasClientes,    setCuentasClientes]    = useState([]);
   const [cuentasProveedores, setCuentasProveedores] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [search,  setSearch]  = useState("");
-  const [vista,   setVista]   = useState("clientes");
+  const [vendedores,         setVendedores]         = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [search,     setSearch]     = useState("");
+  const [vista,      setVista]      = useState("clientes");
+  const [filtroVendedor, setFiltroVendedor] = useState("");
   const { addToast, ToastContainer } = useToast();
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const [{ data: dataClientes }, { data: provCC }] = await Promise.all([
+        const [{ data: dataClientes }, { data: provCC }, { data: vends }] = await Promise.all([
           getCuentaCorrienteGeneral(),
           getCCProveedoresSummary(),
+          getVendedoresActivos(),
         ]);
         setCuentasClientes(dataClientes);
         setCuentasProveedores(provCC.map((p) => ({ ...p, divisa: p.cc_divisa })));
+        setVendedores(vends || []);
       } catch { addToast("Error cargando cuentas corrientes", "error"); }
       setLoading(false);
     })();
   }, []);
 
-  const filteredClientes    = cuentasClientes.filter((c) => !search.trim() || c.customer_name?.toLowerCase().includes(search.toLowerCase()));
+  const filteredClientes = cuentasClientes.filter((c) => {
+    if (search.trim() && !c.customer_name?.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filtroVendedor && c.customer_vendedor !== filtroVendedor) return false;
+    return true;
+  });
   const filteredProveedores = cuentasProveedores.filter((p) => !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()));
   const toARS = (monto, divisa) => divisa === "USD" ? monto * (cotizacion || 1) : monto;
 
@@ -928,6 +960,19 @@ function TabGeneral({ cotizacion }) {
           <input placeholder="Filtrar por nombre..." value={search} onChange={(e) => setSearch(e.target.value)} />
           {search && <button onClick={() => setSearch("")} style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 14, padding: "0 4px" }}>✕</button>}
         </div>
+        {vista === "clientes" && vendedores.length > 0 && (
+          <select
+            className="select"
+            value={filtroVendedor}
+            onChange={(e) => setFiltroVendedor(e.target.value)}
+            style={{ fontSize: 13, padding: "5px 10px", minWidth: 160 }}
+          >
+            <option value="">Todos los vendedores</option>
+            {vendedores.map((v) => (
+              <option key={v.id} value={v.nombre}>{v.nombre}</option>
+            ))}
+          </select>
+        )}
         {cotizacion > 0 && (
           <div style={{ marginLeft: "auto", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", padding: "4px 10px", background: "var(--bg2)", borderRadius: 4, border: "1px solid var(--border)" }}>
             💱 Cotización USD: ${cotizacion.toLocaleString("es-AR")}

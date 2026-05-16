@@ -721,7 +721,7 @@ export default function Comprobantes({ initialCreating = false }) {
   useEffect(() => {
     if (prodSel) {
       const prices = prodSel?.prices || prodSel?.product_prices || [];
-      const found  = prices.find((p) => p.price_type === priceType);
+      const found  = prices.find((p) => p.price_type === (esReposicion ? "costo" : priceType));
       if (found) {
         const raw = divisa === "USD" ? (found.price_usd ?? found.price) : found.price;
         setItemPrice(String(Math.ceil(Number(raw) * 100) / 100));
@@ -737,7 +737,7 @@ export default function Comprobantes({ initialCreating = false }) {
     catch { setLastPrice(null); }
   }, [custSel, esReposicion, esConsumidorFinal]);
 
-  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); setDivisa(c.divisa || "ARS"); };
+  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); setDivisa(c.divisa || "ARS"); if (c.vendedor) setVendedor(c.vendedor); };
   const selectProv = (p) => { setProvSel(p); setProvQuery(""); setProvResults([]); setDivisa(p.divisa || "ARS"); };
 
   const toggleConsumidorFinal = (val) => {
@@ -1259,7 +1259,7 @@ export default function Comprobantes({ initialCreating = false }) {
               <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
                 <div style={{ flex:2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
-                  <ProductSearchBar ref={prodSearchRef} priceType={priceType} divisa={divisa} onSelect={handleProdSelect} onSearchFocus={() => setSearchActive(true)} autoFocus={!prodSel} dropUp />
+                  <ProductSearchBar ref={prodSearchRef} priceType={esReposicion ? "costo" : priceType} divisa={divisa} onSelect={handleProdSelect} onSearchFocus={() => setSearchActive(true)} autoFocus={!prodSel} dropUp />
                 </div>
                 <div style={{ flex:"0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>

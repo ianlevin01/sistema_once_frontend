@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -87,9 +87,13 @@ export const eliminarMovimientoCC = (movId)       => api.delete(`/cuenta-corrien
 export const getPriceConfig = () => api.get("/config/precios");
 
 // ── PRODUCTS ──────────────────────────────────────────────────
-export const searchProducts       = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);
+export const searchProducts          = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);
+export const getProductsForReorder   = (limit)      => api.get(`/products?limit=${limit}`);
+export const reorderProducts         = (ids)        => api.post("/products/reorder", { ids });
 export const getProductsForCatalog = (categoryId) =>
-  api.get(`/products?category_id=${categoryId}&limit=300&sort=name_asc`);
+  categoryId && categoryId !== "all"
+    ? api.get(`/products?category_id=${categoryId}&limit=300&sort=name_asc`)
+    : api.get(`/products?limit=500&sort=name_asc`);
 export const getProduct           = (id)         => api.get(`/products/${id}`);
 export const createProduct        = (data)       => api.post("/products", data);
 export const updateProduct        = (id, data)   => api.put(`/products/${id}`, data);

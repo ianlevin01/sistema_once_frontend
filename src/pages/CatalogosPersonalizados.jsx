@@ -21,7 +21,7 @@ export default function CatalogosPersonalizados() {
   }, []);
 
   const loadProducts = async () => {
-    if (!selectedCat) return;
+    if (!selectedCat || selectedCat === "") return;
     setLoading(true);
     try {
       const { data } = await getProductsForCatalog(selectedCat);
@@ -96,6 +96,7 @@ export default function CatalogosPersonalizados() {
             style={{ width: 220 }}
           >
             <option value="">— Seleccionar —</option>
+            <option value="all">Todas las categorías</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
@@ -104,7 +105,7 @@ export default function CatalogosPersonalizados() {
         <button
           className="btn btn-primary"
           onClick={loadProducts}
-          disabled={!selectedCat || loading}
+          disabled={!selectedCat || selectedCat === "" || loading}
         >
           {loading ? "Cargando..." : "Cargar productos"}
         </button>
