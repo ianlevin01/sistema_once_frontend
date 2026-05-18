@@ -145,6 +145,8 @@ export default function Products() {
   const [reorderLoading,  setReorderLoading]  = useState(false);
   const [reorderSaving,   setReorderSaving]   = useState(false);
   const [dragFrom,        setDragFrom]        = useState(null);
+  const [dragTarget,      setDragTarget]      = useState(null);
+  const dragFromRef = useRef(null);
 
   const loadReorderItems = async () => {
     const n = Math.max(1, Math.min(500, Number(reorderN) || 50));
@@ -157,20 +159,31 @@ export default function Products() {
   };
 
   const handleReorderDragStart = (e, i) => {
+    dragFromRef.current = i;
     setDragFrom(i);
     e.dataTransfer.effectAllowed = "move";
   };
 
   const handleReorderDragOver = (e, i) => {
     e.preventDefault();
-    if (dragFrom === null || dragFrom === i) return;
+    if (dragFromRef.current === null || dragFromRef.current === i) return;
+    setDragTarget(i);
+  };
+
+  const handleReorderDrop = (i) => {
+    const from = dragFromRef.current;
+    if (from === null || from === i) return;
     setReorderItems((prev) => {
       const next = [...prev];
-      const [item] = next.splice(dragFrom, 1);
-      next.splice(i, 0, item);
-      setDragFrom(i);
+      [next[from], next[i]] = [next[i], next[from]];
       return next;
     });
+  };
+
+  const handleReorderDragEnd = () => {
+    dragFromRef.current = null;
+    setDragFrom(null);
+    setDragTarget(null);
   };
 
   const handleReorderSave = async () => {
@@ -1126,12 +1139,14 @@ export default function Products() {
                       draggable
                       onDragStart={(e) => handleReorderDragStart(e, i)}
                       onDragOver={(e) => handleReorderDragOver(e, i)}
-                      onDragEnd={() => setDragFrom(null)}
+                      onDrop={() => handleReorderDrop(i)}
+                      onDragEnd={handleReorderDragEnd}
                       style={{
                         padding:"10px 12px", borderRadius:7, cursor:"grab",
-                        border:`2px solid ${dragFrom === i ? "var(--accent)" : "var(--border)"}`,
-                        background: dragFrom === i ? "var(--accent-dim)" : "var(--bg2)",
-                        userSelect:"none", transition:"border-color 0.1s, background 0.1s",
+                        border:`2px solid ${dragFrom === i ? "var(--accent)" : dragTarget === i ? "var(--accent)" : "var(--border)"}`,
+                        background: dragFrom === i ? "var(--accent-dim)" : dragTarget === i ? "var(--accent-light)" : "var(--bg2)",
+                        opacity: dragFrom === i ? 0.5 : 1,
+                        userSelect:"none", transition:"border-color 0.1s, background 0.1s, opacity 0.1s",
                         display:"flex", flexDirection:"column", gap:4,
                       }}
                     >
