@@ -350,7 +350,7 @@ export default function Remitos({ initialCreating = false }) {
                   <tbody>
                     {remitos.map((r) => (
                       <tr key={r.id}>
-                        <td style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)" }}>{r.id.slice(0,8)}…</td>
+                        <td style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:600 }}>#{r.remito_numero ?? "—"}</td>
                         <td style={{ fontSize:14, color:"var(--accent)", fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.origen || "—"}</td>
                         <td style={{ fontSize:14, color:"var(--info)",   fontFamily:"var(--font-mono)", fontWeight:600 }}>{r.destino || "—"}</td>
                         <td style={{ fontSize:13, color:"var(--text-muted)" }}>{r.recipient_user_name || "—"}</td>

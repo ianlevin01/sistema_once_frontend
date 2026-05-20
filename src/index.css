@@ -8,8 +8,8 @@
   --border:       #d5dce8;
   --border-mid:   #bcc7d8;
   --text:         #1a2236;
-  --text-muted:   #526078;
-  --text-dim:     #8fa0b8;
+  --text-muted:   #3d5268;
+  --text-dim:     #5a6f84;
   --accent:       #1d6fb8;
   --accent-light: #e8f2fb;
   --accent-hover: #155d9e;
@@ -129,7 +129,7 @@ html, body, #root {
 
 .sidebar-logo-text span {
   font-size: 10.5px;
-  color: rgba(255,255,255,0.5);
+  color: rgba(255,255,255,0.75);
   display: block;
 }
 
@@ -154,7 +154,7 @@ html, body, #root {
   font-family: var(--font-mono);
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
+  color: rgba(255,255,255,0.62);
   white-space: nowrap;
   opacity: 0;
   transition: opacity 0.18s;
@@ -169,7 +169,7 @@ html, body, #root {
   display: flex;
   align-items: center;
   padding: 9px 0;
-  color: rgba(255,255,255,0.55);
+  color: rgba(255,255,255,0.8);
   text-decoration: none;
   font-size: 13px;
   font-family: var(--font-sans);
