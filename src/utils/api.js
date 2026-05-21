@@ -164,6 +164,9 @@ export const getCashMovements   = (from, to) =>
 export const getCashMovement    = (id)   => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 
+// ── DASHBOARD ─────────────────────────────────────────────────
+export const getDashboardShopStats = (date) => api.get(`/shop/stats?date=${date}`);
+
 // ── WEB ORDERS ────────────────────────────────────────────────
 export const getWebOrders         = (params)        => api.get("/web-orders", { params });
 export const getWebOrder          = (id)            => api.get(`/web-orders/${id}`);

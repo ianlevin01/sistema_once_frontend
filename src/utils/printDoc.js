@@ -194,6 +194,7 @@ function buildRemitoHtml(remito, sinPrecios = false) {
       </div>
       <div class="doc-info">
         <div class="doc-tipo">REMITO</div>
+        ${remito.remito_numero ? `<div style="font-weight:700">N° ${remito.remito_numero}</div>` : ""}
         <div>Fecha: ${fmtDate(remito.created_at)}</div>
         ${remito.vendedor ? `<div>Vendedor: ${remito.vendedor}</div>` : ""}
         <div style="font-size:9px;color:#aaa;margin-top:2px">#${(remito.id || "").slice(0, 8).toUpperCase()}</div>

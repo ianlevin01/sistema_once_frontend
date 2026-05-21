@@ -621,6 +621,10 @@ export default function Comprobantes({ initialCreating = false }) {
   const [appliedFrom, setAppliedFrom] = useState(today());
   const [appliedTo,   setAppliedTo]   = useState(today());
   const filterDirty = from !== appliedFrom || to !== appliedTo;
+  const [filterTipo, setFilterTipo] = useState("");
+  const filteredComprobantes = filterTipo
+    ? comprobantes.filter((c) => c.tipo === filterTipo)
+    : comprobantes;
   const [deleteModal,    setDeleteModal]    = useState(null);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleting,       setDeleting]       = useState(false);
@@ -972,6 +976,14 @@ export default function Comprobantes({ initialCreating = false }) {
               <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ width:150 }} />
               {filterDirty && <button className="btn btn-primary btn-sm" onClick={applyFilter}>Filtrar</button>}
             </div>
+            <select className="select" value={filterTipo} onChange={(e) => setFilterTipo(e.target.value)} style={{ width:190 }}>
+              <option value="">Todos los tipos</option>
+              <option value="Presupuesto">Presupuesto</option>
+              <option value="Nota de Pedido">Nota de Pedido</option>
+              <option value="Reposicion">Reposición</option>
+              <option value="Devolucion">Devolución</option>
+              <option value="Devol a proveedor">Devol. a proveedor</option>
+            </select>
             <div style={{ flex:1 }} />
             <button className="btn btn-primary" style={{ fontSize:15, padding:"10px 22px" }}
               onClick={() => window.open("/comprobantes/nuevo", "_blank")}>
@@ -982,9 +994,9 @@ export default function Comprobantes({ initialCreating = false }) {
           <div className="card">
             <div className="card-header">
               <span className="card-title">Comprobantes</span>
-              <span className="badge badge-info">{comprobantes.length}</span>
+              <span className="badge badge-info">{filteredComprobantes.length}</span>
             </div>
-            {loading ? <div className="empty">Cargando...</div> : comprobantes.length === 0 ? (
+            {loading ? <div className="empty">Cargando...</div> : filteredComprobantes.length === 0 ? (
               <div className="empty">No hay comprobantes</div>
             ) : (
               <div className="table-wrap">
@@ -993,7 +1005,7 @@ export default function Comprobantes({ initialCreating = false }) {
                     <tr><th>Tipo</th><th>Cliente / Proveedor</th><th>Vendedor</th><th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
-                    {comprobantes.map((c) => {
+                    {filteredComprobantes.map((c) => {
                       const isDeleted = !!c.deleted_at;
                       const deletedTooltip = isDeleted
                         ? `Eliminado por ${c.deleted_by_name || "—"} el ${new Date(c.deleted_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}`

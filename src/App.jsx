@@ -18,6 +18,7 @@ import Clientes        from "./pages/Clientes";
 import UltimasCompras from "./pages/UltimasCompras";
 import StockMovimientos from "./pages/StockMovimientos";
 import CatalogosPersonalizados from "./pages/CatalogosPersonalizados";
+import Dashboard from "./pages/Dashboard";
 
 // Ruta protegida: redirige a /login si no hay sesión.
 // Si el usuario es vendedor y la ruta no está permitida, redirige a su home.
@@ -33,7 +34,7 @@ function PrivateRoute({ children }) {
 
 function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
-  const homePath = user?.role === "vendedor" ? VENDEDOR_HOME : "/comprobantes";
+  const homePath = user?.role === "vendedor" ? VENDEDOR_HOME : "/dashboard";
 
   return (
     <Routes>
@@ -45,6 +46,10 @@ function AppRoutes() {
 
       {/* Rutas protegidas */}
       <Route path="/" element={<PrivateRoute><Navigate to={homePath} replace /></PrivateRoute>} />
+
+      <Route path="/dashboard" element={
+        <PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>
+      } />
 
       <Route path="/comprobantes" element={
         <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>

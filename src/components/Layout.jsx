@@ -64,6 +64,7 @@ export function isPathAllowedForVendedor(pathname) {
 }
 
 const PAGE_TITLES = {
+  "/dashboard":        "Inicio",
   "/comprobantes":     "Comprobantes",
   "/remitos":          "Remitos Internos",
   "/caja":             "Caja · Imputaciones",
@@ -151,6 +152,19 @@ export default function Layout({ children }) {
         </div>
 
         <nav className="sidebar-nav">
+          {!isVendedor && (
+            <>
+              <NavLink
+                to="/dashboard"
+                className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
+                title="Inicio"
+              >
+                <span className="icon">🏠</span>
+                <span className="link-label">Inicio</span>
+              </NavLink>
+              <div style={{ height: 1, background: "var(--border)", margin: "8px 10px 10px" }} />
+            </>
+          )}
           {NAV.map(({ section, items }) => (
             <div key={section}>
               <div className="sidebar-section">
