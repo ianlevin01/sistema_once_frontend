@@ -8,10 +8,14 @@ import { calcGanancia, getTasa } from "../utils/calcGanancia";
 import { printWebOrderPDF } from "../utils/printDoc";
 
 const COLORS = [
-  { value:"pending", label:"Sin marcar",  bg:"var(--bg3)",           border:"var(--border)",  text:"var(--text-muted)" },
-  { value:"green",   label:"Confirmado",  bg:"var(--success-dim)",   border:"var(--success)", text:"var(--success)"    },
-  { value:"yellow",  label:"En proceso",  bg:"rgba(240,192,64,.12)", border:"var(--accent)",  text:"var(--accent)"     },
-  { value:"red",     label:"Problema",    bg:"var(--danger-dim)",    border:"var(--danger)",  text:"var(--danger)"     },
+  { value:"pending", label:"Sin marcar", circle:"#9ca3af", bg:"var(--bg3)",              border:"var(--border)"  },
+  { value:"green",   label:"Verde",      circle:"#22c55e", bg:"var(--success-dim)",      border:"var(--success)" },
+  { value:"blue",    label:"Azul",       circle:"#3b82f6", bg:"rgba(59,130,246,.08)",    border:"#3b82f6"        },
+  { value:"yellow",  label:"Amarillo",   circle:"#eab308", bg:"rgba(234,179,8,.1)",      border:"#eab308"        },
+  { value:"orange",  label:"Naranja",    circle:"#f97316", bg:"rgba(249,115,22,.1)",     border:"#f97316"        },
+  { value:"red",     label:"Rojo",       circle:"#ef4444", bg:"var(--danger-dim)",       border:"var(--danger)"  },
+  { value:"purple",  label:"Violeta",    circle:"#a855f7", bg:"rgba(168,85,247,.1)",     border:"#a855f7"        },
+  { value:"pink",    label:"Rosa",       circle:"#ec4899", bg:"rgba(236,72,153,.1)",     border:"#ec4899"        },
 ];
 const COLOR_MAP = Object.fromEntries(COLORS.map((c) => [c.value, c]));
 
@@ -818,7 +822,7 @@ export default function WebOrders() {
                         </span>
                       )}
                     </div>
-                    <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color: c.text }}>
+                    <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color: c.border }}>
                       ${Number(o.total||0).toLocaleString("es-AR")}
                     </span>
                   </div>
@@ -882,19 +886,21 @@ export default function WebOrders() {
                         → Presupuestar
                       </button>
                     </div>
-                    <div style={{ display:"flex", gap:5, marginTop:10 }}>
-                      {COLORS.map((c) => (
-                        <div key={c.value} onClick={() => setColor(selected.id, c.value)}
-                          style={{
-                            flex:1, padding:"4px 0", textAlign:"center", borderRadius:4, cursor:"pointer", fontSize:10,
-                            background: selected.color === c.value ? c.bg : "transparent",
-                            border: `1px solid ${selected.color === c.value ? c.border : "var(--border)"}`,
-                            color: selected.color === c.value ? c.text : "var(--text-dim)",
-                            fontFamily:"var(--font-mono)", transition:"all 0.15s",
-                          }}>
-                          {c.label}
-                        </div>
-                      ))}
+                    <div style={{ display:"flex", gap:7, marginTop:10, flexWrap:"wrap" }}>
+                      {COLORS.map((c) => {
+                        const isActive = selected.color === c.value;
+                        return (
+                          <div key={c.value} onClick={() => setColor(selected.id, c.value)}
+                            title={c.label}
+                            style={{
+                              width:22, height:22, borderRadius:"50%", cursor:"pointer", flexShrink:0,
+                              background: c.circle,
+                              boxShadow: isActive ? `0 0 0 2px var(--bg), 0 0 0 4px ${c.circle}` : "none",
+                              transition:"box-shadow 0.15s",
+                              opacity: c.value === "pending" ? 0.5 : 1,
+                            }} />
+                        );
+                      })}
                     </div>
                   </>
                 )}

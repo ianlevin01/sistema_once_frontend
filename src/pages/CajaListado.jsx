@@ -692,10 +692,10 @@ function SeccionCobranzas({ cobranzas, divisa }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => {
+            {filtered.map((c, rowIdx) => {
               const monto = getMontoDisplay(c);
               return (
-                <tr key={c.id}>
+                <tr key={c.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                   <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.created_at)}</td>
                   <td>
                     <div style={{ fontSize:14, fontWeight:500 }}>{c.customer_name||"—"}</div>
@@ -775,8 +775,8 @@ function SeccionReposiciones({ reposiciones, divisa, onView, onPrint, onDelete }
             </tr>
           </thead>
           <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id}>
+            {filtered.map((r, rowIdx) => (
+              <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                 <td>
                   <span className={`badge ${r.tipo === "Devol a proveedor" ? "badge-danger" : "badge-accent"}`}
                     style={{ fontSize:11 }}>
@@ -860,8 +860,8 @@ function SeccionDevoluciones({ presupuestos, onView, onPrint, onDelete }) {
               <tr><th>Fecha</th><th>Cliente</th><th>Vendedor</th><th>Método</th><th style={{ textAlign:"right" }}>Total</th><th></th></tr>
             </thead>
             <tbody>
-              {lista.map((p) => (
-                <tr key={p.id}>
+              {lista.map((p, rowIdx) => (
+                <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                   <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(p.created_at)}</td>
                   <td style={{ fontSize:14 }}>{p.customer_name || "—"}</td>
                   <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor || "—"}</td>
@@ -1181,8 +1181,8 @@ export default function CajaListado() {
                     </tr>
                   </thead>
                   <tbody>
-                    {presARS.map((p) => (
-                      <tr key={p.id}>
+                    {presARS.map((p, rowIdx) => (
+                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1268,8 +1268,8 @@ export default function CajaListado() {
                     </tr>
                   </thead>
                   <tbody>
-                    {presUSD.map((p) => (
-                      <tr key={p.id}>
+                    {presUSD.map((p, rowIdx) => (
+                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1359,8 +1359,8 @@ export default function CajaListado() {
                     <tr><th>Tipo</th><th>Fecha</th><th>Cliente</th><th>Depósito</th><th style={{ textAlign:"right" }}>Importe</th><th>Acciones</th></tr>
                   </thead>
                   <tbody>
-                    {notasPedido.map((n) => (
-                      <tr key={n.id}>
+                    {notasPedido.map((n, rowIdx) => (
+                      <tr key={n.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: n.tipo==="Nota de Pedido Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1417,8 +1417,8 @@ export default function CajaListado() {
                     <tr><th>Fecha</th><th>Origen</th><th>Destino</th><th>Vendedor</th><th style={{ textAlign:"right" }}>Importe</th><th></th></tr>
                   </thead>
                   <tbody>
-                    {remitos.map((r) => (
-                      <tr key={r.id}>
+                    {remitos.map((r, rowIdx) => (
+                      <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
                         <td style={{ fontSize:13 }}>{r.origen||"—"}</td>
                         <td style={{ fontSize:13 }}>{r.destino||"—"}</td>

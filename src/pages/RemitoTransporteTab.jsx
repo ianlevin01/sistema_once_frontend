@@ -39,6 +39,7 @@ export default function RemitoTransporteTab() {
   const [custResults, setCustResults] = useState([]);
   const [custSel,     setCustSel]     = useState(null);
   const custTimer = useRef(null);
+  const custJustSelected = useRef(false);
 
   // Campos
   const [transpId,  setTranspId]  = useState("");
@@ -70,6 +71,7 @@ export default function RemitoTransporteTab() {
   // Búsqueda de cliente
   useEffect(() => {
     if (!custQuery.trim()) { setCustResults([]); return; }
+    if (custJustSelected.current) { custJustSelected.current = false; setCustResults([]); return; }
     clearTimeout(custTimer.current);
     custTimer.current = setTimeout(async () => {
       try {
@@ -81,6 +83,7 @@ export default function RemitoTransporteTab() {
   }, [custQuery]);
 
   const selectCustomer = (c) => {
+    custJustSelected.current = true;
     setCustSel(c);
     setCustQuery(c.name);
     setCustResults([]);
@@ -103,7 +106,6 @@ export default function RemitoTransporteTab() {
   const cancelNew = () => { resetForm(); setCreating(false); };
 
   const save = async () => {
-    if (!transpId) { addToast("Seleccioná un transporte", "error"); return; }
     if (!envia.trim()) { addToast("Indicá quién envía", "error"); return; }
     if (!bultos || Number(bultos) < 1) { addToast("Indicá la cantidad de bultos", "error"); return; }
     setSaving(true);
@@ -209,7 +211,7 @@ export default function RemitoTransporteTab() {
 
             {/* Transporte */}
             <div>
-              <div className="input-label">Transporte *</div>
+              <div className="input-label">Transporte</div>
               <select
                 className="select"
                 value={transpId}

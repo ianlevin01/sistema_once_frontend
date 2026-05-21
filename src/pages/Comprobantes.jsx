@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   getComprobantes, getComprobante, createComprobante, updateComprobante,
   deleteComprobante, searchCustomers, searchProveedores, getWarehouses,
-  getLastSalePrice,
+  getLastSalePrice, getPriceConfig,
 } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
@@ -639,6 +639,14 @@ export default function Comprobantes({ initialCreating = false }) {
   const [esConsumidorFinal,     setEsConsumidorFinal]     = useState(false);
   const [consumidorFinalNombre, setConsumidorFinalNombre] = useState("");
   const [divisa,                setDivisa]                = useState("ARS");
+  const divisaRef        = useRef("ARS");
+  const cotizacionRef    = useRef(1);
+  const skipDivisaConv   = useRef(false);
+  const changeDivisa = (valOrFn) => {
+    const next = typeof valOrFn === "function" ? valOrFn(divisaRef.current) : valOrFn;
+    divisaRef.current = next;
+    setDivisa(next);
+  };
 
   const [custQuery,   setCustQuery]   = useState("");
   const [custResults, setCustResults] = useState([]);
@@ -651,13 +659,15 @@ export default function Comprobantes({ initialCreating = false }) {
   const [warehouses,  setWarehouses]  = useState([]);
   const [warehouseId, setWarehouseId] = useState("");
 
-  const [items,     setItems]     = useState([]);
-  const [prodSel,   setProdSel]   = useState(null);
-  const [itemQty,   setItemQty]   = useState("");
-  const [itemPrice, setItemPrice] = useState("");
-  const [itemDesc,  setItemDesc]  = useState("");
-  const [saving,    setSaving]    = useState(false);
-  const [lastPrice, setLastPrice] = useState(null);
+  const [items,       setItems]       = useState([]);
+  const [prodSel,     setProdSel]     = useState(null);
+  const [itemQty,     setItemQty]     = useState("");
+  const [itemPrice,   setItemPrice]   = useState("");
+  const [itemDesc,    setItemDesc]    = useState("");
+  const [saving,      setSaving]      = useState(false);
+  const [lastPrice,   setLastPrice]   = useState(null);
+  const [descuentoPct, setDescuentoPct] = useState("0");
+  const [cotizacion,  setCotizacion]  = useState(1);
 
   const qtyRef        = useRef(null);
   const priceRef      = useRef(null);
@@ -666,8 +676,13 @@ export default function Comprobantes({ initialCreating = false }) {
 
   const esReposicion          = tipo === "Reposicion" || tipo === "Devol a proveedor";
   const admiteConsumidorFinal = TIPOS_CON_CONSUMIDOR_FINAL.includes(tipo);
+  const admiteDescuento       = ["Presupuesto", "Nota de Pedido", "Nota de Pedido Web"].includes(tipo);
+  const descuentoPctNum       = parseFloat(descuentoPct) || 0;
   const isEditing             = !!editingId;
-  const total                 = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
+  const subtotal              = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
+  const total                 = admiteDescuento && descuentoPctNum !== 0
+    ? Math.round(subtotal * (1 - descuentoPctNum / 100) * 100) / 100
+    : subtotal;
 
   // Pre-populate warehouseId with user's warehouse when switching to supplier op type
   useEffect(() => {
@@ -686,6 +701,36 @@ export default function Comprobantes({ initialCreating = false }) {
 
   const applyFilter = () => { setAppliedFrom(from); setAppliedTo(to); loadAll(from, to); };
   useEffect(() => { loadAll(today(), today()); }, []);
+  useEffect(() => {
+    getPriceConfig().then(({ data }) => {
+      const v = Number(data.cotizacion_dolar) || 1;
+      cotizacionRef.current = v;
+      setCotizacion(v);
+    }).catch(() => {});
+  }, []);
+
+  // Cuando divisa cambia (por selección de cliente/proveedor o toggle manual),
+  // convertir los precios de los items ya cargados.
+  // useEffect garantiza que runs con el estado más reciente.
+  // React hace bail-out si divisa no cambió (USD→USD no dispara este efecto).
+  const prevDivisaRef = useRef("ARS");
+  useEffect(() => {
+    const prev = prevDivisaRef.current;
+    prevDivisaRef.current = divisa;
+    if (prev === divisa) return;
+    if (skipDivisaConv.current) { skipDivisaConv.current = false; return; }
+    const cotiz = cotizacionRef.current;
+    if (!cotiz || cotiz <= 0) return;
+    setItems((prevItems) =>
+      prevItems.length === 0 ? prevItems : prevItems.map((it) => ({
+        ...it,
+        unit_price: divisa === "USD"
+          ? Math.round((Number(it.unit_price) / cotiz) * 100) / 100
+          : Math.round((Number(it.unit_price) * cotiz) * 100) / 100,
+      }))
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [divisa]);
 
   useEffect(() => {
     if (editId || creating || initialCreating) {
@@ -741,13 +786,19 @@ export default function Comprobantes({ initialCreating = false }) {
     catch { setLastPrice(null); }
   }, [custSel, esReposicion, esConsumidorFinal]);
 
-  const selectCust = (c) => { setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); setDivisa(c.divisa || "ARS"); if (c.vendedor) setVendedor(c.vendedor); };
-  const selectProv = (p) => { setProvSel(p); setProvQuery(""); setProvResults([]); setDivisa(p.divisa || "ARS"); };
+  const selectCust = (c) => {
+    const newDivisa = c.divisa || "ARS";
+    setCustSel(c); setCustQuery(""); setCustResults([]); setLastPrice(null); changeDivisa(newDivisa); if (c.vendedor) setVendedor(c.vendedor);
+  };
+  const selectProv = (p) => {
+    const newDivisa = p.divisa || "ARS";
+    setProvSel(p); setProvQuery(""); setProvResults([]); changeDivisa(newDivisa);
+  };
 
   const toggleConsumidorFinal = (val) => {
     setEsConsumidorFinal(val);
     if (val) { setCustSel(null); setCustQuery(""); setCustResults([]); setLastPrice(null); }
-    else     { setConsumidorFinalNombre(""); setDivisa("ARS"); }
+    else     { setConsumidorFinalNombre(""); changeDivisa("ARS"); }
   };
 
   const [searchActive, setSearchActive] = useState(false);
@@ -804,12 +855,13 @@ export default function Comprobantes({ initialCreating = false }) {
         es_consumidor_final:     esConsumidorFinal,
         consumidor_final_nombre: esConsumidorFinal ? (consumidorFinalNombre || "Consumidor Final") : null,
         divisa:                  divisa,
+        descuento_pct:           admiteDescuento ? descuentoPctNum : 0,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante creado", "success");
       if (initialCreating) {
         window.opener?.location.reload();
-        if (confirm("¿Querés imprimir el comprobante?")) {
+        if (tipo !== "Nota de Pedido" && confirm("¿Querés imprimir el comprobante?")) {
           try { const { data: full } = await getComprobante(nuevoComp.id); printComprobantePDF(full); } catch { printComprobantePDF(nuevoComp); }
         }
         setTimeout(() => window.close(), 300);
@@ -833,10 +885,12 @@ export default function Comprobantes({ initialCreating = false }) {
 
       const paymentMethod = c.payments?.[0]?.method || "Contado";
       setPayMethod(paymentMethod);
+      setDescuentoPct(String(Number(c.descuento_pct ?? 0)));
 
       setEsConsumidorFinal(!!c.es_consumidor_final);
       setConsumidorFinalNombre(c.consumidor_final_nombre || "");
-      setDivisa(c.divisa || "ARS");
+      skipDivisaConv.current = true;
+      changeDivisa(c.divisa || "ARS");
 
       if (c.customer_id && c.customer_name) {
         setCustSel({ id: c.customer_id, name: c.customer_name });
@@ -853,11 +907,14 @@ export default function Comprobantes({ initialCreating = false }) {
       }
 
       const rawItems = c.items || [];
-      // Para comprobantes en USD: items están almacenados en ARS, derivar cotización y convertir
+      // Para comprobantes en USD: items están almacenados en ARS, derivar cotización y convertir.
+      // c.total está en USD ya con descuento aplicado, así que hay que "deshacer" el descuento
+      // antes de derivar la cotización: cotizacion = totalARS * (1 - descuento/100) / c.total
       let cotizEdit = null;
       if (c.divisa === "USD" && Number(c.total) > 0) {
         const totalARS = rawItems.reduce((acc, it) => acc + Number(it.unit_price) * Number(it.quantity), 0);
-        if (totalARS > 0) cotizEdit = totalARS / Number(c.total);
+        const descuentoFactor = 1 - (Number(c.descuento_pct ?? 0) / 100);
+        if (totalARS > 0) cotizEdit = (totalARS * descuentoFactor) / Number(c.total);
       }
       setItems(rawItems.map((it) => ({
         product_id:  it.product_id,
@@ -887,6 +944,7 @@ export default function Comprobantes({ initialCreating = false }) {
         es_consumidor_final:     esConsumidorFinal,
         consumidor_final_nombre: esConsumidorFinal ? (consumidorFinalNombre || "Consumidor Final") : null,
         divisa:                  divisa,
+        descuento_pct:           admiteDescuento ? descuentoPctNum : 0,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Comprobante actualizado", "success");
@@ -908,8 +966,8 @@ export default function Comprobantes({ initialCreating = false }) {
     setProvSel(null); setProvQuery(""); setProvResults([]);
     setWarehouseId("");
     setItems([]); setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
-    setLastPrice(null); setEditingId(null);
-    setEsConsumidorFinal(false); setConsumidorFinalNombre(""); setDivisa("ARS");
+    setLastPrice(null); setEditingId(null); setDescuentoPct("0");
+    setEsConsumidorFinal(false); setConsumidorFinalNombre(""); changeDivisa("ARS");
   };
 
   const handleDelete = (id) => { setDeleteModal(id); setDeletePassword(""); };
@@ -1005,13 +1063,14 @@ export default function Comprobantes({ initialCreating = false }) {
                     <tr><th>Tipo</th><th>Cliente / Proveedor</th><th>Vendedor</th><th>Total</th><th>Pago</th><th>Estado</th><th>Fecha</th><th></th></tr>
                   </thead>
                   <tbody>
-                    {filteredComprobantes.map((c) => {
+                    {filteredComprobantes.map((c, rowIdx) => {
                       const isDeleted = !!c.deleted_at;
                       const deletedTooltip = isDeleted
                         ? `Eliminado por ${c.deleted_by_name || "—"} el ${new Date(c.deleted_at).toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}`
                         : "";
+                      const rowBg = rowIdx % 2 === 1 ? "var(--bg2)" : "var(--bg)";
                       return (
-                      <tr key={c.id} style={isDeleted ? { opacity: 0.55 } : undefined} title={deletedTooltip}>
+                      <tr key={c.id} style={{ background: isDeleted ? undefined : rowBg, opacity: isDeleted ? 0.55 : undefined }} title={deletedTooltip}>
                         <td>
                           <span className="badge badge-accent" style={isDeleted ? { textDecoration: "line-through" } : undefined}>{c.tipo || "Presupuesto"}</span>
                           {c.web_order_numero && (
@@ -1107,6 +1166,11 @@ export default function Comprobantes({ initialCreating = false }) {
                   <span style={{ fontFamily:"var(--font-mono)", fontSize:14, color:"var(--accent)", fontWeight:700 }}>
                     Total: {selected.divisa === "USD" ? "USD " : "$"}{fmt(selected.total)}
                   </span>
+                  {Number(selected.descuento_pct) !== 0 && (
+                    <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color: Number(selected.descuento_pct) > 0 ? "var(--success)" : "var(--danger)", alignSelf:"center" }}>
+                      {Number(selected.descuento_pct) > 0 ? "Desc." : "Recargo"} {Math.abs(Number(selected.descuento_pct))}%
+                    </span>
+                  )}
                   {selected.customer_name && <span style={{ fontSize:13, color:"var(--text-muted)" }}>{selected.customer_name}</span>}
                   {selected.supplier_name && <span style={{ fontSize:13, color:"var(--text-muted)" }}>Prov: {selected.supplier_name}</span>}
                   {selected.warehouse_name && <span style={{ fontSize:13, color:"var(--text-muted)" }}>Dep: {selected.warehouse_name}</span>}
@@ -1160,6 +1224,32 @@ export default function Comprobantes({ initialCreating = false }) {
                         ))}
                       </tbody>
                       <tfoot>
+                        {Number(selected.descuento_pct) !== 0 && (() => {
+                          const selSubtotal = (selected.items||[]).reduce((a, it) => a + it.quantity * Number(it.unit_price), 0);
+                          const selTotal    = Number(selected.total);
+                          const selDivisa   = selected.divisa || "ARS";
+                          const selCotiz    = (selDivisa === "USD" && selTotal > 0 && selSubtotal > 0) ? selSubtotal / selTotal : 1;
+                          const toDisp      = (n) => selDivisa === "USD" ? n / selCotiz : n;
+                          const subtotalDisp = toDisp(selSubtotal);
+                          return (
+                            <>
+                              <tr style={{ borderTop:"1px solid var(--border)" }}>
+                                <td colSpan={4} style={{ padding:"6px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-muted)" }}>SUBTOTAL</td>
+                                <td style={{ padding:"6px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color:"var(--text-muted)" }}>
+                                  {selDivisa === "USD" ? "USD " : "$"}{fmt(subtotalDisp)}
+                                </td>
+                              </tr>
+                              <tr>
+                                <td colSpan={4} style={{ padding:"4px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color: Number(selected.descuento_pct) > 0 ? "var(--success)" : "var(--danger)" }}>
+                                  {Number(selected.descuento_pct) > 0 ? "DESCUENTO" : "RECARGO"} {Math.abs(Number(selected.descuento_pct))}%
+                                </td>
+                                <td style={{ padding:"4px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:13, color: Number(selected.descuento_pct) > 0 ? "var(--success)" : "var(--danger)" }}>
+                                  {Number(selected.descuento_pct) > 0 ? "−" : "+"}{selDivisa === "USD" ? "USD " : "$"}{fmt(Math.abs(subtotalDisp - selTotal))}
+                                </td>
+                              </tr>
+                            </>
+                          );
+                        })()}
                         <tr style={{ background:"var(--bg3)", borderTop:"2px solid var(--border)" }}>
                           <td colSpan={4} style={{ padding:"8px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-muted)" }}>TOTAL</td>
                           <td style={{ padding:"8px 10px", textAlign:"right", fontFamily:"var(--font-mono)", fontSize:15, fontWeight:800, color:"var(--accent)" }}>
@@ -1187,7 +1277,7 @@ export default function Comprobantes({ initialCreating = false }) {
             esReposicion={esReposicion} admiteConsumidorFinal={admiteConsumidorFinal}
             esConsumidorFinal={esConsumidorFinal} toggleConsumidorFinal={toggleConsumidorFinal}
             consumidorFinalNombre={consumidorFinalNombre} setConsumidorFinalNombre={setConsumidorFinalNombre}
-            divisa={divisa} setDivisa={setDivisa}
+            divisa={divisa} setDivisa={changeDivisa}
             custSel={custSel} custQuery={custQuery} setCustQuery={setCustQuery}
             custResults={custResults} selectCust={selectCust} setCustSel={setCustSel}
             provSel={provSel} provQuery={provQuery} setProvQuery={setProvQuery}
@@ -1226,8 +1316,32 @@ export default function Comprobantes({ initialCreating = false }) {
                       onChangeDesc={changeItemDesc}
                     />
                   ))}
-                  <div style={{ display:"flex", justifyContent:"flex-end", marginTop:20, paddingTop:14, borderTop:"2px solid var(--border)" }}>
+                  <div style={{ display:"flex", justifyContent:"flex-end", marginTop:20, paddingTop:14, borderTop:"2px solid var(--border)", gap:24, alignItems:"flex-end" }}>
+                    {admiteDescuento && (
+                      <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
+                        <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase" }}>Descuento / Recargo %</div>
+                        <input
+                          className="input"
+                          type="text"
+                          inputMode="decimal"
+                          value={descuentoPct}
+                          onChange={(e) => setDescuentoPct(e.target.value)}
+                          style={{ width:90, height:32, fontSize:14, fontFamily:"var(--font-mono)", textAlign:"right" }}
+                          title="Positivo = descuento, negativo = recargo"
+                        />
+                        {descuentoPctNum !== 0 && (
+                          <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                            Subtotal: {divisa === "USD" ? "USD " : "$"}{fmt(subtotal)}
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div style={{ textAlign:"right" }}>
+                      {admiteDescuento && descuentoPctNum !== 0 && (
+                        <div style={{ fontSize:12, fontFamily:"var(--font-mono)", color: descuentoPctNum > 0 ? "var(--success)" : "var(--danger)", marginBottom:2 }}>
+                          {descuentoPctNum > 0 ? "−" : "+"}{fmt(Math.abs(subtotal - total))} ({Math.abs(descuentoPctNum)}%)
+                        </div>
+                      )}
                       <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
                       <div style={{ fontSize:28, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
                         {divisa === "USD" ? "USD " : "$"}{fmt(total)}

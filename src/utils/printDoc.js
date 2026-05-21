@@ -305,6 +305,9 @@ function buildComprobanteHtml(doc) {
     : 1;
   const toDisplayPrice = (arsPrice) => divisa === "USD" ? arsPrice / cotizacion : arsPrice;
 
+  const descuentoPct  = Number(doc.descuento_pct ?? 0) || 0;
+  const subtotalDisp  = toDisplayPrice(itemsTotalARS);
+
   const itemsHtml = normalizedItems.map((it) => `
     <tr>
       <td style="font-family:monospace;font-size:11px;color:#555">${it.code}</td>
@@ -379,6 +382,19 @@ function buildComprobanteHtml(doc) {
         ${itemsHtml || "<tr><td colspan='5' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
       </tbody>
       <tfoot>
+        ${descuentoPct !== 0 ? `
+        <tr style="border-top:1px solid #ddd">
+          <td colspan="4" style="text-align:right;font-size:11px;color:#555">SUBTOTAL</td>
+          <td class="right" style="font-family:monospace;font-size:12px">${prefix}${fmtMoney(subtotalDisp)}</td>
+        </tr>
+        <tr>
+          <td colspan="4" style="text-align:right;font-size:11px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
+            ${descuentoPct > 0 ? 'DESCUENTO' : 'RECARGO'} ${Math.abs(descuentoPct)}%
+          </td>
+          <td class="right" style="font-family:monospace;font-size:12px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
+            ${descuentoPct > 0 ? '−' : '+'}${prefix}${fmtMoney(Math.abs(subtotalDisp - total))}
+          </td>
+        </tr>` : ''}
         <tr class="total-row">
           <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
           <td class="right" style="font-family:monospace">${prefix}${fmtMoney(total)}</td>
@@ -811,6 +827,207 @@ export function printCatalogoPDF(items, opts = {}) {
   <div class="catalog-footer">
     Catálogo generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · oncepuntos.com.ar
   </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPRIMIR CUENTA CORRIENTE INDIVIDUAL
+// ─────────────────────────────────────────────────────────────
+export function printCCPDF({ entity, cc, mode, cotizacion }) {
+  const cuenta      = cc?.cuenta || cc;
+  const movimientos = cc?.movimientos || cuenta?.movimientos || [];
+  const saldo       = Number(cuenta?.saldo || 0);
+  const divisa      = cuenta?.divisa ?? "ARS";
+  const prefix      = divisa === "USD" ? "USD " : "$";
+  const esProveedor = mode === "proveedor";
+  const saldoLabel  = esProveedor
+    ? (saldo > 0 ? "Le debemos" : "Sin deuda")
+    : (saldo > 0 ? "Debe" : "Saldo a favor");
+
+  const fmt = (n, dv) => `${dv === "USD" ? "USD " : "$"}${fmtMoney(n)}`;
+
+  const rowsHtml = movimientos.map((m) => {
+    const divisaCC    = m.divisa_cuenta ?? divisa;
+    const hayConv     = m.divisa_cobro && m.divisa_cobro !== divisaCC;
+    const signo       = m.tipo === "debito" ? "+" : "−";
+    const col         = m.tipo === "debito" ? "color:#dc2626" : "color:#16a34a";
+    return `
+      <tr>
+        <td style="font-family:monospace;font-size:11px">${fmtDate(m.created_at)}</td>
+        <td>${m.order_id ? `<a href="/comprobantes/editar/${m.order_id}" target="_blank" style="color:#2563eb;text-decoration:underline">${m.concepto || "Comprobante"}</a>` : (m.concepto || "—")}</td>
+        <td style="font-family:monospace;font-size:11px">${m.metodo_pago || "—"}</td>
+        <td class="right" style="font-family:monospace;font-weight:700;${col}">${signo}${fmt(Number(m.monto || 0), divisaCC)}</td>
+        <td class="right" style="font-family:monospace;font-size:11px">${hayConv && m.monto_original != null ? fmt(m.monto_original, m.divisa_cobro) : "—"}</td>
+        <td style="font-size:11px">${m.tipo === "debito" ? "Débito" : "Cobro"}</td>
+      </tr>`;
+  }).join("");
+
+  const now = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cuenta corriente — ${entity?.name || "—"}</title>
+  <style>${BASE_CSS}</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="empresa">${entity?.name || "—"}</div>
+      ${entity?.document  ? `<div style="font-size:12px;color:#666">CUIT: ${entity.document}</div>` : ""}
+      ${entity?.phone     ? `<div style="font-size:12px;color:#666">📞 ${entity.phone}</div>` : ""}
+      ${entity?.domicilio ? `<div style="font-size:12px;color:#666">📍 ${entity.domicilio}${entity.localidad ? `, ${entity.localidad}` : ""}</div>` : ""}
+    </div>
+    <div class="doc-info">
+      <div class="doc-tipo">CUENTA CORRIENTE</div>
+      <div>${esProveedor ? "Proveedor" : "Cliente"}</div>
+      <div style="font-size:10px;color:#aaa;margin-top:4px">Generado: ${now}</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div style="display:inline-block;background:#f5f5f5;border:1px solid #ddd;border-radius:6px;padding:14px 20px;margin-bottom:20px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.08em;color:#666;margin-bottom:4px">Saldo actual (${divisa})</div>
+      <div style="font-size:24px;font-weight:800;font-family:monospace;color:${saldo > 0 ? "#dc2626" : "#16a34a"}">${prefix}${fmtMoney(Math.abs(saldo))}</div>
+      <div style="font-size:11px;color:#666;margin-top:2px">${saldoLabel}</div>
+      ${cotizacion > 0 ? `<div style="font-size:10px;color:#999;margin-top:4px">≈ ${divisa === "USD" ? `$${fmtMoney(Math.abs(saldo) * cotizacion)}` : `USD ${fmtMoney(Math.abs(saldo) / cotizacion)}`} · cotiz. $${Number(cotizacion).toLocaleString("es-AR")}</div>` : ""}
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Historial de movimientos (${movimientos.length})</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:90px">Fecha</th>
+          <th>Concepto</th>
+          <th style="width:90px">Método</th>
+          <th class="right" style="width:120px">Monto CC</th>
+          <th class="right" style="width:100px">Original</th>
+          <th style="width:60px">Tipo</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#999;padding:20px'>Sin movimientos</td></tr>"}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="footer">Documento generado el ${now}</div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
+// IMPRIMIR RESUMEN GENERAL DE CUENTAS CORRIENTES
+// ─────────────────────────────────────────────────────────────
+export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
+  const fmt    = (n, dv) => `${dv === "USD" ? "USD " : "$"}${fmtMoney(n)}`;
+  const toARS  = (monto, dv) => dv === "USD" ? Number(monto) * (cotizacion || 1) : Number(monto);
+
+  const clientesHtml = clientes.map((c) => {
+    const dv    = c.divisa ?? "ARS";
+    const saldo = Number(c.saldo || 0);
+    const col   = saldo > 0 ? "color:#dc2626" : saldo < 0 ? "color:#16a34a" : "color:#666";
+    return `
+      <tr>
+        <td>
+          <div style="font-weight:500;font-size:13px">${c.customer_name || "—"}</div>
+          ${c.customer_document ? `<div style="font-size:11px;color:#888;font-family:monospace">${c.customer_document}</div>` : ""}
+        </td>
+        <td style="font-size:11px">${dv}</td>
+        <td class="right" style="font-family:monospace;font-weight:700;${col}">${fmt(saldo, dv)}</td>
+        <td class="right" style="font-family:monospace;font-size:11px;color:#666">${dv === "USD" ? `$${fmtMoney(saldo * (cotizacion || 1))}` : "—"}</td>
+        <td style="font-size:11px;color:#666;font-family:monospace">${fmtDate(c.ultimo_debito)}</td>
+        <td style="font-size:11px;color:#666;font-family:monospace">${fmtDate(c.ultimo_pago)}</td>
+      </tr>`;
+  }).join("");
+
+  const proveedoresHtml = proveedores.map((p) => {
+    const dv    = p.divisa ?? "ARS";
+    const saldo = Number(p.saldo || 0);
+    const col   = saldo > 0 ? "color:#dc2626" : saldo < 0 ? "color:#16a34a" : "color:#666";
+    const lbl   = saldo > 0 ? "Le debemos" : saldo < 0 ? "A favor" : "—";
+    return `
+      <tr>
+        <td style="font-weight:500;font-size:13px">${p.name || "—"}</td>
+        <td style="font-size:11px;color:#666;font-family:monospace">${p.document || "—"}</td>
+        <td style="font-size:11px">${dv}</td>
+        <td class="right" style="font-family:monospace;font-weight:700;${col}">${fmt(Math.abs(saldo), dv)}</td>
+        <td class="right" style="font-family:monospace;font-size:11px;color:#666">${dv === "USD" ? `$${fmtMoney(Math.abs(saldo) * (cotizacion || 1))}` : "—"}</td>
+        <td style="font-size:11px;color:#666">${lbl}</td>
+      </tr>`;
+  }).join("");
+
+  const totalClientes    = clientes.reduce((a, c) => a + Math.max(0, toARS(c.saldo || 0, c.divisa ?? "ARS")), 0);
+  const totalProveedores = proveedores.reduce((a, p) => a + Math.max(0, toARS(p.saldo || 0, p.divisa ?? "ARS")), 0);
+  const now = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Cuentas corrientes — Resumen</title>
+  <style>${BASE_CSS}</style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="empresa">Cuentas Corrientes</div>
+      <div style="font-size:12px;color:#666;margin-top:4px">Resumen general</div>
+    </div>
+    <div class="doc-info">
+      ${cotizacion > 0 ? `<div>💱 USD: $${Number(cotizacion).toLocaleString("es-AR")}</div>` : ""}
+      <div style="font-size:10px;color:#aaa;margin-top:4px">Generado: ${now}</div>
+    </div>
+  </div>
+
+  ${clientes.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Clientes (${clientes.length})</div>
+    <table>
+      <thead><tr>
+        <th>Cliente</th><th style="width:50px">Div.</th>
+        <th class="right" style="width:120px">Saldo</th>
+        <th class="right" style="width:110px">Equiv. ARS</th>
+        <th style="width:90px">Último débito</th>
+        <th style="width:90px">Último pago</th>
+      </tr></thead>
+      <tbody>${clientesHtml}</tbody>
+      <tfoot><tr class="total-row">
+        <td colspan="3" style="text-align:right;font-size:12px;color:#555">TOTAL DEUDA (ARS equiv.)</td>
+        <td class="right" style="font-family:monospace;color:#dc2626">$${fmtMoney(totalClientes)}</td>
+        <td colspan="2"></td>
+      </tr></tfoot>
+    </table>
+  </div>` : ""}
+
+  ${proveedores.length > 0 ? `
+  <div class="section">
+    <div class="section-title">Proveedores (${proveedores.length})</div>
+    <table>
+      <thead><tr>
+        <th>Proveedor</th><th style="width:120px">CUIT</th><th style="width:50px">Div.</th>
+        <th class="right" style="width:120px">Saldo</th>
+        <th class="right" style="width:110px">Equiv. ARS</th>
+        <th style="width:80px">Estado</th>
+      </tr></thead>
+      <tbody>${proveedoresHtml}</tbody>
+      <tfoot><tr class="total-row">
+        <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL DEUDA (ARS equiv.)</td>
+        <td class="right" style="font-family:monospace;color:#dc2626">$${fmtMoney(totalProveedores)}</td>
+        <td></td>
+      </tr></tfoot>
+    </table>
+  </div>` : ""}
+
+  <div class="footer">Documento generado el ${now}</div>
 </body>
 </html>`;
 

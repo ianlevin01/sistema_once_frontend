@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   searchCustomers, getCustomer,
   createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente,
@@ -11,7 +12,7 @@ import {
   getCCProveedoresSummary,
   getPriceConfig, getTransportes, getComprobante, getVendedoresActivos,
 } from "../utils/api";
-import { printComprobantePDF } from "../utils/printDoc";
+import { printComprobantePDF, printCCPDF, printCCGeneralPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
 // ─────────────────────────────────────────────────────────────
@@ -190,7 +191,7 @@ function EntityFicha({ selected, mode }) {
 // Modal de cobranza (multi-método)
 // ─────────────────────────────────────────────────────────────
 function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCuenta, cotizacion, saving }) {
-  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const todayStr = () => new Date().toLocaleDateString("sv", { timeZone: "America/Argentina/Buenos_Aires" });
   const defaultTipoMov = mode === "proveedor" ? "debe" : "haber";
   const emptyFila = () => ({ monto: "", metodo_pago: "Efectivo", divisa_cobro: divisaCuenta, cotizacionCustom: String(cotizacion || "") });
 
@@ -445,6 +446,7 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 // Vista de cuenta corriente
 // ─────────────────────────────────────────────────────────────
 function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
+  const navigate = useNavigate();
   if (loadingCC) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Cargando...</div>;
   }
@@ -506,15 +508,24 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
               <div key={m.id} style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--border)", alignItems: "center", background: "var(--bg)" }}>
                 <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
                 {m.order_id ? (
-                  <button
-                    style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
-                    title="Ver comprobante"
-                    onClick={async () => {
-                      try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
-                    }}
-                  >
-                    {m.concepto || "Ver comprobante"}
-                  </button>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <button
+                      style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
+                      title="Imprimir comprobante"
+                      onClick={async () => {
+                        try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
+                      }}
+                    >
+                      {m.concepto || "Ver comprobante"}
+                    </button>
+                    <button
+                      style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
+                      title="Editar comprobante"
+                      onClick={() => window.open(`/comprobantes/editar/${m.order_id}`, "_blank")}
+                    >
+                      ✏️ Editar
+                    </button>
+                  </div>
                 ) : (
                   <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
                 )}
@@ -786,9 +797,14 @@ function EntityPanel({
                 <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>{saving ? "Guardando..." : "Guardar"}</button>
               </>
             ) : viewCC && selected ? (
-              <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
-                + Registrar Debe / Haber
-              </button>
+              <>
+                <button className="btn btn-ghost btn-sm" onClick={() => printCCPDF({ entity: selected, cc, mode, cotizacion })}>
+                  🖨 Imprimir
+                </button>
+                <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
+                  + Registrar Debe / Haber
+                </button>
+              </>
             ) : (
               <>
                 <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>
@@ -974,10 +990,21 @@ function TabGeneral({ cotizacion }) {
           </select>
         )}
         {cotizacion > 0 && (
-          <div style={{ marginLeft: "auto", fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", padding: "4px 10px", background: "var(--bg2)", borderRadius: 4, border: "1px solid var(--border)" }}>
+          <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", padding: "4px 10px", background: "var(--bg2)", borderRadius: 4, border: "1px solid var(--border)" }}>
             💱 Cotización USD: ${cotizacion.toLocaleString("es-AR")}
           </div>
         )}
+        <button
+          className="btn btn-ghost btn-sm"
+          style={{ marginLeft: "auto" }}
+          onClick={() => printCCGeneralPDF({
+            clientes:    vista === "clientes"    ? filteredClientes    : [],
+            proveedores: vista === "proveedores" ? filteredProveedores : [],
+            cotizacion,
+          })}
+        >
+          🖨 Imprimir
+        </button>
       </div>
       {loading ? <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>Cargando...</div> : (
         <div className="card">
