@@ -363,7 +363,6 @@ export default function Products() {
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   useEffect(() => {
     const id = ++searchIdRef.current;
-    if (!query.trim()) { setResults([]); return; }
     const t = setTimeout(async () => {
       setLoadingList(true);
       try {
@@ -376,7 +375,7 @@ export default function Products() {
         addToast("Error buscando productos", "error");
       }
       setLoadingList(false);
-    }, 300);
+    }, query.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [query]);
 
@@ -1087,7 +1086,7 @@ export default function Products() {
                 Sin resultados para<br /><span style={{ color:"var(--text-muted)" }}>"{query}"</span>
               </div>
             )}
-            {!query && (
+            {!query && results.length === 0 && !loadingList && (
               <div style={{ padding:"60px 16px", textAlign:"center", color:"var(--text-dim)", fontSize:12, lineHeight:2.4 }}>
                 ↑<br />Buscá por código<br />o nombre de producto
               </div>
