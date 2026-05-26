@@ -447,6 +447,25 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 // ─────────────────────────────────────────────────────────────
 function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   const navigate = useNavigate();
+  const [expandedOrders, setExpandedOrders] = useState(new Set());
+  const [orderItems,     setOrderItems]     = useState({});   // order_id → items[]
+
+  const toggleDetails = async (orderId) => {
+    if (expandedOrders.has(orderId)) {
+      setExpandedOrders((prev) => { const s = new Set(prev); s.delete(orderId); return s; });
+      return;
+    }
+    setExpandedOrders((prev) => new Set([...prev, orderId]));
+    if (!orderItems[orderId]) {
+      try {
+        const { data } = await getComprobante(orderId);
+        setOrderItems((prev) => ({ ...prev, [orderId]: data.items ?? [] }));
+      } catch {
+        setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
+      }
+    }
+  };
+
   if (loadingCC) {
     return <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Cargando...</div>;
   }
@@ -504,48 +523,89 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
             const divisaCC    = m.divisa_cuenta ?? divisa;
             const divisaCobro = m.divisa_cobro  ?? divisaCC;
             const hayConv     = divisaCobro !== divisaCC;
+            const isExpanded  = m.order_id && expandedOrders.has(m.order_id);
+            const items       = m.order_id ? (orderItems[m.order_id] ?? null) : null;
             return (
-              <div key={m.id} style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "10px 12px", borderBottom: "1px solid var(--border)", alignItems: "center", background: "var(--bg)" }}>
-                <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
-                {m.order_id ? (
-                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                    <button
-                      style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
-                      title="Imprimir comprobante"
-                      onClick={async () => {
-                        try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
-                      }}
-                    >
-                      {m.concepto || "Ver comprobante"}
-                    </button>
-                    <button
-                      style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
-                      title="Editar comprobante"
-                      onClick={() => window.open(`/comprobantes/editar/${m.order_id}`, "_blank")}
-                    >
-                      ✏️ Editar
-                    </button>
+              <div key={m.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "10px 12px", alignItems: "center", background: "var(--bg)" }}>
+                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
+                  {m.order_id ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                      <button
+                        style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
+                        title="Imprimir comprobante"
+                        onClick={async () => {
+                          try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
+                        }}
+                      >
+                        {m.concepto || "Ver comprobante"}
+                      </button>
+                      <button
+                        style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
+                        title="Editar comprobante"
+                        onClick={() => window.open(`/comprobantes/editar/${m.order_id}`, "_blank")}
+                      >
+                        ✏️ Editar
+                      </button>
+                      <button
+                        style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: isExpanded ? "var(--accent)" : "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
+                        title="Ver artículos del comprobante"
+                        onClick={() => toggleDetails(m.order_id)}
+                      >
+                        {isExpanded ? "▲ Ocultar" : "▼ Detalles"}
+                      </button>
+                    </div>
+                  ) : (
+                    <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
+                  )}
+                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{m.metodo_pago || "—"}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: m.tipo === "debito" ? "var(--danger)" : "var(--success)" }}>
+                    {m.tipo === "debito" ? "+" : "−"}{fmtMonto(m.monto, divisaCC)}
+                  </span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: hayConv ? "var(--text-muted)" : "var(--text-dim)" }}>
+                    {hayConv && m.monto_original != null ? fmtMonto(m.monto_original, divisaCobro) : "—"}
+                  </span>
+                  <span><DivisaBadge divisa={divisaCobro} /></span>
+                  <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10 }}>
+                    {m.tipo === "debito" ? "Déb" : "Cobro"}
+                  </span>
+                  <button
+                    onClick={() => onEditMov(m)}
+                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
+                    title="Editar movimiento">
+                    ✏️
+                  </button>
+                </div>
+                {isExpanded && (
+                  <div style={{ background: "var(--bg2)", borderTop: "1px solid var(--border)", padding: "10px 20px 12px" }}>
+                    {items === null ? (
+                      <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Cargando...</span>
+                    ) : items.length === 0 ? (
+                      <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin artículos</span>
+                    ) : (
+                      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                        <thead>
+                          <tr style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                            <th style={{ textAlign: "left",  padding: "0 8px 6px 0", fontWeight: 600 }}>Artículo</th>
+                            <th style={{ textAlign: "center", padding: "0 8px 6px",  fontWeight: 600, width: 60 }}>Cant.</th>
+                            <th style={{ textAlign: "right",  padding: "0 0 6px 8px", fontWeight: 600, width: 110 }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {items.map((it, idx) => (
+                            <tr key={idx} style={{ borderTop: "1px solid var(--border)" }}>
+                              <td style={{ padding: "5px 8px 5px 0", color: "var(--text)" }}>{it.name || it.product_name || "—"}</td>
+                              <td style={{ padding: "5px 8px", textAlign: "center", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{it.quantity}</td>
+                              <td style={{ padding: "5px 0 5px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>
+                                {(it.quantity * Number(it.unit_price)).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
-                ) : (
-                  <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
                 )}
-                <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{m.metodo_pago || "—"}</span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: m.tipo === "debito" ? "var(--danger)" : "var(--success)" }}>
-                  {m.tipo === "debito" ? "+" : "−"}{fmtMonto(m.monto, divisaCC)}
-                </span>
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: hayConv ? "var(--text-muted)" : "var(--text-dim)" }}>
-                  {hayConv && m.monto_original != null ? fmtMonto(m.monto_original, divisaCobro) : "—"}
-                </span>
-                <span><DivisaBadge divisa={divisaCobro} /></span>
-                <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10 }}>
-                  {m.tipo === "debito" ? "Déb" : "Cobro"}
-                </span>
-                <button
-                  onClick={() => onEditMov(m)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
-                  title="Editar movimiento">
-                  ✏️
-                </button>
               </div>
             );
           })}

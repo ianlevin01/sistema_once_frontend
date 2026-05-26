@@ -149,18 +149,39 @@ export default function Remitos({ initialCreating = false }) {
     setTimeout(() => priceTypeRef.current?.focus(), 80);
   };
 
+  const scrollWarehouseIntoView = (containerRef, idx) => {
+    const el = containerRef.current?.children[idx];
+    if (el) el.scrollIntoView({ block: "nearest" });
+  };
+
   const handleOrigenKeyDown = (e) => {
     const idx = warehouses.indexOf(origen);
-    if (e.key === "ArrowDown") { e.preventDefault(); setOrigen(warehouses[Math.min(idx + 1, warehouses.length - 1)]); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setOrigen(warehouses[Math.max(idx - 1, 0)]); }
-    else if (e.key === "Enter") { e.preventDefault(); destinoRef.current?.focus(); }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(idx + 1, warehouses.length - 1);
+      setOrigen(warehouses[next]);
+      setTimeout(() => scrollWarehouseIntoView(origenRef, next), 0);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(idx - 1, 0);
+      setOrigen(warehouses[next]);
+      setTimeout(() => scrollWarehouseIntoView(origenRef, next), 0);
+    } else if (e.key === "Enter") { e.preventDefault(); destinoRef.current?.focus(); }
   };
 
   const handleDestinoKeyDown = (e) => {
     const idx = warehouses.indexOf(destino);
-    if (e.key === "ArrowDown") { e.preventDefault(); setDestino(warehouses[Math.min(idx + 1, warehouses.length - 1)]); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setDestino(warehouses[Math.max(idx - 1, 0)]); }
-    else if (e.key === "Enter") {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      const next = Math.min(idx + 1, warehouses.length - 1);
+      setDestino(warehouses[next]);
+      setTimeout(() => scrollWarehouseIntoView(destinoRef, next), 0);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      const next = Math.max(idx - 1, 0);
+      setDestino(warehouses[next]);
+      setTimeout(() => scrollWarehouseIntoView(destinoRef, next), 0);
+    } else if (e.key === "Enter") {
       e.preventDefault();
       if (userSel) priceTypeRef.current?.focus();
       else userRef.current?.focus();
@@ -205,6 +226,7 @@ export default function Remitos({ initialCreating = false }) {
     }]);
     setProdSel(null);
     setItemQty(""); setItemPrice(""); setItemDesc("");
+    setTimeout(() => prodSearchRef.current?.focus(), 50);
   };
 
   const handleQtyKeyDown = (e) => { if (e.key === "Enter") { e.preventDefault(); priceRef.current?.focus(); } };

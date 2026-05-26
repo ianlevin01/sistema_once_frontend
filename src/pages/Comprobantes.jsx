@@ -26,7 +26,7 @@ const fmt   = (n) => Number(n || 0).toLocaleString("es-AR", { minimumFractionDig
 // ── Componente de fila de item editable ────────────────────────
 function ItemRow({ item, idx, onRemove, onChangeQty, onChangePrice, onChangeDesc }) {
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 110px 36px", gap:8, padding:"10px 0", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
+    <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 110px 110px 36px", gap:8, padding:"10px 0", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
       <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--accent)" }}>{item.code || "—"}</span>
       <input
         className="input"
@@ -37,17 +37,20 @@ function ItemRow({ item, idx, onRemove, onChangeQty, onChangePrice, onChangeDesc
       <input
         className="input"
         style={{ fontSize:13, height:32, textAlign:"center", fontFamily:"var(--font-mono)", padding:"0 6px" }}
-        type="number" min="1"
+        type="text" inputMode="numeric"
         value={item.quantity}
-        onChange={(e) => onChangeQty(idx, Number(e.target.value))}
+        onChange={(e) => onChangeQty(idx, e.target.value)}
       />
       <input
         className="input"
         style={{ fontSize:13, height:32, textAlign:"right", fontFamily:"var(--font-mono)", color:"var(--accent)", padding:"0 8px" }}
-        type="number" min="0" step="0.01"
+        type="text" inputMode="decimal"
         value={item.unit_price}
-        onChange={(e) => onChangePrice(idx, Number(e.target.value))}
+        onChange={(e) => onChangePrice(idx, e.target.value)}
       />
+      <span style={{ fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right", color:"var(--accent)", fontWeight:700 }}>
+        {(Number(item.quantity) * Number(item.unit_price)).toLocaleString("es-AR", { minimumFractionDigits:2, maximumFractionDigits:2 })}
+      </span>
       <button onClick={() => onRemove(idx)} style={{ background:"none", border:"none", color:"var(--danger)", cursor:"pointer", fontSize:18, textAlign:"center" }}>✕</button>
     </div>
   );
@@ -656,8 +659,9 @@ export default function Comprobantes({ initialCreating = false }) {
   const [provResults, setProvResults] = useState([]);
   const [provSel,     setProvSel]     = useState(null);
 
-  const [warehouses,  setWarehouses]  = useState([]);
-  const [warehouseId, setWarehouseId] = useState("");
+  const [warehouses,         setWarehouses]         = useState([]);
+  const [warehouseId,        setWarehouseId]        = useState("");
+  const preferredWhRef = useRef("");
 
   const [items,       setItems]       = useState([]);
   const [prodSel,     setProdSel]     = useState(null);
@@ -676,7 +680,7 @@ export default function Comprobantes({ initialCreating = false }) {
 
   const esReposicion          = tipo === "Reposicion" || tipo === "Devol a proveedor";
   const admiteConsumidorFinal = TIPOS_CON_CONSUMIDOR_FINAL.includes(tipo);
-  const admiteDescuento       = ["Presupuesto", "Nota de Pedido", "Nota de Pedido Web"].includes(tipo);
+  const admiteDescuento       = ["Presupuesto", "Nota de Pedido", "Nota de Pedido Web", "Reposicion"].includes(tipo);
   const descuentoPctNum       = parseFloat(descuentoPct) || 0;
   const isEditing             = !!editingId;
   const subtotal              = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
@@ -684,10 +688,11 @@ export default function Comprobantes({ initialCreating = false }) {
     ? Math.round(subtotal * (1 - descuentoPctNum / 100) * 100) / 100
     : subtotal;
 
-  // Pre-populate warehouseId with user's warehouse when switching to supplier op type
+  // Pre-populate warehouseId with preferred warehouse (or user's warehouse) when switching to Reposicion
   useEffect(() => {
-    if (esReposicion && !warehouseId && user?.warehouse_id) {
-      setWarehouseId(user.warehouse_id);
+    if (esReposicion && !warehouseId) {
+      const defaultWh = preferredWhRef.current || user?.warehouse_id || "";
+      if (defaultWh) setWarehouseId(defaultWh);
     }
   }, [esReposicion]);
 
@@ -706,6 +711,7 @@ export default function Comprobantes({ initialCreating = false }) {
       const v = Number(data.cotizacion_dolar) || 1;
       cotizacionRef.current = v;
       setCotizacion(v);
+      if (data.preferred_warehouse_id) preferredWhRef.current = data.preferred_warehouse_id;
     }).catch(() => {});
   }, []);
 
@@ -861,9 +867,6 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante creado", "success");
       if (initialCreating) {
         window.opener?.location.reload();
-        if (tipo !== "Nota de Pedido" && confirm("¿Querés imprimir el comprobante?")) {
-          try { const { data: full } = await getComprobante(nuevoComp.id); printComprobantePDF(full); } catch { printComprobantePDF(nuevoComp); }
-        }
         setTimeout(() => window.close(), 300);
         return;
       }
@@ -950,7 +953,6 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante actualizado", "success");
       if (editId) {
         window.opener?.location.reload();
-        if (confirm("¿Querés imprimir el comprobante?")) { const { data: c } = await getComprobante(editingId); printComprobantePDF(c); }
         setTimeout(() => window.close(), 300);
         return;
       }
@@ -1200,7 +1202,13 @@ export default function Comprobantes({ initialCreating = false }) {
                   </div>
                 )}
                 {/* Tabla de items */}
-                {selected.items?.length > 0 ? (
+                {selected.items?.length > 0 ? (() => {
+                  const selSubtotal = (selected.items||[]).reduce((a, it) => a + it.quantity * Number(it.unit_price), 0);
+                  const selTotal    = Number(selected.total);
+                  const selDivisa   = selected.divisa || "ARS";
+                  const selCotiz    = (selDivisa === "USD" && selTotal > 0 && selSubtotal > 0) ? selSubtotal / selTotal : 1;
+                  const toDisp      = (n) => selDivisa === "USD" ? n / selCotiz : n;
+                  return (
                   <div style={{ border:"1px solid var(--border)", borderRadius:6, overflow:"hidden", marginBottom:10 }}>
                     <table style={{ width:"100%", borderCollapse:"collapse", fontSize:13 }}>
                       <thead>
@@ -1216,9 +1224,9 @@ export default function Comprobantes({ initialCreating = false }) {
                             <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:11, color:"var(--accent)" }}>{it.product_code || it.code || "—"}</td>
                             <td style={{ padding:"7px 10px", fontSize:13 }}>{it.product_name || it.name || "—"}</td>
                             <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right" }}>{it.quantity}</td>
-                            <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right", color:"var(--text-muted)" }}>${fmt(it.unit_price)}</td>
+                            <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:13, textAlign:"right", color:"var(--text-muted)" }}>{selDivisa === "USD" ? "USD " : "$"}{fmt(toDisp(Number(it.unit_price)))}</td>
                             <td style={{ padding:"7px 10px", fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, textAlign:"right", color:"var(--accent)" }}>
-                              ${fmt(it.quantity * Number(it.unit_price))}
+                              {selDivisa === "USD" ? "USD " : "$"}{fmt(toDisp(it.quantity * Number(it.unit_price)))}
                             </td>
                           </tr>
                         ))}
@@ -1259,7 +1267,8 @@ export default function Comprobantes({ initialCreating = false }) {
                       </tfoot>
                     </table>
                   </div>
-                ) : <div className="empty">Sin items</div>}
+                  );
+                })() : <div className="empty">Sin items</div>}
               </div>
             </div>
           )}
@@ -1303,8 +1312,8 @@ export default function Comprobantes({ initialCreating = false }) {
               ) : (
                 <>
                   {/* Header de columnas */}
-                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 110px 36px", gap:8, padding:"0 0 8px", borderBottom:"2px solid var(--border)", marginBottom:2 }}>
-                    {["Código","Descripción","Cant.","Precio",""].map((h) => (
+                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 110px 110px 36px", gap:8, padding:"0 0 8px", borderBottom:"2px solid var(--border)", marginBottom:2 }}>
+                    {["Código","Descripción","Cant.","Precio","Total",""].map((h) => (
                       <div key={h} style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em" }}>{h}</div>
                     ))}
                   </div>
@@ -1392,7 +1401,7 @@ export default function Comprobantes({ initialCreating = false }) {
                   <input ref={qtyRef} className="input"
                     style={{ height:38, fontSize:15, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
                     placeholder="0" value={itemQty} onChange={(e) => setItemQty(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); priceRef.current?.focus(); } }} />
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (Number(itemQty) > 0) priceRef.current?.focus(); } }} />
                 </div>
                 <div style={{ flex:"0 0 120px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>

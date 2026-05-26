@@ -3,11 +3,13 @@ import * as XLSX from "xlsx";
 import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes, getVendedoresActivos } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useNavigate } from "react-router-dom";
+import EmailMarketingTab from "./EmailMarketingTab";
 
 const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", localidad: "", provincia: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
 
 export default function Clientes() {
   useEffect(() => { document.title = "Clientes — Once"; }, []);
+  const [activeTab, setActiveTab] = useState("clientes");
   const [clientes, setClientes]   = useState([]);
   const [loading,  setLoading]    = useState(false);
   const [search,   setSearch]     = useState("");
@@ -124,91 +126,113 @@ export default function Clientes() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 56px)", margin: "-24px", overflow: "hidden" }}>
       <ToastContainer />
 
-      {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-        <input
-          className="input"
-          placeholder="Buscar por nombre o documento..."
-          value={search}
-          onChange={handleSearchChange}
-          style={{ width: 280 }}
-        />
-        {search.trim() && !loading && (
-          <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-            {clientes.length} resultado{clientes.length !== 1 ? "s" : ""}
-          </span>
-        )}
-        <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={handleExportExcel} disabled={exporting}>
-          {exporting ? "Exportando..." : "↓ Excel"}
-        </button>
-        <button className="btn btn-primary" onClick={openCrear}>
-          + Nuevo cliente
-        </button>
+      {/* Tab bar */}
+      <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--bg2)", flexShrink: 0 }}>
+        {[["clientes", "Buscar clientes"], ["email", "Email Marketing"]].map(([tab, label]) => (
+          <button key={tab} onClick={() => setActiveTab(tab)} style={{
+            padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
+            fontSize: 13, fontFamily: "var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
+            color: activeTab === tab ? "var(--accent)" : "var(--text-muted)",
+            borderBottom: activeTab === tab ? "2px solid var(--accent)" : "2px solid transparent",
+            transition: "all 0.15s",
+          }}>{label}</button>
+        ))}
       </div>
 
-      {/* Tabla */}
-      {!search.trim() ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>Buscá un cliente por nombre o documento</div>
-      ) : loading ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>Buscando...</div>
-      ) : clientes.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>No se encontraron clientes</div>
+      {activeTab === "clientes" ? (
+        <div style={{ flex: 1, overflowY: "auto", padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+
+          {/* Header */}
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <input
+              className="input"
+              placeholder="Buscar por nombre o documento..."
+              value={search}
+              onChange={handleSearchChange}
+              style={{ width: 280 }}
+            />
+            {search.trim() && !loading && (
+              <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
+                {clientes.length} resultado{clientes.length !== 1 ? "s" : ""}
+              </span>
+            )}
+            <button className="btn btn-ghost" style={{ marginLeft: "auto" }} onClick={handleExportExcel} disabled={exporting}>
+              {exporting ? "Exportando..." : "↓ Excel"}
+            </button>
+            <button className="btn btn-primary" onClick={openCrear}>
+              + Nuevo cliente
+            </button>
+          </div>
+
+          {/* Tabla */}
+          {!search.trim() ? (
+            <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>Buscá un cliente por nombre o documento</div>
+          ) : loading ? (
+            <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>Buscando...</div>
+          ) : clientes.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>No se encontraron clientes</div>
+          ) : (
+            <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
+                    {["Nombre", "Documento", "Teléfono", "Email", "Cuenta Corriente", ""].map((h) => (
+                      <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {clientes.map((c, i) => (
+                    <tr key={c.id} style={{ borderBottom: i < clientes.length - 1 ? "1px solid var(--border)" : "none" }}>
+                      <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>{c.name}</td>
+                      <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-dim)" }}>{c.document || "—"}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.phone || "—"}</td>
+                      <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.email || "—"}</td>
+                      <td style={{ padding: "10px 14px" }}>
+                        {c.tiene_cc ? (
+                          <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "var(--success-dim)", color: "var(--success)", fontWeight: 700, border: "1px solid var(--success)" }}>
+                            ✓ Cuenta corriente
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--text-dim)" }}>Sin cuenta corriente</span>
+                        )}
+                      </td>
+                      <td style={{ padding: "10px 14px" }}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                          {c.tiene_cc ? (
+                            <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px" }}
+                              onClick={() => navigate("/cuenta-corriente")}>
+                              Ver CC
+                            </button>
+                          ) : (
+                            <button className="btn btn-primary" style={{ fontSize: 11, padding: "4px 8px" }}
+                              onClick={() => handleOpenCC(c)}>
+                              Abrir CC
+                            </button>
+                          )}
+                          <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px" }}
+                            onClick={() => openEditar(c)}>
+                            ✏️ Editar
+                          </button>
+                          <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px", color: "var(--danger)" }}
+                            onClick={() => handleDelete(c.id)}>
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       ) : (
-        <div style={{ background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-                {["Nombre", "Documento", "Teléfono", "Email", "Cuenta Corriente", ""].map((h) => (
-                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {clientes.map((c, i) => (
-                <tr key={c.id} style={{ borderBottom: i < clientes.length - 1 ? "1px solid var(--border)" : "none" }}>
-                  <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>{c.name}</td>
-                  <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--text-dim)" }}>{c.document || "—"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.phone || "—"}</td>
-                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{c.email || "—"}</td>
-                  <td style={{ padding: "10px 14px" }}>
-                    {c.tiene_cc ? (
-                      <span style={{ fontSize: 11, padding: "3px 8px", borderRadius: 4, background: "var(--success-dim)", color: "var(--success)", fontWeight: 700, border: "1px solid var(--success)" }}>
-                        ✓ Cuenta corriente
-                      </span>
-                    ) : (
-                      <span style={{ fontSize: 11, color: "var(--text-dim)" }}>Sin cuenta corriente</span>
-                    )}
-                  </td>
-                  <td style={{ padding: "10px 14px" }}>
-                    <div style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
-                      {c.tiene_cc ? (
-                        <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px" }}
-                          onClick={() => navigate("/cuenta-corriente")}>
-                          Ver CC
-                        </button>
-                      ) : (
-                        <button className="btn btn-primary" style={{ fontSize: 11, padding: "4px 8px" }}
-                          onClick={() => handleOpenCC(c)}>
-                          Abrir CC
-                        </button>
-                      )}
-                      <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px" }}
-                        onClick={() => openEditar(c)}>
-                        ✏️ Editar
-                      </button>
-                      <button className="btn btn-ghost" style={{ fontSize: 11, padding: "4px 8px", color: "var(--danger)" }}
-                        onClick={() => handleDelete(c.id)}>
-                        Eliminar
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "12px 24px 0" }}>
+          <EmailMarketingTab />
         </div>
       )}
 

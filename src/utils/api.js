@@ -179,4 +179,10 @@ export const setWebOrderReservado = (id, reservado) => api.patch(`/web-orders/${
 // ── STOCK MOVIMIENTOS ─────────────────────────────────────────
 export const getStockMovimientos = (params) => api.get("/stock/movements", { params });
 
+// ── EMAIL MARKETING ───────────────────────────────────────────
+export const getEmailRecipients = ()                          => api.get("/email-campaign/recipients");
+export const emailCampaignAI    = (messages)                  => api.post("/email-campaign/ai-chat", { messages });
+export const sendEmailCampaign  = (subject, html, test_email) =>
+  api.post("/email-campaign/send", { subject, html, ...(test_email ? { test_email } : {}) });
+
 export default api;

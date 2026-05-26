@@ -673,8 +673,11 @@ function SeccionCobranzas({ cobranzas, divisa }) {
   }, {});
   const total = filtered.reduce((a, c) => a + getMontoDisplay(c), 0);
 
+  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.55)" : "rgba(6,182,212,0.55)";
+  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.025)" : "rgba(6,182,212,0.025)";
+
   return (
-    <div className="card" style={{ marginBottom:24 }}>
+    <div className="card" style={{ marginBottom:24, borderLeft:`3px solid ${sectionColor}`, background:sectionBg }}>
       <div className="card-header">
         <span className="card-title">{titulo}</span>
         <span className="badge badge-info">{filtered.length}</span>
@@ -759,8 +762,11 @@ function SeccionReposiciones({ reposiciones, divisa, onView, onPrint, onDelete }
   const totalDevolP = devolPr.reduce((a, r) => a + Number(r.total || 0), 0);
   const total       = filtered.reduce((a, r) => a + Number(r.total || 0), 0);
 
+  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.55)" : "rgba(245,158,11,0.55)";
+  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.025)" : "rgba(245,158,11,0.025)";
+
   return (
-    <div className="card" style={{ marginBottom:24 }}>
+    <div className="card" style={{ marginBottom:24, borderLeft:`3px solid ${sectionColor}`, background:sectionBg }}>
       <div className="card-header">
         <span className="card-title">{titulo}</span>
         <span className="badge badge-info">{filtered.length}</span>
@@ -848,7 +854,7 @@ function SeccionDevoluciones({ presupuestos, onView, onPrint, onDelete }) {
     const fmtVal = (n) => divisa === "USD" ? fmtUSD(n) : `$${fmt(n)}`;
     const total  = lista.reduce((a, p) => a + Number(p.total || 0), 0);
     return (
-      <div className="card" style={{ marginBottom:24 }}>
+      <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(239,68,68,0.55)", background:"rgba(239,68,68,0.025)" }}>
         <div className="card-header">
           <span className="card-title">Devoluciones en {divisa === "USD" ? "DÓLARES" : "PESOS"}</span>
           <span className="badge badge-danger">{lista.length}</span>
@@ -1165,7 +1171,7 @@ export default function CajaListado() {
         <>
           {/* ── PRESUPUESTOS EN PESOS ── */}
           {presARS.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(59,130,246,0.55)", background:"rgba(59,130,246,0.025)" }}>
               <div className="card-header">
                 <span className="card-title">Presupuestos en PESOS</span>
                 <span className="badge badge-info">{presARS.length}</span>
@@ -1252,7 +1258,7 @@ export default function CajaListado() {
 
           {/* ── PRESUPUESTOS EN DÓLARES ── */}
           {presUSD.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(16,185,129,0.55)", background:"rgba(16,185,129,0.025)" }}>
               <div className="card-header">
                 <span className="card-title">Presupuestos en DÓLARES</span>
                 <span className="badge badge-info">{presUSD.length}</span>
@@ -1345,7 +1351,7 @@ export default function CajaListado() {
 
           {/* ── RESERVAS ── */}
           {notasPedido.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(139,92,246,0.55)", background:"rgba(139,92,246,0.025)" }}>
               <div className="card-header">
                 <span className="card-title">Reservas (Notas de Pedido)</span>
                 <span className="badge badge-info">{notasPedido.length}</span>
@@ -1406,7 +1412,7 @@ export default function CajaListado() {
 
           {/* ── REMITOS ── */}
           {remitos.length > 0 && (
-            <div className="card" style={{ marginBottom:24 }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(249,115,22,0.55)", background:"rgba(249,115,22,0.025)" }}>
               <div className="card-header">
                 <span className="card-title">Remitos</span>
                 <span className="badge badge-info">{remitos.length}</span>
@@ -1463,7 +1469,7 @@ export default function CajaListado() {
             ];
 
             return (
-              <div className="card" style={{ marginTop:24 }}>
+              <div className="card" style={{ marginTop:24, borderLeft:"3px solid rgba(59,130,246,0.55)", background:"rgba(59,130,246,0.025)" }}>
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
                   <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", padding:"2px 8px", background:"var(--bg3)", borderRadius:4, border:"1px solid var(--border)" }}>🪙 ARS</span>
@@ -1529,7 +1535,7 @@ export default function CajaListado() {
               { label:"Entradas por Caja", data:entradasUSDPorMetodo,      color:"var(--success)", sign:"",  total:totalEntradasUSD,     totalColor:"var(--success)" },
             ];
             return (
-              <div className="card" style={{ marginTop:16 }}>
+              <div className="card" style={{ marginTop:16, borderLeft:"3px solid rgba(16,185,129,0.55)", background:"rgba(16,185,129,0.025)" }}>
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
                   <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--success)", padding:"2px 8px", background:"rgba(52,211,153,0.1)", borderRadius:4, border:"1px solid var(--success)" }}>💵 USD</span>

@@ -32,9 +32,11 @@ export default function Configuracion() {
   const [saving,  setSaving]  = useState(false);
 
   // ── Depósitos ─────────────────────────────────────────────────
-  const [warehouses,    setWarehouses]    = useState([]);
-  const [newWhName,     setNewWhName]     = useState("");
-  const [savingWh,      setSavingWh]      = useState(false);
+  const [warehouses,         setWarehouses]         = useState([]);
+  const [newWhName,          setNewWhName]          = useState("");
+  const [savingWh,           setSavingWh]           = useState(false);
+  const [preferredWarehouse, setPreferredWarehouse] = useState("");
+  const [savingPw,           setSavingPw]           = useState(false);
 
   // ── Estado admin ──────────────────────────────────────────────
   const [config, setConfig] = useState({
@@ -62,6 +64,7 @@ export default function Configuracion() {
           pct_4: String(cfg.pct_4),
           pct_5: String(cfg.pct_5),
         });
+        setPreferredWarehouse(cfg.preferred_warehouse_id ?? "");
         setWarehouses(whs || []);
       } catch {
         addToast("Error cargando configuración", "error");
@@ -110,6 +113,18 @@ export default function Configuracion() {
       addToast("Error guardando porcentaje", "error");
     }
     setSaving(false);
+  };
+
+  const handleSavePreferred = async (whId) => {
+    setSavingPw(true);
+    try {
+      await api.patch("/config/preferred-warehouse", { preferred_warehouse_id: whId || null });
+      setPreferredWarehouse(whId);
+      addToast("Depósito de preferencia guardado", "success");
+    } catch {
+      addToast("Error guardando depósito de preferencia", "error");
+    }
+    setSavingPw(false);
   };
 
   const handleAddWarehouse = async () => {
@@ -354,19 +369,36 @@ export default function Configuracion() {
             {warehouses.length === 0 ? (
               <div style={{ fontSize:13, color:"var(--text-dim)", padding:"12px 0" }}>No hay depósitos cargados.</div>
             ) : (
-              <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
-                {warehouses.map((w, i) => (
-                  <div key={w.id} style={{
-                    display:"flex", alignItems:"center", justifyContent:"space-between",
-                    padding:"10px 16px",
-                    borderBottom: i < warehouses.length - 1 ? "1px solid var(--border)" : "none",
-                    background: i % 2 === 0 ? "transparent" : "var(--bg2)",
-                  }}>
-                    <span style={{ fontSize:14, color:"var(--text)" }}>{w.name}</span>
-                    <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{w.id.slice(0, 8).toUpperCase()}</span>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden", marginBottom:16 }}>
+                  {warehouses.map((w, i) => (
+                    <div key={w.id} style={{
+                      display:"flex", alignItems:"center", justifyContent:"space-between",
+                      padding:"10px 16px",
+                      borderBottom: i < warehouses.length - 1 ? "1px solid var(--border)" : "none",
+                      background: i % 2 === 0 ? "transparent" : "var(--bg2)",
+                    }}>
+                      <span style={{ fontSize:14, color:"var(--text)" }}>{w.name}</span>
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{w.id.slice(0, 8).toUpperCase()}</span>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <label style={{ fontSize:13, color:"var(--text-dim)", whiteSpace:"nowrap" }}>Depósito de preferencia (Reposiciones):</label>
+                  <select
+                    className="input"
+                    style={{ flex:1, maxWidth:280 }}
+                    value={preferredWarehouse}
+                    onChange={(e) => handleSavePreferred(e.target.value)}
+                    disabled={savingPw}
+                  >
+                    <option value="">— Sin preferencia —</option>
+                    {warehouses.map((w) => (
+                      <option key={w.id} value={w.id}>{w.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
             )}
           </div>
         </div>

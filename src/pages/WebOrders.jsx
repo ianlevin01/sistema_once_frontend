@@ -822,7 +822,7 @@ export default function WebOrders() {
                         </span>
                       )}
                     </div>
-                    <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color: c.border }}>
+                    <span style={{ fontFamily:"var(--font-mono)", fontSize:14, fontWeight:800, color: "var(--text)" }}>
                       ${Number(o.total||0).toLocaleString("es-AR")}
                     </span>
                   </div>
