@@ -1035,21 +1035,25 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helper: abrir ventana de impresión
+// Helper: abrir en nueva pestaña e imprimir automáticamente
+// Usa Blob URL para compatibilidad con Mac/Safari
 // ─────────────────────────────────────────────────────────────
 function openPrintWindow(html) {
-  const w = window.open("", "_blank", "width=800,height=700");
-  if (!w) {
+  // Inyectamos el auto-print dentro del <head> del HTML generado
+  const printableHtml = html.replace(
+    "</head>",
+    "<script>window.addEventListener('load',function(){window.print();});<\/script></head>"
+  );
+  const blob = new Blob([printableHtml], { type: "text/html;charset=utf-8" });
+  const url  = URL.createObjectURL(blob);
+  const tab  = window.open(url, "_blank");
+  if (!tab) {
     alert("Habilitá las ventanas emergentes para imprimir.");
+    URL.revokeObjectURL(url);
     return;
   }
-  w.document.open();
-  w.document.write(html);
-  w.document.close();
-  setTimeout(() => {
-    w.focus();
-    w.print();
-  }, 300);
+  // Liberar la URL después de que la pestaña tuvo tiempo de cargar
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
 }
 
 // ─────────────────────────────────────────────────────────────
