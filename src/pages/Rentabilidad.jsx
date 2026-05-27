@@ -133,7 +133,7 @@ function PieLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }) {
 // ─── Gastos Fijos Panel ───────────────────────────────────────────────────────
 
 function GastosFijosPanel({ gastos, onRefresh }) {
-  const toast = useToast();
+  const { addToast } = useToast();
   const [desc,   setDesc]   = useState("");
   const [monto,  setMonto]  = useState("");
   const [editId, setEditId] = useState(null);
@@ -157,15 +157,15 @@ function GastosFijosPanel({ gastos, onRefresh }) {
     try {
       if (editId) {
         await updateGastoFijo(editId, { descripcion: desc, monto: Number(monto) });
-        toast.success("Gasto actualizado");
+        addToast("Gasto actualizado", "success");
       } else {
         await createGastoFijo({ descripcion: desc, monto: Number(monto) });
-        toast.success("Gasto agregado");
+        addToast("Gasto agregado", "success");
       }
       setDesc(""); setMonto(""); setEditId(null);
       onRefresh();
     } catch {
-      toast.error("Error al guardar");
+      addToast("Error al guardar", "error");
     } finally {
       setSaving(false);
     }
@@ -175,10 +175,10 @@ function GastosFijosPanel({ gastos, onRefresh }) {
     if (!confirm("¿Eliminar este gasto fijo?")) return;
     try {
       await deleteGastoFijo(id);
-      toast.success("Gasto eliminado");
+      addToast("Gasto eliminado", "success");
       onRefresh();
     } catch {
-      toast.error("Error al eliminar");
+      addToast("Error al eliminar", "error");
     }
   }
 
@@ -285,7 +285,7 @@ function GastosFijosPanel({ gastos, onRefresh }) {
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function Rentabilidad() {
-  const toast = useToast();
+  const { addToast, ToastContainer } = useToast();
   const today = todayArg();
 
   const [from,    setFrom]    = useState(firstOfMonth(today));
@@ -307,7 +307,7 @@ export default function Rentabilidad() {
       const r = await getRentabilidadStats(from, to);
       setStats(r.data);
     } catch (err) {
-      toast.error(err.response?.data?.message || "Error al cargar estadísticas");
+      addToast(err.response?.data?.message || "Error al cargar estadísticas", "error");
     } finally {
       setLoading(false);
     }
@@ -337,6 +337,7 @@ export default function Rentabilidad() {
 
   return (
     <div style={{ maxWidth: 1200, margin: "0 auto", padding: "0 0 52px" }}>
+      <ToastContainer />
 
       {/* ── Filtros de fecha ── */}
       <div style={{
