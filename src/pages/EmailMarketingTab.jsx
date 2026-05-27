@@ -2,13 +2,37 @@ import { useState, useEffect, useRef } from "react";
 import { getEmailRecipients, emailCampaignAI, sendEmailCampaign } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
+const LS_KEY = "email_marketing_session";
+
+function loadSession() {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(data) {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(data));
+  } catch {}
+}
+
+function clearSession() {
+  try { localStorage.removeItem(LS_KEY); } catch {}
+}
+
 export default function EmailMarketingTab() {
   const { addToast, ToastContainer } = useToast();
 
-  const [subject,     setSubject]     = useState("");
-  const [messages,    setMessages]    = useState([]); // formato OpenAI: [{ role, content }]
-  const [chatDisplay, setChatDisplay] = useState([]); // [{ role, text, hasHtml }]
-  const [currentHtml, setCurrentHtml] = useState("");
+  // Inicializar estado desde localStorage si existe
+  const saved = loadSession();
+  const [subject,     setSubject]     = useState(saved?.subject     ?? "");
+  const [messages,    setMessages]    = useState(saved?.messages    ?? []);
+  const [chatDisplay, setChatDisplay] = useState(saved?.chatDisplay ?? []);
+  const [currentHtml, setCurrentHtml] = useState(saved?.currentHtml ?? "");
   const [input,       setInput]       = useState("");
   const [loadingAI,   setLoadingAI]   = useState(false);
   const [sending,     setSending]     = useState(false);
@@ -23,11 +47,31 @@ export default function EmailMarketingTab() {
     getEmailRecipients().then(({ data }) => setRecipients(data.total)).catch(() => {});
   }, []);
 
-  // Auto-scroll al final del chat cuando llegan mensajes nuevos
+  // Persistir sesión en localStorage cada vez que cambia algo relevante
+  useEffect(() => {
+    saveSession({ subject, messages, chatDisplay, currentHtml });
+  }, [subject, messages, chatDisplay, currentHtml]);
+
+  // Auto-scroll al final del chat
   useEffect(() => {
     if (chatRef.current) chatRef.current.scrollTop = chatRef.current.scrollHeight;
   }, [chatDisplay, loadingAI]);
 
+  // ── Nuevo email ───────────────────────────────────────────────
+  const handleNuevoEmail = () => {
+    if (chatDisplay.length > 0 || currentHtml) {
+      if (!window.confirm("¿Empezar un nuevo email? Se perderá la conversación actual.")) return;
+    }
+    setSubject("");
+    setMessages([]);
+    setChatDisplay([]);
+    setCurrentHtml("");
+    setInput("");
+    setSendResult(null);
+    clearSession();
+  };
+
+  // ── Enviar mensaje al AI ──────────────────────────────────────
   const sendMessage = async () => {
     const text = input.trim();
     if (!text || loadingAI) return;
@@ -42,7 +86,6 @@ export default function EmailMarketingTab() {
       const { data } = await emailCampaignAI(newMessages);
       const { reply, html } = data;
 
-      // Guardamos el mensaje completo del asistente (con bloque HTML) para mantener contexto
       const assistantContent = html
         ? `${reply}\n\`\`\`html\n${html}\n\`\`\``
         : reply;
@@ -65,13 +108,14 @@ export default function EmailMarketingTab() {
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
 
+  // ── Envío de prueba ───────────────────────────────────────────
   const handleTestSend = async () => {
     if (!subject.trim()) { addToast("Escribí un asunto antes de enviar", "error"); return; }
     if (!currentHtml)    { addToast("Generá el email primero con la IA", "error"); return; }
     if (!testEmail.trim()) { addToast("Ingresá un email de prueba", "error"); return; }
     setTestSending(true);
     try {
-      await sendEmailCampaign(subject, currentHtml, testEmail.trim());
+      await sendEmailCampaign({ subject, html: currentHtml, test_email: testEmail.trim() });
       addToast(`✅ Email de prueba enviado a ${testEmail.trim()}`, "success");
     } catch (err) {
       const msg = err?.response?.data?.message || "Error al enviar email de prueba";
@@ -81,6 +125,7 @@ export default function EmailMarketingTab() {
     }
   };
 
+  // ── Envío masivo ──────────────────────────────────────────────
   const handleSendAll = async () => {
     if (!subject.trim()) { addToast("Escribí un asunto antes de enviar", "error"); return; }
     if (!currentHtml)    { addToast("Generá el email primero con la IA", "error"); return; }
@@ -88,7 +133,7 @@ export default function EmailMarketingTab() {
     setSending(true);
     setSendResult(null);
     try {
-      const { data } = await sendEmailCampaign(subject, currentHtml);
+      const { data } = await sendEmailCampaign({ subject, html: currentHtml });
       setSendResult(data);
       addToast(
         `✅ Enviado a ${data.sent} destinatario${data.sent !== 1 ? "s" : ""}${data.errors ? ` (${data.errors} error${data.errors !== 1 ? "es" : ""})` : ""}`,
@@ -143,6 +188,33 @@ export default function EmailMarketingTab() {
           width: "42%", display: "flex", flexDirection: "column",
           borderRight: "1px solid var(--border)", overflow: "hidden",
         }}>
+
+          {/* Header del chat con botón Nuevo email */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "8px 12px", borderBottom: "1px solid var(--border)",
+            background: "var(--bg2)", flexShrink: 0,
+          }}>
+            <span style={{
+              fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.06em", color: "var(--text-dim)",
+            }}>
+              Chat con IA
+            </span>
+            <button
+              onClick={handleNuevoEmail}
+              style={{
+                fontSize: 11, padding: "3px 10px", cursor: "pointer",
+                background: "transparent", border: "1px solid var(--border)",
+                borderRadius: "var(--radius)", color: "var(--text-dim)",
+                fontFamily: "var(--font-mono)",
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--accent)"; e.currentTarget.style.color = "var(--accent)"; }}
+              onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--border)"; e.currentTarget.style.color = "var(--text-dim)"; }}
+            >
+              ✦ Nuevo email
+            </button>
+          </div>
 
           {/* Historial de mensajes */}
           <div ref={chatRef} style={{

@@ -181,7 +181,14 @@ export const getStockMovimientos = (params) => api.get("/stock/movements", { par
 
 // ── EMAIL MARKETING ───────────────────────────────────────────
 export const getEmailRecipients  = ()       => api.get("/email-campaign/recipients");
-export const emailCampaignAI     = (data)   => api.post("/email-campaign/ai-chat", data);
+export const emailCampaignAI     = (messages) => api.post("/email-campaign/ai-chat", { messages });
 export const sendEmailCampaign   = (data)   => api.post("/email-campaign/send", data);
+
+// ── RENTABILIDAD ──────────────────────────────────────────────
+export const getRentabilidadStats  = (from, to) => api.get(`/rentabilidad/stats?from=${from}&to=${to}`);
+export const getGastosFijos        = ()          => api.get("/rentabilidad/gastos-fijos");
+export const createGastoFijo       = (data)      => api.post("/rentabilidad/gastos-fijos", data);
+export const updateGastoFijo       = (id, data)  => api.put(`/rentabilidad/gastos-fijos/${id}`, data);
+export const deleteGastoFijo       = (id)        => api.delete(`/rentabilidad/gastos-fijos/${id}`);
 
 export default api;

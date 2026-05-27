@@ -46,6 +46,10 @@ const NAV_ADMIN = [
   },
 ];
 
+const NAV_SUPERADMIN_EXTRA = [
+  { to: "/rentabilidad", label: "Rentabilidad", icon: "📈" },
+];
+
 const NAV_VENDEDOR = [
   {
     section: "Operaciones",
@@ -80,6 +84,7 @@ const PAGE_TITLES = {
   "/configuracion":    "Configuración",
   "/transportes":      "Transportes",
   "/catalogos":        "Catálogos Personalizados",
+  "/rentabilidad":     "Rentabilidad",
 };
 
 function CajaNavItem({ item, location }) {
@@ -131,7 +136,8 @@ export default function Layout({ children }) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
-  const isVendedor = user?.role === "vendedor";
+  const isVendedor    = user?.role === "vendedor";
+  const isSuperAdmin  = user?.role === "superadmin";
   const NAV = isVendedor ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
 
@@ -186,6 +192,23 @@ export default function Layout({ children }) {
               )}
             </div>
           ))}
+          {isSuperAdmin && (
+            <div>
+              <div className="sidebar-section">
+                <span className="sidebar-section-label">Analytics</span>
+              </div>
+              {NAV_SUPERADMIN_EXTRA.map((item) => (
+                <NavLink
+                  key={item.to} to={item.to}
+                  className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
+                  title={item.label}
+                >
+                  <span className="icon">{item.icon}</span>
+                  <span className="link-label">{item.label}</span>
+                </NavLink>
+              ))}
+            </div>
+          )}
         </nav>
 
         {user && (
