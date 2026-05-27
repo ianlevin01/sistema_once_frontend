@@ -680,7 +680,7 @@ export default function Comprobantes({ initialCreating = false }) {
 
   const esReposicion          = tipo === "Reposicion" || tipo === "Devol a proveedor";
   const admiteConsumidorFinal = TIPOS_CON_CONSUMIDOR_FINAL.includes(tipo);
-  const admiteDescuento       = ["Presupuesto", "Nota de Pedido", "Nota de Pedido Web", "Reposicion"].includes(tipo);
+  const admiteDescuento       = ["Presupuesto", "Presupuesto Web", "Nota de Pedido", "Nota de Pedido Web", "Reposicion"].includes(tipo);
   const descuentoPctNum       = parseFloat(descuentoPct) || 0;
   const isEditing             = !!editingId;
   const subtotal              = items.reduce((a, it) => a + it.quantity * it.unit_price, 0);
