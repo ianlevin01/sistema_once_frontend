@@ -384,6 +384,7 @@ export default function WebOrders() {
   const [presCustRes,     setPresCustRes]     = useState([]);
   const [presNoCCWarning, setPresNoCCWarning] = useState(false);
   const [presItems,       setPresItems]       = useState([]);
+  const [presDescuentoPct, setPresDescuentoPct] = useState("0");
   const [presProdSel,  setPresProdSel]  = useState(null);
   const [presItemQty,  setPresItemQty]  = useState("");
   const [presItemPrice,setPresItemPrice]= useState("");
@@ -500,6 +501,7 @@ export default function WebOrders() {
     setPresPriceType("precio_1");
     setPresVendedor("");
     setPresTexto(selected.observaciones || "");
+    setPresDescuentoPct("0");
     setPresProdSel(null);
     setPresItemQty("");
     setPresItemPrice("");
@@ -533,6 +535,9 @@ export default function WebOrders() {
 
   const presRemoveItem = (i) => setPresItems((prev) => prev.filter((_, idx) => idx !== i));
   const presTotal = presItems.reduce((a, it) => a + it.quantity * it.unit_price, 0);
+  const presDescuentoPctNum = Math.min(100, Math.max(0, parseFloat(presDescuentoPct) || 0));
+  const presDescuentoMonto  = Math.round(presTotal * presDescuentoPctNum) / 100;
+  const presTotalConDescuento = presTotal - presDescuentoMonto;
 
   const presHandleCreate = async () => {
     if (!presCustSel)          { addToast("Seleccioná un cliente", "error"); return; }
@@ -548,6 +553,7 @@ export default function WebOrders() {
         price_type:     presPriceType,
         texto_libre:    presTexto,
         web_order_id:   selected?.id,
+        descuento_pct:  presDescuentoPctNum > 0 ? presDescuentoPctNum : undefined,
         items: presItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });
       addToast("Presupuesto Web creado", "success");
@@ -663,6 +669,20 @@ export default function WebOrders() {
                     <input className="input" value={presTexto} onChange={(e) => setPresTexto(e.target.value)}
                       placeholder="Texto libre..." style={{ fontSize:12 }} />
                   </div>
+                  <div className="input-group">
+                    <label className="input-label">Descuento (%)</label>
+                    <input
+                      className="input"
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.5"
+                      value={presDescuentoPct}
+                      onChange={(e) => setPresDescuentoPct(e.target.value)}
+                      placeholder="0"
+                      style={{ fontSize:12, fontFamily:"var(--font-mono)" }}
+                    />
+                  </div>
                 </div>
 
                 <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
@@ -703,10 +723,29 @@ export default function WebOrders() {
                       ))}
                       <div style={{ display:"flex", justifyContent:"flex-end", marginTop:16, paddingTop:12, borderTop:"2px solid var(--border)" }}>
                         <div style={{ textAlign:"right" }}>
-                          <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
-                          <div style={{ fontSize:26, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
-                            ${presTotal.toLocaleString("es-AR")}
-                          </div>
+                          {presDescuentoPctNum > 0 ? (
+                            <>
+                              <div style={{ display:"flex", justifyContent:"space-between", gap:24, marginBottom:4 }}>
+                                <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase" }}>Subtotal</span>
+                                <span style={{ fontSize:13, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>${presTotal.toLocaleString("es-AR")}</span>
+                              </div>
+                              <div style={{ display:"flex", justifyContent:"space-between", gap:24, marginBottom:8 }}>
+                                <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--danger)", textTransform:"uppercase" }}>Descuento {presDescuentoPctNum}%</span>
+                                <span style={{ fontSize:13, fontFamily:"var(--font-mono)", color:"var(--danger)" }}>-${presDescuentoMonto.toLocaleString("es-AR")}</span>
+                              </div>
+                              <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
+                              <div style={{ fontSize:26, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
+                                ${presTotalConDescuento.toLocaleString("es-AR")}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Total</div>
+                              <div style={{ fontSize:26, fontFamily:"var(--font-mono)", fontWeight:800, color:"var(--accent)" }}>
+                                ${presTotal.toLocaleString("es-AR")}
+                              </div>
+                            </>
+                          )}
                         </div>
                       </div>
                     </>
