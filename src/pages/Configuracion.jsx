@@ -7,17 +7,31 @@ import { useAuth } from "../utils/useAuth";
 const fmt  = (v, dec = 2) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 const fmtU = (v) => Number(v || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+const ROUND_OPTS = [
+  { val: 0,    lbl: "Sin redondeo" },
+  { val: 1,    lbl: "Unidad"       },
+  { val: 10,   lbl: "Decena"       },
+  { val: 100,  lbl: "Centena"      },
+  { val: 1000, lbl: "Millar"       },
+];
+
 // Calcula todos los precios a partir del costo USD y la configuración
+// Aplica redondeo hacia arriba si round_precio_N está configurado
 function calcPrecios(costoUsd, config) {
   const base = Number(costoUsd || 0) * Number(config.cotizacion_dolar || 0);
   return [1, 2, 3, 4, 5].map((n) => {
-    const pct = Number(config[`pct_${n}`] || 0);
-    const precioArs = base * (1 + pct / 100);
+    const pct       = Number(config[`pct_${n}`] || 0);
+    let   ars       = base * (1 + pct / 100);
+    const roundUnit = Number(config[`round_precio_${n}`] || 0);
+    if (roundUnit > 0) {
+      ars = Math.ceil(ars / roundUnit) * roundUnit;
+    }
     return {
       label: `Precio #${n}`,
       pct,
-      ars: precioArs,
+      ars,
       usd: Number(costoUsd || 0) * (1 + pct / 100),
+      roundUnit,
     };
   });
 }
@@ -42,6 +56,7 @@ export default function Configuracion() {
   const [config, setConfig] = useState({
     cotizacion_dolar: "",
     pct_1: "", pct_2: "", pct_3: "", pct_4: "", pct_5: "",
+    round_precio_1: 0, round_precio_2: 0, round_precio_3: 0, round_precio_4: 0, round_precio_5: 0,
   });
   const [costoDemo, setCostoDemo] = useState("100");
 
@@ -63,6 +78,11 @@ export default function Configuracion() {
           pct_3: String(cfg.pct_3),
           pct_4: String(cfg.pct_4),
           pct_5: String(cfg.pct_5),
+          round_precio_1: Number(cfg.round_precio_1 || 0),
+          round_precio_2: Number(cfg.round_precio_2 || 0),
+          round_precio_3: Number(cfg.round_precio_3 || 0),
+          round_precio_4: Number(cfg.round_precio_4 || 0),
+          round_precio_5: Number(cfg.round_precio_5 || 0),
         });
         setPreferredWarehouse(cfg.preferred_warehouse_id ?? "");
         setWarehouses(whs || []);
@@ -74,6 +94,7 @@ export default function Configuracion() {
   }, []);
 
   const setField = (key) => (e) => setConfig((p) => ({ ...p, [key]: e.target.value }));
+  const setRound = (n, val) => setConfig((p) => ({ ...p, [`round_precio_${n}`]: val }));
 
   // ── Guardar admin ─────────────────────────────────────────────
   const handleSave = async () => {
@@ -82,6 +103,11 @@ export default function Configuracion() {
       pct_1: Number(config.pct_1), pct_2: Number(config.pct_2),
       pct_3: Number(config.pct_3), pct_4: Number(config.pct_4),
       pct_5: Number(config.pct_5),
+      round_precio_1: config.round_precio_1 || null,
+      round_precio_2: config.round_precio_2 || null,
+      round_precio_3: config.round_precio_3 || null,
+      round_precio_4: config.round_precio_4 || null,
+      round_precio_5: config.round_precio_5 || null,
     };
     if (!payload.cotizacion_dolar || payload.cotizacion_dolar <= 0) {
       addToast("La cotización del dólar debe ser mayor a 0", "error");
@@ -265,18 +291,41 @@ export default function Configuracion() {
                 Precio final = Costo USD × Cotización × (1 + % / 100)
               </div>
               {[1,2,3,4,5].map((n) => (
-                <div className="input-group" key={n} style={{ marginBottom:14 }}>
-                  <label className="input-label">Precio #{n} — porcentaje sobre costo</label>
-                  <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                    <input className="input" type="number" value={config[`pct_${n}`]}
-                      onChange={setField(`pct_${n}`)} placeholder="0"
-                      style={{ width:110, fontFamily:"var(--font-mono)", fontSize:15, textAlign:"center" }} />
-                    <span style={{ fontFamily:"var(--font-mono)", fontSize:15, color:"var(--text-muted)" }}>%</span>
-                    {config[`pct_${n}`] !== "" && (
-                      <span style={{ fontSize:12, color:"var(--text-dim)" }}>
-                        → ×{(1 + Number(config[`pct_${n}`]) / 100).toFixed(4)}
-                      </span>
-                    )}
+                <div key={n} style={{ marginBottom:16, paddingBottom:16, borderBottom:"1px solid var(--border)" }}>
+                  <div className="input-group" style={{ marginBottom:8 }}>
+                    <label className="input-label">Precio #{n} — porcentaje sobre costo</label>
+                    <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                      <input className="input" type="number" value={config[`pct_${n}`]}
+                        onChange={setField(`pct_${n}`)} placeholder="0"
+                        style={{ width:110, fontFamily:"var(--font-mono)", fontSize:15, textAlign:"center" }} />
+                      <span style={{ fontFamily:"var(--font-mono)", fontSize:15, color:"var(--text-muted)" }}>%</span>
+                      {config[`pct_${n}`] !== "" && (
+                        <span style={{ fontSize:12, color:"var(--text-dim)" }}>
+                          → ×{(1 + Number(config[`pct_${n}`]) / 100).toFixed(4)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", alignItems:"center", gap:5, flexWrap:"wrap" }}>
+                    <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginRight:2, whiteSpace:"nowrap" }}>
+                      Redondeo ↑
+                    </span>
+                    {ROUND_OPTS.map((opt) => {
+                      const active = config[`round_precio_${n}`] === opt.val;
+                      return (
+                        <button key={opt.val} onClick={() => setRound(n, opt.val)}
+                          style={{
+                            padding:"3px 10px", borderRadius:4, cursor:"pointer", fontSize:11,
+                            fontFamily:"var(--font-mono)",
+                            border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
+                            background: active ? "var(--accent)" : "transparent",
+                            color: active ? "#fff" : "var(--text-dim)",
+                            fontWeight: active ? 700 : 400,
+                            transition: "background 0.1s, border-color 0.1s",
+                          }}
+                        >{opt.lbl}</button>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -320,7 +369,14 @@ export default function Configuracion() {
                 {precios.map((p, i) => (
                   <div key={i} style={{ display:"grid", gridTemplateColumns:"100px 1fr 1fr 70px", borderBottom: i < precios.length-1 ? "1px solid var(--border)" : "none", background: i%2===0 ? "transparent" : "var(--bg2)" }}>
                     <div style={{ padding:"10px 10px", fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, color:"var(--accent)" }}>{p.label}</div>
-                    <div style={{ padding:"10px 10px", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"var(--text)" }}>${fmt(p.ars)}</div>
+                    <div style={{ padding:"10px 10px", fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700, color:"var(--text)", display:"flex", alignItems:"center", gap:6 }}>
+                      ${fmt(p.ars)}
+                      {p.roundUnit > 0 && (
+                        <span style={{ fontSize:9, fontFamily:"var(--font-mono)", color:"var(--accent)", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:3, padding:"1px 4px", whiteSpace:"nowrap" }}>
+                          ↑{p.roundUnit === 1 ? "uni" : p.roundUnit === 10 ? "dec" : p.roundUnit === 100 ? "cen" : "mil"}
+                        </span>
+                      )}
+                    </div>
                     <div style={{ padding:"10px 10px", fontFamily:"var(--font-mono)", fontSize:13, color:"var(--text-muted)" }}>USD {fmtU(p.usd)}</div>
                     <div style={{ padding:"10px 10px", fontFamily:"var(--font-mono)", fontSize:12, color: p.pct > 0 ? "var(--success)" : "var(--text-dim)" }}>+{fmt(p.pct,1)}%</div>
                   </div>

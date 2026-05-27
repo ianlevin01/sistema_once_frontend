@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://oncepuntos.duckdns.org/api",
+  baseURL: "https://gestionmayorista.online/api",
 });
 
 api.interceptors.request.use((config) => {
