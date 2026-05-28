@@ -43,7 +43,7 @@ export default function RemitoTransporteTab() {
 
   // Campos
   const [transpId,  setTranspId]  = useState("");
-  const [envia,     setEnvia]     = useState(user?.warehouse_name || "");
+  const [envia,     setEnvia]     = useState("Oncepuntos");
   const [bultos,    setBultos]    = useState(1);
   const [valor,     setValor]     = useState("");
   const [saving,    setSaving]    = useState(false);
@@ -98,7 +98,7 @@ export default function RemitoTransporteTab() {
 
   const resetForm = () => {
     setCustSel(null); setCustQuery(""); setCustResults([]);
-    setTranspId(""); setEnvia(user?.name || "");
+    setTranspId(""); setEnvia("Oncepuntos");
     setBultos(1); setValor(""); setSaving(false);
   };
 
