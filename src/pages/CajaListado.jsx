@@ -7,7 +7,7 @@ import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
-import { printComprobantePDF, printRemitoPDF, downloadComprobantePDF, downloadRemitoPDF } from "../utils/printDoc";
+import { printComprobantePDF, printRemitoPDF } from "../utils/printDoc";
 
 // ── Constantes ────────────────────────────────────────────────
 const PAGOS      = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
@@ -1591,7 +1591,6 @@ export default function CajaListado() {
               <span className="modal-title">{viewItem.tipo||"Comprobante"} — {viewItem.customer_name||viewItem.supplier_name||"—"}</span>
               <div style={{ display:"flex", gap:8 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(viewItem)}>🖨️ Imprimir</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => downloadComprobantePDF(viewItem)}>⬇ PDF</button>
                 <button className="modal-close" onClick={() => setViewItem(null)}>✕</button>
               </div>
             </div>

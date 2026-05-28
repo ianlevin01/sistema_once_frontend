@@ -1,6 +1,7 @@
 /**
  * Utilidades de impresión para remitos y comprobantes.
  */
+import api from "./api.js";
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" }) : "—";
@@ -21,15 +22,15 @@ const BASE_CSS = `
     padding: 32px 40px;
   }
   .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
+    display: table;
+    width: 100%;
     border-bottom: 2px solid #111;
     padding-bottom: 16px;
     margin-bottom: 20px;
   }
+  .header > div { display: table-cell; vertical-align: top; }
   .header .empresa { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
-  .header .doc-info { text-align: right; font-size: 12px; color: #444; line-height: 1.6; }
+  .header .doc-info { text-align: right; font-size: 12px; color: #444; line-height: 1.6; width: 40%; }
   .header .doc-tipo { font-size: 16px; font-weight: 700; color: #111; }
   .section { margin-bottom: 18px; }
   .section-title {
@@ -40,9 +41,10 @@ const BASE_CSS = `
     color: #666;
     margin-bottom: 6px;
   }
-  .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; font-size: 12px; }
-  .meta-grid .key { color: #555; }
-  .meta-grid .val { font-weight: 600; }
+  .meta-grid { font-size: 12px; }
+  .meta-grid .row { display: block; margin-bottom: 2px; }
+  .meta-grid .key { color: #555; display: inline-block; width: 45%; vertical-align: top; }
+  .meta-grid .val { font-weight: 600; display: inline-block; width: 50%; vertical-align: top; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -200,10 +202,10 @@ function buildRemitoHtml(remito, sinPrecios = false) {
         <div style="font-size:9px;color:#aaa;margin-top:2px">#${(remito.id || "").slice(0, 8).toUpperCase()}</div>
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;font-size:11px;margin-bottom:8px">
-      <div style="color:#555">Origen</div>   <div style="font-weight:600">${remito.origen || "—"}</div>
-      <div style="color:#555">Destino</div>  <div style="font-weight:600">${remito.destino || "—"}</div>
-      ${remito.customer_name ? `<div style="color:#555">Cliente</div><div style="font-weight:600">${remito.customer_name}</div>` : ""}
+    <div style="font-size:11px;margin-bottom:8px;line-height:1.8">
+      <div><span style="color:#555;display:inline-block;width:52px">Origen</span><span style="font-weight:600">${remito.origen || "—"}</span></div>
+      <div><span style="color:#555;display:inline-block;width:52px">Destino</span><span style="font-weight:600">${remito.destino || "—"}</span></div>
+      ${remito.customer_name ? `<div><span style="color:#555;display:inline-block;width:52px">Cliente</span><span style="font-weight:600">${remito.customer_name}</span></div>` : ""}
     </div>
     <table>
       <thead>
@@ -240,7 +242,9 @@ function buildRemitoHtml(remito, sinPrecios = false) {
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; color: #111; background: #fff; }
     .remito-copy { padding: 14px 20px; }
-    .header { display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:10px; }
+    .header { display:table; width:100%; border-bottom:2px solid #111; padding-bottom:10px; margin-bottom:10px; }
+    .header > div { display:table-cell; vertical-align:top; }
+    .header .doc-info { width:40%; }
     .empresa { font-size:16px; font-weight:800; letter-spacing:-0.5px; }
     .doc-info { text-align:right; font-size:10px; color:#444; line-height:1.5; }
     .doc-tipo { font-size:13px; font-weight:700; color:#111; }
@@ -418,8 +422,8 @@ function buildComprobanteHtml(doc) {
   return html;
 }
 
-export function printComprobantePDF(doc) {
-  openPrintWindow(buildComprobanteHtml(doc));
+export async function printComprobantePDF(doc) {
+  await openPrintWindow(buildComprobanteHtml(doc));
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1035,81 +1039,33 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Helper: abrir en nueva pestaña e imprimir automáticamente
-// Usa Blob URL para compatibilidad con Mac/Safari
 // ─────────────────────────────────────────────────────────────
-function openPrintWindow(html) {
-  // Inyectamos el auto-print dentro del <head> del HTML generado
-  const printableHtml = html.replace(
-    "</head>",
-    "<script>window.addEventListener('load',function(){window.print();});<\/script></head>"
-  );
-  const blob = new Blob([printableHtml], { type: "text/html;charset=utf-8" });
-  const url  = URL.createObjectURL(blob);
-  const tab  = window.open(url, "_blank");
-  if (!tab) {
-    alert("Habilitá las ventanas emergentes para imprimir.");
-    URL.revokeObjectURL(url);
-    return;
-  }
-  // Liberar la URL después de que la pestaña tuvo tiempo de cargar
-  setTimeout(() => URL.revokeObjectURL(url), 60000);
-}
-
+// Genera PDF en el backend (Puppeteer) y lo abre en el visor de PDF del navegador.
+// El PDF se ve idéntico al documento — renderizado por Chrome headless.
 // ─────────────────────────────────────────────────────────────
-// Helper: descargar HTML como PDF usando html2pdf.js
-// ─────────────────────────────────────────────────────────────
-async function downloadAsPdf(fullHtml, filename) {
-  let iframe = null;
+async function openPrintWindow(html) {
   try {
-    const mod = await import("html2pdf.js");
-    const html2pdf = mod.default ?? mod;
-
-    // Renderizar el HTML completo en un iframe oculto para que
-    // <head>/<style> se apliquen correctamente (innerHTML los descarta).
-    iframe = document.createElement("iframe");
-    iframe.style.cssText = "position:fixed;top:-10000px;left:0;width:794px;height:1123px;border:none;";
-    document.body.appendChild(iframe);
-
-    await new Promise((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("timeout")), 10000);
-      iframe.onload = () => { clearTimeout(t); resolve(); };
-      iframe.srcdoc = fullHtml;
-    });
-
-    // Pausa breve para que los estilos terminen de aplicarse
-    await new Promise((r) => setTimeout(r, 300));
-
-    await html2pdf()
-      .set({
-        margin: 0.8,
-        filename: `${filename}.pdf`,
-        html2canvas: { scale: 2, logging: false, useCORS: true, backgroundColor: "#fff" },
-        jsPDF: { unit: "cm", format: "a4", orientation: "portrait" },
-      })
-      .from(iframe.contentDocument.body)
-      .save();
+    // Usa la instancia de axios (misma baseURL y token que el resto de la app)
+    const res  = await api.post("/print/pdf", { html }, { responseType: "blob" });
+    const blob = res.data;
+    const url  = URL.createObjectURL(blob);
+    const tab  = window.open(url, "_blank");
+    if (!tab) {
+      alert("Habilitá las ventanas emergentes para ver el documento.");
+      URL.revokeObjectURL(url);
+      return;
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 120_000);
   } catch (err) {
-    console.error("[downloadAsPdf]", err);
-    alert("No se pudo generar el PDF. Intentá de nuevo.");
-  } finally {
-    if (iframe?.parentNode) iframe.parentNode.removeChild(iframe);
+    console.error("[openPrintWindow]", err);
+    alert("No se pudo generar el PDF. Verificá tu conexión e intentá de nuevo.");
   }
 }
 
 export async function downloadComprobantePDF(doc) {
-  const entityName = doc.customer_name
-    || doc.supplier_name
-    || (doc.es_consumidor_final ? (doc.consumidor_final_nombre || "Consumidor Final") : null)
-    || "comprobante";
-  const tipo     = (doc.tipo || "Comprobante").replace(/\s+/g, "-");
-  const filename = `${tipo}-${entityName}-${(doc.id || "").slice(0, 8)}`
-    .toLowerCase().replace(/[^a-z0-9-]/g, "");
-  await downloadAsPdf(buildComprobanteHtml(doc), filename);
+  await openPrintWindow(buildComprobanteHtml(doc));
 }
 
 export async function downloadRemitoPDF(remito, sinPrecios = false) {
-  const filename = `remito-${remito.origen || ""}-${remito.destino || ""}-${(remito.id || "").slice(0, 8)}`
-    .toLowerCase().replace(/[^a-z0-9-]/g, "");
-  await downloadAsPdf(buildRemitoHtml(remito, sinPrecios), filename);
+  await openPrintWindow(buildRemitoHtml(remito, sinPrecios));
 }

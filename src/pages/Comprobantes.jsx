@@ -9,7 +9,7 @@ import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
-import { printComprobantePDF, downloadComprobantePDF } from "../utils/printDoc";
+import { printComprobantePDF } from "../utils/printDoc";
 
 // ── Constantes ─────────────────────────────────────────────────
 const TIPOS   = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedor"];
@@ -867,7 +867,11 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante creado", "success");
       if (initialCreating) {
         window.opener?.location.reload();
-        setTimeout(() => window.close(), 300);
+        try {
+          const { data: compFull } = await getComprobante(nuevoComp.id);
+          await printComprobantePDF(compFull);
+        } catch { /* si falla el print igual cerramos */ }
+        window.close();
         return;
       }
       setCreating(false); resetForm(); loadAll(appliedFrom, appliedTo);
@@ -939,7 +943,7 @@ export default function Comprobantes({ initialCreating = false }) {
     if (items.length === 0) { addToast("Agregá al menos un producto", "error"); return; }
     setSaving(true);
     try {
-      await updateComprobante(editingId, {
+      const { data: updatedComp } = await updateComprobante(editingId, {
         vendedor, texto_libre: textoLibre, price_type: priceType,
         payment_method: payMethod,
         customer_id:             esReposicion ? null : (esConsumidorFinal ? null : (custSel?.id || null)),
@@ -953,7 +957,8 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante actualizado", "success");
       if (editId) {
         window.opener?.location.reload();
-        setTimeout(() => window.close(), 300);
+        await printComprobantePDF(updatedComp);
+        window.close();
         return;
       }
       setCreating(false); setEditingId(null); resetForm(); loadAll(appliedFrom, appliedTo);
@@ -1123,7 +1128,6 @@ export default function Comprobantes({ initialCreating = false }) {
                           <div style={{ display:"flex", gap:6 }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
                             <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
-                            <button className="btn btn-ghost btn-sm" title="Descargar PDF" onClick={async () => { const { data } = await getComprobante(c.id); downloadComprobantePDF(data); }}>⬇</button>
                             <button
                               className="btn btn-ghost btn-sm"
                               onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}
@@ -1157,7 +1161,6 @@ export default function Comprobantes({ initialCreating = false }) {
                   <span className="modal-title">{selected.tipo || "Comprobante"} — {selected.id?.slice(0,8)}…</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                     <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(selected)}>🖨 Imprimir</button>
-                    <button className="btn btn-ghost btn-sm" onClick={() => downloadComprobantePDF(selected)}>⬇ PDF</button>
                     <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                   </div>
                 </div>
