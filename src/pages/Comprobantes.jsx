@@ -821,14 +821,20 @@ export default function Comprobantes({ initialCreating = false }) {
   const confirmItem = () => {
     if (!prodSel)                         { addToast("Seleccioná un producto", "error"); return; }
     if (!itemQty || Number(itemQty) <= 0) { addToast("Ingresá una cantidad válida", "error"); return; }
-    setItems((prev) => [...prev, {
-      product_id:  prodSel.id,
-      code:        prodSel.code || "",
-      name:        prodSel.name,
-      description: itemDesc || prodSel.name,
-      quantity:    Number(itemQty),
-      unit_price:  Number(itemPrice) || 0,
-    }]);
+    setItems((prev) => {
+      const idx = prev.findIndex((it) => it.product_id === prodSel.id);
+      if (idx >= 0) {
+        return prev.map((it, i) => i === idx ? { ...it, quantity: it.quantity + Number(itemQty) } : it);
+      }
+      return [...prev, {
+        product_id:  prodSel.id,
+        code:        prodSel.code || "",
+        name:        prodSel.name,
+        description: itemDesc || prodSel.name,
+        quantity:    Number(itemQty),
+        unit_price:  Number(itemPrice) || 0,
+      }];
+    });
     setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc(""); setLastPrice(null);
     setTimeout(() => prodSearchRef.current?.focus(), 50);
   };

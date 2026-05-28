@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { getCategories, getProductsForCatalog } from "../utils/api";
+import { useState, useEffect, useRef } from "react";
+import { getCategories, getProductsForCatalog, searchProducts } from "../utils/api";
 import { printCatalogoPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
@@ -14,11 +14,74 @@ export default function CatalogosPersonalizados() {
   const [catalogTitle, setCatalogTitle] = useState("Catálogo de Productos");
   const { addToast, ToastContainer } = useToast();
 
+  // Buscador de producto individual
+  const [searchQuery,   setSearchQuery]   = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchIdx,     setSearchIdx]     = useState(-1);
+  const searchTimer = useRef(null);
+
   useEffect(() => {
     getCategories()
       .then((r) => setCategories(r.data || r))
       .catch(() => addToast("Error cargando categorías", "error"));
   }, []);
+
+  // Búsqueda de producto con debounce
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); setSearchIdx(-1); return; }
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await searchProducts(searchQuery);
+        setSearchResults(data || []);
+        setSearchIdx(-1);
+      } catch { /* silencioso */ }
+    }, 280);
+    return () => clearTimeout(searchTimer.current);
+  }, [searchQuery]);
+
+  // Agrega un producto al listado (o lo reactiva si ya estaba)
+  const addProductToList = (p) => {
+    if (!p) return;
+    const alreadyIn = products.find((x) => x.id === p.id);
+    if (alreadyIn) {
+      setConfig((prev) => ({ ...prev, [p.id]: { ...prev[p.id], included: true } }));
+    } else {
+      setProducts((prev) => [...prev, p]);
+      setConfig((prev) => {
+        const precio1 = p.prices?.[0]?.price ?? null;
+        return {
+          ...prev,
+          [p.id]: {
+            included:    true,
+            displayName: p.name,
+            description: p.description || "",
+            priceValue:  precio1 != null ? String(Math.round(precio1)) : "",
+          },
+        };
+      });
+    }
+    setSearchQuery("");
+    setSearchResults([]);
+    setSearchIdx(-1);
+  };
+
+  const handleSearchKeyDown = (e) => {
+    if (!searchResults.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSearchIdx((i) => Math.min(i + 1, searchResults.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSearchIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      addProductToList(searchIdx >= 0 ? searchResults[searchIdx] : searchResults[0]);
+    } else if (e.key === "Escape") {
+      setSearchResults([]);
+      setSearchIdx(-1);
+    }
+  };
 
   const loadProducts = async () => {
     if (!selectedCat || selectedCat === "") return;
@@ -85,30 +148,88 @@ export default function CatalogosPersonalizados() {
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <ToastContainer />
 
-      {/* Filtro categoría */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+      {/* Filtros */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+
+        {/* Selector de categoría */}
         <div>
           <div className="input-label">Categoría</div>
-          <select
-            className="input"
-            value={selectedCat}
-            onChange={(e) => setSelectedCat(e.target.value)}
-            style={{ width: 220 }}
-          >
-            <option value="">— Seleccionar —</option>
-            <option value="all">Todas las categorías</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
+          <div style={{ display: "flex", gap: 8 }}>
+            <select
+              className="input"
+              value={selectedCat}
+              onChange={(e) => setSelectedCat(e.target.value)}
+              style={{ width: 220 }}
+            >
+              <option value="">— Seleccionar —</option>
+              <option value="all">Todas las categorías</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+            <button
+              className="btn btn-primary"
+              onClick={loadProducts}
+              disabled={!selectedCat || selectedCat === "" || loading}
+            >
+              {loading ? "Cargando..." : "Cargar"}
+            </button>
+          </div>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={loadProducts}
-          disabled={!selectedCat || selectedCat === "" || loading}
-        >
-          {loading ? "Cargando..." : "Cargar productos"}
-        </button>
+
+        {/* Separador visual */}
+        <div style={{ alignSelf: "flex-end", color: "var(--text-dim)", fontSize: 13, paddingBottom: 6 }}>ó</div>
+
+        {/* Buscador de producto */}
+        <div style={{ flex: 1, minWidth: 240, maxWidth: 400 }}>
+          <div className="input-label">Buscar producto por nombre</div>
+          <div style={{ position: "relative" }}>
+            <input
+              className="input"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              placeholder="Escribí un nombre y presioná Enter..."
+              style={{ width: "100%" }}
+              autoComplete="off"
+            />
+            {searchResults.length > 0 && (
+              <div style={{
+                position: "absolute", zIndex: 50, top: "calc(100% + 2px)", left: 0, right: 0,
+                background: "var(--bg2)", border: "1px solid var(--border)",
+                borderRadius: "var(--radius)", boxShadow: "0 4px 16px rgba(0,0,0,.15)",
+                maxHeight: 240, overflowY: "auto",
+              }}>
+                {searchResults.map((p, i) => (
+                  <div
+                    key={p.id}
+                    onMouseDown={() => addProductToList(p)}
+                    style={{
+                      padding: "8px 12px", cursor: "pointer", fontSize: 13,
+                      background: i === searchIdx ? "var(--accent-dim)" : "transparent",
+                      borderLeft: `3px solid ${i === searchIdx ? "var(--accent)" : "transparent"}`,
+                      display: "flex", alignItems: "center", gap: 10,
+                    }}
+                    onMouseEnter={() => setSearchIdx(i)}
+                    onMouseLeave={() => setSearchIdx(-1)}
+                  >
+                    {p.code && (
+                      <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--accent)", flexShrink: 0 }}>
+                        {p.code}
+                      </span>
+                    )}
+                    <span style={{ fontWeight: i === searchIdx ? 600 : 400, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {p.name}
+                    </span>
+                    {products.find((x) => x.id === p.id) && (
+                      <span style={{ fontSize: 10, color: "var(--text-dim)", flexShrink: 0 }}>ya en lista</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Opciones del catálogo */}
@@ -187,7 +308,6 @@ export default function CatalogosPersonalizados() {
                       opacity: cfg.included ? 1 : 0.4,
                     }}
                   >
-                    {/* Checkbox */}
                     <td style={{ padding: "8px 12px", width: 36 }}>
                       <input
                         type="checkbox"
@@ -196,16 +316,12 @@ export default function CatalogosPersonalizados() {
                         style={{ cursor: "pointer" }}
                       />
                     </td>
-
-                    {/* Código */}
                     <td style={{
                       padding: "8px 10px", fontFamily: "var(--font-mono)",
                       fontSize: 12, color: "var(--accent)", fontWeight: 600, width: 90,
                     }}>
                       {p.code || "—"}
                     </td>
-
-                    {/* Nombre editable */}
                     <td style={{ padding: "6px 8px" }}>
                       <input
                         className="input"
@@ -215,8 +331,6 @@ export default function CatalogosPersonalizados() {
                         disabled={!cfg.included}
                       />
                     </td>
-
-                    {/* Descripción editable */}
                     <td style={{ padding: "6px 8px" }}>
                       <input
                         className="input"
@@ -227,8 +341,6 @@ export default function CatalogosPersonalizados() {
                         disabled={!cfg.included}
                       />
                     </td>
-
-                    {/* Precio editable */}
                     <td style={{ padding: "6px 10px", width: 140 }}>
                       <input
                         className="input"
@@ -257,15 +369,9 @@ export default function CatalogosPersonalizados() {
         </div>
       )}
 
-      {!loading && products.length === 0 && selectedCat && (
+      {!loading && products.length === 0 && (
         <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>
-          No hay productos en esta categoría
-        </div>
-      )}
-
-      {!selectedCat && (
-        <div style={{ textAlign: "center", padding: 40, color: "var(--text-dim)" }}>
-          Seleccioná una categoría para comenzar
+          Cargá una categoría o buscá productos uno por uno para armar el catálogo
         </div>
       )}
     </div>
