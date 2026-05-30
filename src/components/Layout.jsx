@@ -52,16 +52,21 @@ const NAV_SUPERADMIN_EXTRA = [
 
 const NAV_VENDEDOR = [
   {
-    section: "Operaciones",
+    section: "Maestros",
     items: [
-      { to: "/remitos",   label: "Remitos Internos", icon: "📦" },
-      { to: "/productos", label: "Productos",        icon: "🏷️" },
+      {
+        label: "Productos", icon: "🏷️", rootPath: "/productos",
+        submenu: [
+          { to: "/productos", label: "Catálogo"          },
+          { to: "/catalogos", label: "Imprimir catálogo" },
+        ],
+      },
     ],
   },
 ];
 
-const VENDEDOR_ALLOWED_PATHS = ["/remitos", "/productos"];
-export const VENDEDOR_HOME = "/remitos";
+const VENDEDOR_ALLOWED_PATHS = ["/productos", "/catalogos"];
+export const VENDEDOR_HOME = "/productos";
 
 export function isPathAllowedForVendedor(pathname) {
   return VENDEDOR_ALLOWED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
