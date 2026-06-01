@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../utils/useAuth";
@@ -150,6 +150,28 @@ export default function Layout({ children }) {
     logout();
     navigate("/login");
   };
+
+  // Cierre automático por inactividad (15 minutos)
+  const inactivityTimer = useRef(null);
+  const INACTIVITY_MS = 15 * 60 * 1000;
+
+  const resetInactivityTimer = useCallback(() => {
+    clearTimeout(inactivityTimer.current);
+    inactivityTimer.current = setTimeout(() => {
+      logout();
+      navigate("/login");
+    }, INACTIVITY_MS);
+  }, [logout, navigate]);
+
+  useEffect(() => {
+    const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
+    events.forEach((e) => window.addEventListener(e, resetInactivityTimer, { passive: true }));
+    resetInactivityTimer();
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, resetInactivityTimer));
+      clearTimeout(inactivityTimer.current);
+    };
+  }, [resetInactivityTimer]);
 
   return (
     <div className="layout">
