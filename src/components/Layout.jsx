@@ -151,27 +151,33 @@ export default function Layout({ children }) {
     navigate("/login");
   };
 
-  // Cierre automático por inactividad (15 minutos)
-  const inactivityTimer = useRef(null);
-  const INACTIVITY_MS = 15 * 60 * 1000;
+  // Cierre automático por inactividad (25 minutos) — global entre pestañas
+  const INACTIVITY_MS = 25 * 60 * 1000;
+  const checkIntervalRef = useRef(null);
 
-  const resetInactivityTimer = useCallback(() => {
-    clearTimeout(inactivityTimer.current);
-    inactivityTimer.current = setTimeout(() => {
-      logout();
-      navigate("/login");
-    }, INACTIVITY_MS);
-  }, [logout, navigate]);
+  const updateLastActivity = useCallback(() => {
+    localStorage.setItem("lastActivity", Date.now().toString());
+  }, []);
 
   useEffect(() => {
+    updateLastActivity(); // inicializar al montar
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
-    events.forEach((e) => window.addEventListener(e, resetInactivityTimer, { passive: true }));
-    resetInactivityTimer();
+    events.forEach((e) => window.addEventListener(e, updateLastActivity, { passive: true }));
+
+    // Chequear inactividad cada 60 segundos
+    checkIntervalRef.current = setInterval(() => {
+      const lastActivity = localStorage.getItem("lastActivity");
+      if (lastActivity && Date.now() - Number(lastActivity) > INACTIVITY_MS) {
+        logout();
+        navigate("/login");
+      }
+    }, 60000);
+
     return () => {
-      events.forEach((e) => window.removeEventListener(e, resetInactivityTimer));
-      clearTimeout(inactivityTimer.current);
+      events.forEach((e) => window.removeEventListener(e, updateLastActivity));
+      clearInterval(checkIntervalRef.current);
     };
-  }, [resetInactivityTimer]);
+  }, [updateLastActivity, logout, navigate, INACTIVITY_MS]);
 
   return (
     <div className="layout">
