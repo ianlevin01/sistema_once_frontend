@@ -915,11 +915,12 @@ export default function Products() {
                       <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                         <input
                           className="input"
-                          type="number" min="1" step="1"
+                          type="text" inputMode="decimal" min="1" step="1"
                           placeholder="Cantidad"
                           value={stockQty}
                           onChange={(e) => setStockQty(e.target.value)}
                           onKeyDown={(e) => { if (e.key === "Enter") handleAgregarStock(); if (e.key === "Escape") setStockModal(false); }}
+                          onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
                           style={{ flex:1, height:32, fontSize:13, textAlign:"center", fontFamily:"var(--font-mono)" }}
                           autoFocus
                         />
@@ -1074,8 +1075,9 @@ export default function Products() {
               <div className="input-group" style={{ margin:0 }}>
                 <label className="input-label">Cantidad de productos</label>
                 <input
-                  className="input" type="number" min="1" max="500" step="1"
+                  className="input" type="text" inputMode="decimal" min="1" max="500" step="1"
                   value={reorderN} onChange={(e) => setReorderN(e.target.value)}
+                  onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   style={{ width:100, textAlign:"center", fontFamily:"var(--font-mono)" }}
                 />
               </div>
@@ -1374,8 +1376,9 @@ export default function Products() {
             </div>
             <div className="input-group">
               <label className="input-label">QxB</label>
-              <input ref={qxbRef} className="input" type="number" value={form.qxb} onChange={f("qxb")} placeholder="36"
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); costoRef.current?.focus(); } }} />
+              <input ref={qxbRef} className="input" type="text" inputMode="decimal" value={form.qxb} onChange={f("qxb")} placeholder="36"
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); costoRef.current?.focus(); } }}
+                onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }} />
             </div>
           </div>
           <hr className="divider" />
@@ -1400,13 +1403,15 @@ export default function Products() {
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
           <div className="input-group">
             <label className="input-label">Costo en USD</label>
-            <input ref={costoRef} className="input" type="number" value={form.costo_usd} onChange={f("costo_usd")} placeholder="0.00"
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ivaRef.current?.focus(); } }} />
+            <input ref={costoRef} className="input" type="text" inputMode="decimal" value={form.costo_usd} onChange={f("costo_usd")} placeholder="0.00"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ivaRef.current?.focus(); } }}
+              onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }} />
           </div>
           <div className="input-group">
             <label className="input-label">Tasa IVA (%)</label>
-            <input ref={ivaRef} className="input" type="number" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21"
-              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); despachoRef.current?.focus(); } }} />
+            <input ref={ivaRef} className="input" type="text" inputMode="decimal" value={form.tasa_iva} onChange={f("tasa_iva")} placeholder="21"
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); despachoRef.current?.focus(); } }}
+              onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }} />
           </div>
           <hr className="divider" />
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Logística</div>
@@ -1506,11 +1511,12 @@ export default function Products() {
                   <div className="input-label">Precio #{n} %</div>
                   <input
                     className="input"
-                    type="number"
+                    type="text" inputMode="decimal"
                     step="0.1"
                     placeholder={`Global: ${selected[`global_pct_${n}`] ?? "?"}%`}
                     value={overrideForm[`pct_${n}`]}
                     onChange={(e) => setOverrideForm((f) => ({ ...f, [`pct_${n}`]: e.target.value }))}
+                    onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
                   />
                 </div>
               ))}
