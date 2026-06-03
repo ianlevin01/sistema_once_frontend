@@ -142,7 +142,9 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
 
   const openFor = (order) => {
     setSource(order);
-    const itemsPre = (order.items || []).map((i) => ({
+    const rawItems = order.items || [];
+    // Si la nota era en USD, los unit_price en DB están en ARS → convertir a USD para editar
+    let itemsPre = rawItems.map((i) => ({
       product_id:  i.product_id || null,
       code:        i.code || "",
       name:        i.name || i.description || "",
@@ -150,6 +152,18 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
       quantity:    i.quantity,
       unit_price:  Number(i.unit_price || 0),
     }));
+    if (order.divisa === "USD" && Number(order.total) > 0) {
+      const totalARSItems = rawItems.reduce((s, i) => s + Number(i.unit_price || 0) * Number(i.quantity || 1), 0);
+      const descPct = Number(order.descuento_pct ?? 0);
+      const totalARSConDesc = totalARSItems * (1 - descPct / 100);
+      if (totalARSConDesc > 0) {
+        const cotizDerived = totalARSConDesc / Number(order.total);
+        itemsPre = itemsPre.map((i) => ({
+          ...i,
+          unit_price: Math.round((i.unit_price / cotizDerived) * 100) / 100,
+        }));
+      }
+    }
     setOriginalItems(itemsPre);
     setItems(itemsPre);
     setCustSel(order.customer_id ? { id:order.customer_id, name:order.customer_name } : null);
@@ -207,6 +221,8 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
         user_id:        user?.id || null,
         payment_method: payMethod,
         tipo, vendedor, price_type:priceType, texto_libre:texto,
+        divisa:         source?.divisa || "ARS",
+        negocio_id:     user?.negocio_id || null,
         source_nota_id: source?.id || null,
         removed_items:  removedItems,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),

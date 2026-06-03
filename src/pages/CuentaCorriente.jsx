@@ -22,6 +22,13 @@ const fmtARS  = (n) => `$${Number(n || 0).toLocaleString("es-AR", { minimumFract
 const fmtUSD  = (n) => `USD ${Number(n || 0).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" }) : "—");
 const fmtMonto = (n, divisa) => (divisa === "USD" ? fmtUSD(n) : fmtARS(n));
+const fmtMontoSigned = (n, divisa) => {
+  const num = Number(n || 0);
+  const abs = Math.abs(num);
+  const neg = num < 0;
+  if (divisa === "USD") return `USD ${neg ? "−" : ""}${abs.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${neg ? "−" : ""}$${abs.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 const COND_IVA    = ["Resp. Inscripto", "Resp. Monotributo", "Consumidor Final", "Exento"];
 const METODOS_COBRANZA = ["Efectivo", "Cheque", "Depósito", "Tarjeta", "Mercpago"];
@@ -448,7 +455,8 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   const navigate = useNavigate();
   const [expandedOrders, setExpandedOrders] = useState(new Set());
-  const [orderItems,     setOrderItems]     = useState({});   // order_id → items[]
+  const [orderItems,     setOrderItems]     = useState({});
+  const [soloCC,         setSoloCC]         = useState(false);
 
   const toggleDetails = async (orderId) => {
     if (expandedOrders.has(orderId)) {
@@ -485,54 +493,95 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
     ? (saldo > 0 ? "Le debemos" : "Sin deuda")
     : (saldo > 0 ? "Debe" : "Saldo a favor");
 
+  // Calcular saldo acumulado por movimiento (solo los que afectan saldo, de más viejo a más nuevo)
+  const movsConSaldo = (() => {
+    const reversed = [...movimientos].reverse();
+    let running = 0;
+    const withBal = reversed.map((m) => {
+      if (m.afecta_saldo !== false) {
+        running += m.tipo === "debito" ? Number(m.monto) : -Number(m.monto);
+      }
+      return { ...m, _saldo_momento: running };
+    });
+    return withBal.reverse();
+  })();
+
+  const movsVisibles = soloCC ? movsConSaldo.filter((m) => m.afecta_saldo !== false) : movsConSaldo;
+
+  const GRID = "110px 1fr 130px 120px 110px 70px 120px 60px 36px";
+
   return (
     <div>
-      <div style={{ display: "flex", gap: 16, marginBottom: 28 }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
         <div style={{ flex: 1, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: "18px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
             <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Saldo de la cuenta</div>
             <DivisaBadge divisa={divisa} />
           </div>
           <div style={{ fontSize: 28, fontFamily: "var(--font-mono)", fontWeight: 800, color: saldoColor }}>
-            {fmtMonto(Math.abs(saldo), divisa)}
+            {fmtMontoSigned(saldo, divisa)}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{saldoLabel}</div>
           {cotizacion > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-              ≈ {divisa === "USD" ? fmtARS(Math.abs(saldo) * cotizacion) : fmtUSD(Math.abs(saldo) / cotizacion)}
+              ≈ {fmtMontoSigned(divisa === "USD" ? saldo * cotizacion : saldo / cotizacion, divisa === "USD" ? "ARS" : "USD")}
               {" · cotiz. $"}{cotizacion.toLocaleString("es-AR")}
             </div>
           )}
         </div>
       </div>
 
-      <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: 12 }}>
-        Movimientos ({movimientos.length})
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+          Movimientos ({movsVisibles.length}{soloCC ? ` de ${movsConSaldo.length}` : ""})
+        </div>
+        <button
+          onClick={() => setSoloCC((v) => !v)}
+          style={{
+            fontSize: 11, padding: "3px 10px", borderRadius: 4, cursor: "pointer",
+            border: `1px solid ${soloCC ? "var(--accent)" : "var(--border)"}`,
+            background: soloCC ? "var(--accent)" : "var(--bg3)",
+            color: soloCC ? "#fff" : "var(--text-muted)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {soloCC ? "✓ Solo Cta Cte" : "Todos"}
+        </button>
       </div>
 
-      {!movimientos.length ? (
+      {!movsVisibles.length ? (
         <div style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12, padding: "24px 0" }}>Sin movimientos</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "8px 12px", background: "var(--bg3)", borderRadius: "6px 6px 0 0", borderBottom: "2px solid var(--border)" }}>
-            {["Fecha", "Concepto", "Método", "Monto CC", "Original", "D.Cobro", "Tipo", ""].map((h) => (
+          <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "8px 12px", background: "var(--bg3)", borderRadius: "6px 6px 0 0", borderBottom: "2px solid var(--border)" }}>
+            {["Fecha", "Concepto", "Método", "Monto", "Original", "D.Cobro", "Saldo", "Tipo", ""].map((h) => (
               <div key={h} style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
           </div>
-          {movimientos.map((m) => {
+          {movsVisibles.map((m) => {
             const divisaCC    = m.divisa_cuenta ?? divisa;
             const divisaCobro = m.divisa_cobro  ?? divisaCC;
             const hayConv     = divisaCobro !== divisaCC;
             const isExpanded  = m.order_id && expandedOrders.has(m.order_id);
             const items       = m.order_id ? (orderItems[m.order_id] ?? null) : null;
+            const isVisual    = m.afecta_saldo === false;
+            const metodoDisplay = m.metodo_pago || (!isVisual ? "Cta Cte" : "—");
+            // Entradas visuales (no-CC): negrita azul llamativo
+            const visualStyle = isVisual
+              ? { fontWeight: 700, color: "#1d4ed8" }
+              : {};
             return (
               <div key={m.id} style={{ borderBottom: "1px solid var(--border)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "110px 1fr 100px 120px 110px 70px 60px 36px", gap: 10, padding: "10px 12px", alignItems: "center", background: "var(--bg)" }}>
-                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{fmtDate(m.created_at)}</span>
+                <div style={{
+                  display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "10px 12px",
+                  alignItems: "center",
+                  background: isVisual ? "rgba(29,78,216,0.04)" : "var(--bg)",
+                }}>
+                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)", ...visualStyle }}>{fmtDate(m.created_at)}</span>
                   {m.order_id ? (
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <button
-                        style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
+                        style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: isVisual ? "#1d4ed8" : "var(--accent)", textDecoration: "underline", textAlign: "left", fontWeight: isVisual ? 700 : 400 }}
                         title="Imprimir comprobante"
                         onClick={async () => {
                           try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {}
@@ -556,17 +605,20 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                       </button>
                     </div>
                   ) : (
-                    <span style={{ fontSize: 13 }}>{m.concepto || "—"}</span>
+                    <span style={{ fontSize: 13, ...visualStyle }}>{m.concepto || "—"}</span>
                   )}
-                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{m.metodo_pago || "—"}</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: m.tipo === "debito" ? "var(--danger)" : "var(--success)" }}>
+                  <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: isVisual ? "#1d4ed8" : "var(--text-muted)", fontWeight: isVisual ? 700 : 400 }}>{metodoDisplay}</span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: isVisual ? "#1d4ed8" : (m.tipo === "debito" ? "var(--danger)" : "var(--success)") }}>
                     {m.tipo === "debito" ? "+" : "−"}{fmtMonto(m.monto, divisaCC)}
                   </span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: hayConv ? "var(--text-muted)" : "var(--text-dim)" }}>
                     {hayConv && m.monto_original != null ? fmtMonto(m.monto_original, divisaCobro) : "—"}
                   </span>
                   <span><DivisaBadge divisa={divisaCobro} /></span>
-                  <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10 }}>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: isVisual ? "#1d4ed8" : (m._saldo_momento < 0 ? "var(--success)" : m._saldo_momento > 0 ? "var(--danger)" : "var(--text-dim)") }}>
+                    {fmtMontoSigned(m._saldo_momento, divisa)}
+                  </span>
+                  <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10, opacity: isVisual ? 0.5 : 1 }}>
                     {m.tipo === "debito" ? "Déb" : "Cobro"}
                   </span>
                   <button

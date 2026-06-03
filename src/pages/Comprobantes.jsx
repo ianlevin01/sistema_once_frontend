@@ -1386,7 +1386,12 @@ export default function Comprobantes({ initialCreating = false }) {
                     <div style={{ marginTop:5, padding:"5px 10px", background:"rgba(255,200,0,0.08)", border:"1px solid rgba(255,200,0,0.25)", borderRadius:5, fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-muted)", display:"flex", gap:10, alignItems:"center" }}>
                       <span style={{ color:"rgba(255,200,0,0.8)" }}>⏱</span>
                       <span>Última venta a <strong style={{ color:"var(--text)" }}>{custSel.name}</strong>:</span>
-                      <span style={{ color:"var(--accent)", fontWeight:700 }}>${fmt(lastPrice.unit_price)}</span>
+                      <span style={{ color:"var(--accent)", fontWeight:700 }}>
+                        {divisa === "USD"
+                          ? `USD ${fmt(Number(lastPrice.unit_price) / cotizacion)}`
+                          : `$${fmt(lastPrice.unit_price)}`
+                        }
+                      </span>
                       <span style={{ color:"var(--text-dim)" }}>el {new Date(lastPrice.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}</span>
                     </div>
                   )}
