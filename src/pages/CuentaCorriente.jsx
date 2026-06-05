@@ -360,14 +360,17 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
 // ─────────────────────────────────────────────────────────────
 function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }) {
   const [form, setForm] = useState({ monto: "", concepto: "", metodo_pago: "", fecha: "" });
+  const [fechaOriginal, setFechaOriginal] = useState(null);
 
   useEffect(() => {
     if (open && movimiento) {
+      const fechaInitial = movimiento.created_at ? new Date(movimiento.created_at).toISOString().slice(0, 10) : "";
+      setFechaOriginal(fechaInitial);
       setForm({
         monto:       String(Number(movimiento.monto || 0)),
         concepto:    movimiento.concepto || "",
         metodo_pago: movimiento.metodo_pago || "",
-        fecha:       movimiento.created_at ? new Date(movimiento.created_at).toISOString().slice(0, 10) : "",
+        fecha:       fechaInitial,
       });
     }
   }, [open, movimiento]);
@@ -439,7 +442,7 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
           </button>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="btn btn-ghost" onClick={onClose}>Cancelar</button>
-            <button className="btn btn-primary" onClick={() => onConfirm(movimiento.id, form)} disabled={saving}>
+            <button className="btn btn-primary" onClick={() => onConfirm(movimiento.id, form, fechaOriginal)} disabled={saving}>
               {saving ? "Guardando..." : "Guardar"}
             </button>
           </div>
@@ -799,14 +802,14 @@ function EntityPanel({
   };
 
   // Editar movimiento
-  const handleConfirmEditMov = async (movId, form) => {
+  const handleConfirmEditMov = async (movId, form, fechaOriginal) => {
     setSavingMovEdit(true);
     try {
       await editarMovFn(movId, {
         monto:       form.monto ? Number(form.monto) : undefined,
         concepto:    form.concepto,
         metodo_pago: form.metodo_pago || null,
-        fecha:       form.fecha || null,
+        fecha:       form.fecha && form.fecha !== fechaOriginal ? form.fecha : null,
       });
       addToast("Movimiento actualizado", "success");
       setMovEditando(null);
