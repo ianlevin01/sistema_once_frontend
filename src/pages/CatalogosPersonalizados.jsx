@@ -45,7 +45,7 @@ export default function CatalogosPersonalizados() {
     if (!p) return;
     const alreadyIn = products.find((x) => x.id === p.id);
     if (alreadyIn) {
-      setConfig((prev) => ({ ...prev, [p.id]: { ...prev[p.id], included: true } }));
+      setConfig((prev) => ({ ...prev, [p.id]: { ...prev[p.id], included: false } }));
     } else {
       setProducts((prev) => [...prev, p]);
       setConfig((prev) => {
@@ -53,7 +53,7 @@ export default function CatalogosPersonalizados() {
         return {
           ...prev,
           [p.id]: {
-            included:    true,
+            included:    false,
             displayName: p.name,
             description: p.description || "",
             priceValue:  precio1 != null ? String(Math.round(precio1)) : "",
@@ -95,7 +95,7 @@ export default function CatalogosPersonalizados() {
           if (!next[p.id]) {
             const precio1 = p.prices?.[0]?.price ?? null;
             next[p.id] = {
-              included:    true,
+              included:    false,
               displayName: p.name,
               description: p.description || "",
               priceValue:  precio1 != null ? String(Math.round(precio1)) : "",
