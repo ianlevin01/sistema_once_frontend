@@ -838,6 +838,125 @@ export function printCatalogoPDF(items, opts = {}) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// IMPRIMIR LISTA DE PRECIOS
+// items: [{ displayName, priceValue, code, qxb }]
+// ─────────────────────────────────────────────────────────────
+export function printPreciosPDF(items, opts = {}) {
+  const { title = "Lista de Precios" } = opts;
+
+  const itemsHtml = items.map((item) => `
+    <div class="price-card">
+      <div class="price-name">${item.displayName || "—"}</div>
+      <div class="price-codes">
+        <span class="price-code"><strong>Código:</strong> ${item.code || "—"}</span>
+        <span class="price-qxb"><strong>QxB:</strong> ${item.qxb || "—"}</span>
+      </div>
+      <div class="price-big">${item.priceValue != null ? `$${fmtMoney(item.priceValue)}` : "$0"}</div>
+    </div>
+  `).join("");
+
+  const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>${title}</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Helvetica Neue', Arial, sans-serif;
+      background: #fff;
+      color: #111;
+      padding: 16px 20px;
+    }
+    .prices-header {
+      border-bottom: 2px solid #111;
+      padding-bottom: 10px;
+      margin-bottom: 16px;
+    }
+    .prices-title {
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #111;
+    }
+    .prices-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+    }
+    .price-card {
+      border: 1px solid #333;
+      padding: 14px 12px;
+      page-break-inside: avoid;
+      display: flex;
+      flex-direction: column;
+      min-height: 160px;
+      justify-content: space-between;
+    }
+    .price-name {
+      font-size: 12px;
+      font-weight: 700;
+      color: #111;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    .price-codes {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-bottom: 8px;
+      font-family: 'Courier New', monospace;
+      font-weight: 700;
+      color: #333;
+    }
+    .price-code {
+      flex: 1;
+    }
+    .price-qxb {
+      flex: 1;
+      text-align: right;
+    }
+    .price-big {
+      font-size: 52px;
+      font-weight: 900;
+      color: #111;
+      text-align: center;
+      font-family: 'Courier New', monospace;
+      line-height: 1;
+    }
+    .prices-footer {
+      margin-top: 16px;
+      padding-top: 8px;
+      border-top: 1px solid #e0e0e0;
+      font-size: 9px;
+      color: #999;
+      text-align: center;
+    }
+    @media print {
+      body { padding: 10px 14px; }
+      @page { margin: 0.8cm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="prices-header">
+    <div class="prices-title">${title}</div>
+  </div>
+
+  <div class="prices-grid">
+    ${itemsHtml || "<p style='color:#aaa;grid-column:1/-1;text-align:center;padding:40px'>Sin productos</p>"}
+  </div>
+
+  <div class="prices-footer">
+    Lista de precios generada el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · oncepuntos.com.ar
+  </div>
+</body>
+</html>`;
+
+  openPrintWindow(html);
+}
+
+// ─────────────────────────────────────────────────────────────
 // IMPRIMIR CUENTA CORRIENTE INDIVIDUAL
 // ─────────────────────────────────────────────────────────────
 export function printCCPDF({ entity, cc, mode, cotizacion }) {

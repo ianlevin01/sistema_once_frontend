@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { getCategories, getProductsForCatalog, searchProducts } from "../utils/api";
-import { printCatalogoPDF } from "../utils/printDoc";
+import { printCatalogoPDF, printPreciosPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
 export default function CatalogosPersonalizados() {
@@ -12,6 +12,7 @@ export default function CatalogosPersonalizados() {
   const [loading,      setLoading]      = useState(false);
   const [columns,      setColumns]      = useState(3);
   const [catalogTitle, setCatalogTitle] = useState("Catálogo de Productos");
+  const [printType,    setPrintType]    = useState("catalogo");
   const { addToast, ToastContainer } = useToast();
 
   // Buscador de producto individual
@@ -131,7 +132,10 @@ export default function CatalogosPersonalizados() {
           displayName: cfg.displayName || p.name,
           description: cfg.description || "",
           price:       !isNaN(price) ? price : null,
+          priceValue:  !isNaN(price) ? price : null,
           imageUrl:    p.images?.[0]?.url || null,
+          code:        p.code || "",
+          qxb:         p.qxb || "",
         };
       });
 
@@ -139,7 +143,12 @@ export default function CatalogosPersonalizados() {
       addToast("Seleccioná al menos un producto", "error");
       return;
     }
-    printCatalogoPDF(included, { columns, title: catalogTitle });
+
+    if (printType === "catalogo") {
+      printCatalogoPDF(included, { columns, title: catalogTitle });
+    } else if (printType === "precios") {
+      printPreciosPDF(included, { title: catalogTitle });
+    }
   };
 
   const includedCount = products.filter((p) => config[p.id]?.included).length;
@@ -248,19 +257,40 @@ export default function CatalogosPersonalizados() {
               style={{ width: 260 }}
             />
           </div>
+          {printType === "catalogo" && (
+            <div>
+              <div className="input-label">Columnas en PDF</div>
+              <div style={{ display: "flex", gap: 6 }}>
+                {[2, 3, 4].map((n) => (
+                  <button
+                    key={n}
+                    className={"btn " + (columns === n ? "btn-primary" : "btn-ghost")}
+                    onClick={() => setColumns(n)}
+                    style={{ padding: "5px 14px" }}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
-            <div className="input-label">Columnas en PDF</div>
+            <div className="input-label">Tipo de impresión</div>
             <div style={{ display: "flex", gap: 6 }}>
-              {[2, 3, 4].map((n) => (
-                <button
-                  key={n}
-                  className={"btn " + (columns === n ? "btn-primary" : "btn-ghost")}
-                  onClick={() => setColumns(n)}
-                  style={{ padding: "5px 14px" }}
-                >
-                  {n}
-                </button>
-              ))}
+              <button
+                className={"btn " + (printType === "catalogo" ? "btn-primary" : "btn-ghost")}
+                onClick={() => setPrintType("catalogo")}
+                style={{ padding: "5px 14px", fontSize: 12 }}
+              >
+                Catálogo completo
+              </button>
+              <button
+                className={"btn " + (printType === "precios" ? "btn-primary" : "btn-ghost")}
+                onClick={() => setPrintType("precios")}
+                style={{ padding: "5px 14px", fontSize: 12 }}
+              >
+                Lista de precios
+              </button>
             </div>
           </div>
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
@@ -274,7 +304,7 @@ export default function CatalogosPersonalizados() {
               Ninguno
             </button>
             <button className="btn btn-primary" onClick={handleGenerate}>
-              Generar catálogo
+              {printType === "catalogo" ? "Generar catálogo" : "Generar lista de precios"}
             </button>
           </div>
         </div>
