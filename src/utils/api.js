@@ -81,7 +81,7 @@ export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corrie
 export const getCobranzasCC             = (from, to) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : ""}`);
 // Editar / eliminar movimientos de cliente
 export const editarMovimientoCC   = (movId, data) => api.put(`/cuenta-corriente/movimientos/${movId}`, data);
-export const eliminarMovimientoCC = (movId)       => api.delete(`/cuenta-corriente/movimientos/${movId}`);
+export const eliminarMovimientoCC = (movId, data) => api.delete(`/cuenta-corriente/movimientos/${movId}`, { data });
 
 // ── PRICE CONFIG (cotización del dólar) ───────────────────────
 export const getPriceConfig = () => api.get("/config/precios");

@@ -624,12 +624,14 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                   <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10, opacity: isVisual ? 0.5 : 1 }}>
                     {m.tipo === "debito" ? "Déb" : "Cobro"}
                   </span>
-                  <button
-                    onClick={() => onEditMov(m)}
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
-                    title="Editar movimiento">
-                    ✏️
-                  </button>
+                  {!m.order_id && (
+                    <button
+                      onClick={() => onEditMov(m)}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
+                      title="Editar movimiento">
+                      ✏️
+                    </button>
+                  )}
                 </div>
                 {isExpanded && (
                   <div style={{ background: "var(--bg2)", borderTop: "1px solid var(--border)", padding: "10px 20px 12px" }}>
@@ -699,6 +701,9 @@ function EntityPanel({
   // Edición de movimientos
   const [movEditando,   setMovEditando]   = useState(null);
   const [savingMovEdit, setSavingMovEdit] = useState(false);
+  const [showPwdModal,  setShowPwdModal]  = useState(false);
+  const [adminPassword, setAdminPassword] = useState("");
+  const [pendingEditData, setPendingEditData] = useState(null);
 
   const listRef = useRef(null);
   const label   = mode === "cliente" ? "Cliente" : "Proveedor";
@@ -801,8 +806,18 @@ function EntityPanel({
     setSavingCobranza(false);
   };
 
-  // Editar movimiento
+  // Editar movimiento (requiere contraseña de admin para cobranzas)
   const handleConfirmEditMov = async (movId, form, fechaOriginal) => {
+    // Guardar los datos y pedir contraseña
+    setPendingEditData({ movId, form, fechaOriginal });
+    setShowPwdModal(true);
+  };
+
+  // Procesar la edición después de validar contraseña
+  const handleConfirmEditWithPassword = async () => {
+    if (!pendingEditData) return;
+    const { movId, form, fechaOriginal } = pendingEditData;
+
     setSavingMovEdit(true);
     try {
       await editarMovFn(movId, {
@@ -810,23 +825,70 @@ function EntityPanel({
         concepto:    form.concepto,
         metodo_pago: form.metodo_pago || null,
         fecha:       form.fecha && form.fecha !== fechaOriginal ? form.fecha : null,
+        admin_password: adminPassword,
       });
       addToast("Movimiento actualizado", "success");
       setMovEditando(null);
+      setShowPwdModal(false);
+      setAdminPassword("");
+      setPendingEditData(null);
       loadCC(selected.id);
-    } catch (err) { addToast(err?.response?.data?.message || "Error actualizando movimiento", "error"); }
+    } catch (err) {
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message || "Error actualizando movimiento";
+      // Si es contraseña incorrecta (403), solo mostrar el error sin cerrar modal
+      if (status === 403) {
+        addToast(message, "error");
+      } else {
+        addToast(message, "error");
+        setShowPwdModal(false);
+        setAdminPassword("");
+        setPendingEditData(null);
+      }
+    }
     setSavingMovEdit(false);
   };
 
-  const handleDeleteMov = async (movId) => {
-    if (!confirm("¿Eliminar este movimiento? El saldo de la cuenta será ajustado automáticamente.")) return;
+  const handleDeleteMov = (movId) => {
+    const mov = movEditando;
+    // Solo permitir eliminar cobranzas, no comprobantes
+    if (mov?.order_id) {
+      addToast("No se pueden eliminar comprobantes desde aquí", "error");
+      return;
+    }
+    if (!confirm("¿Eliminar esta cobranza? El saldo de la cuenta será ajustado automáticamente.")) return;
+    // Pedir contraseña de admin
+    setPendingEditData({ movId, isDelete: true });
+    setShowPwdModal(true);
+  };
+
+  // Procesar la eliminación después de validar contraseña
+  const handleConfirmDeleteWithPassword = async () => {
+    if (!pendingEditData?.isDelete) return;
+    const { movId } = pendingEditData;
+
     setSavingMovEdit(true);
     try {
-      await eliminarMovFn(movId);
+      await eliminarMovFn(movId, { admin_password: adminPassword });
       addToast("Movimiento eliminado y saldo ajustado", "success");
       setMovEditando(null);
+      setShowPwdModal(false);
+      setAdminPassword("");
+      setPendingEditData(null);
       loadCC(selected.id);
-    } catch (err) { addToast(err?.response?.data?.message || "Error eliminando movimiento", "error"); }
+    } catch (err) {
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message || "Error eliminando movimiento";
+      // Si es contraseña incorrecta (403), solo mostrar el error sin cerrar modal
+      if (status === 403) {
+        addToast(message, "error");
+      } else {
+        addToast(message, "error");
+        setShowPwdModal(false);
+        setAdminPassword("");
+        setPendingEditData(null);
+      }
+    }
     setSavingMovEdit(false);
   };
 
@@ -1021,6 +1083,51 @@ function EntityPanel({
         onDelete={handleDeleteMov}
         saving={savingMovEdit}
       />
+
+      {/* Modal de contraseña de admin para cobranzas (editar/eliminar) */}
+      {showPwdModal && (
+        <div className="modal-overlay" onClick={() => !savingMovEdit && setShowPwdModal(false)}>
+          <div className="modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Contraseña requerida</span>
+              <button className="modal-close" onClick={() => !savingMovEdit && setShowPwdModal(false)} disabled={savingMovEdit}>✕</button>
+            </div>
+            <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
+                {pendingEditData?.isDelete
+                  ? "Solo administradores pueden eliminar cobranzas. Ingrese su contraseña:"
+                  : "Solo administradores pueden editar montos de cobranzas. Ingrese su contraseña:"}
+              </p>
+              <div className="input-group">
+                <label className="input-label">Contraseña de administrador</label>
+                <input
+                  className="input"
+                  type="password"
+                  value={adminPassword}
+                  onChange={(e) => setAdminPassword(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !savingMovEdit) {
+                      pendingEditData?.isDelete ? handleConfirmDeleteWithPassword() : handleConfirmEditWithPassword();
+                    }
+                  }}
+                  placeholder="Ingrese su contraseña"
+                  autoFocus
+                  disabled={savingMovEdit}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={() => setShowPwdModal(false)} disabled={savingMovEdit}>Cancelar</button>
+              <button
+                className={`btn ${pendingEditData?.isDelete ? "btn-danger" : "btn-primary"}`}
+                onClick={pendingEditData?.isDelete ? handleConfirmDeleteWithPassword : handleConfirmEditWithPassword}
+                disabled={savingMovEdit || !adminPassword.trim()}>
+                {savingMovEdit ? "Verificando..." : pendingEditData?.isDelete ? "Eliminar" : "Guardar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
