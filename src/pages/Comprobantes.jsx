@@ -643,6 +643,7 @@ export default function Comprobantes({ initialCreating = false }) {
   const [consumidorFinalNombre, setConsumidorFinalNombre] = useState("");
   const [divisa,                setDivisa]                = useState("ARS");
   const divisaRef        = useRef("ARS");
+  const itemsBaseDivisaRef = useRef("ARS");  // Divisa en la que están almacenados los items cargados
   const cotizacionRef    = useRef(1);
   const skipDivisaConv   = useRef(false);
   const changeDivisa = (valOrFn) => {
@@ -717,24 +718,54 @@ export default function Comprobantes({ initialCreating = false }) {
 
   // Cuando divisa cambia (por selección de cliente/proveedor o toggle manual),
   // convertir los precios de los items ya cargados.
-  // useEffect garantiza que runs con el estado más reciente.
-  // React hace bail-out si divisa no cambió (USD→USD no dispara este efecto).
+  // Los items se almacenan en itemsBaseDivisaRef (la divisa en la que se cargaron).
+  // Convertimos FROM itemsBaseDivisaRef TO divisa usando la cotización actual.
   const prevDivisaRef = useRef("ARS");
   useEffect(() => {
     const prev = prevDivisaRef.current;
     prevDivisaRef.current = divisa;
     if (prev === divisa) return;
     if (skipDivisaConv.current) { skipDivisaConv.current = false; return; }
+
+    const performConversion = (cotiz) => {
+      if (!cotiz || cotiz <= 0) return;
+      const baseDivisa = itemsBaseDivisaRef.current;
+
+      setItems((prevItems) =>
+        prevItems.length === 0 ? prevItems : prevItems.map((it) => {
+          let newPrice = Number(it.unit_price);
+
+          // Convertir desde baseDivisa a divisa objetivo
+          if (baseDivisa === divisa) {
+            // Ya están en la divisa correcta, no convertir
+            return { ...it, unit_price: newPrice };
+          } else if (baseDivisa === "ARS" && divisa === "USD") {
+            // ARS → USD: dividir por cotización
+            newPrice = Math.round((newPrice / cotiz) * 100) / 100;
+          } else if (baseDivisa === "USD" && divisa === "ARS") {
+            // USD → ARS: multiplicar por cotización
+            newPrice = Math.round((newPrice * cotiz) * 100) / 100;
+          }
+
+          return { ...it, unit_price: newPrice };
+        })
+      );
+    };
+
     const cotiz = cotizacionRef.current;
-    if (!cotiz || cotiz <= 0) return;
-    setItems((prevItems) =>
-      prevItems.length === 0 ? prevItems : prevItems.map((it) => ({
-        ...it,
-        unit_price: divisa === "USD"
-          ? Math.round((Number(it.unit_price) / cotiz) * 100) / 100
-          : Math.round((Number(it.unit_price) * cotiz) * 100) / 100,
-      }))
-    );
+    if (cotiz && cotiz > 0) {
+      performConversion(cotiz);
+    } else {
+      // Si la cotización no está cargada, cargarla ahora
+      getPriceConfig().then(({ data }) => {
+        const v = Number(data.cotizacion_dolar) || 1;
+        cotizacionRef.current = v;
+        setCotizacion(v);
+        performConversion(v);
+      }).catch(() => {
+        performConversion(1); // Usar 1 como fallback
+      });
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [divisa]);
 
@@ -928,8 +959,19 @@ export default function Comprobantes({ initialCreating = false }) {
         const totalARS = rawItems.reduce((acc, it) => acc + Number(it.unit_price) * Number(it.quantity), 0);
         const descuentoFactor = 1 - (Number(c.descuento_pct ?? 0) / 100);
         if (totalARS > 0) cotizEdit = (totalARS * descuentoFactor) / Number(c.total);
+        // Guardar esta cotización para futuras conversiones de divisa
+        cotizacionRef.current = cotizEdit;
+        setCotizacion(cotizEdit);
+      } else if (c.divisa === "ARS") {
+        // Para comprobantes ARS, siempre usar la cotización actual (no la de un comprobante anterior)
+        const { data } = await getPriceConfig();
+        const v = Number(data.cotizacion_dolar) || 1;
+        cotizacionRef.current = v;
+        setCotizacion(v);
       }
-      setItems(rawItems.map((it) => ({
+
+      // Mapear items y convertir si es necesario
+      const mappedItems = rawItems.map((it) => ({
         product_id:  it.product_id,
         code:        it.product_code || it.code || "",
         name:        it.product_name || it.name || "",
@@ -938,7 +980,12 @@ export default function Comprobantes({ initialCreating = false }) {
         unit_price:  cotizEdit
           ? Math.round((Number(it.unit_price) / cotizEdit) * 100) / 100
           : Number(it.unit_price),
-      })));
+      }));
+
+      setItems(mappedItems);
+
+      // Establecer la divisa base de los items: después de la conversión, están en c.divisa
+      itemsBaseDivisaRef.current = c.divisa || "ARS";
     } catch { addToast("Error cargando comprobante", "error"); }
   };
 
@@ -981,6 +1028,7 @@ export default function Comprobantes({ initialCreating = false }) {
     setItems([]); setProdSel(null); setItemQty(""); setItemPrice(""); setItemDesc("");
     setLastPrice(null); setEditingId(null); setDescuentoPct("0");
     setEsConsumidorFinal(false); setConsumidorFinalNombre(""); changeDivisa("ARS");
+    itemsBaseDivisaRef.current = "ARS";
   };
 
   const handleDelete = (id) => { setDeleteModal(id); setDeletePassword(""); };

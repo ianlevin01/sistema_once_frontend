@@ -651,7 +651,10 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                         <tbody>
                           {items.map((it, idx) => (
                             <tr key={idx} style={{ borderTop: "1px solid var(--border)" }}>
-                              <td style={{ padding: "5px 8px 5px 0", color: "var(--text)" }}>{it.name || it.product_name || "—"}</td>
+                              <td style={{ padding: "5px 8px 5px 0", color: "var(--text)" }}>
+                                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#2563eb", fontWeight: 600, marginRight: 6 }}>{it.code || it.product_code || "—"}</span>
+                                {it.name || it.product_name || "—"}
+                              </td>
                               <td style={{ padding: "5px 8px", textAlign: "center", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{it.quantity}</td>
                               <td style={{ padding: "5px 0 5px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>
                                 {(it.quantity * Number(it.unit_price)).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

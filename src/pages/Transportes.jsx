@@ -34,8 +34,8 @@ export default function Transportes() {
   const cancel   = () => { setEditing(null); setForm(EMPTY); };
 
   const save = async () => {
-    if (!form.codigo.trim() || !form.razon_social.trim() || !form.telefono.trim()) {
-      addToast("Código, razón social y teléfono son obligatorios", "error");
+    if (!form.razon_social.trim()) {
+      addToast("Nombre (Razón Social) es obligatorio", "error");
       return;
     }
     setSaving(true);
@@ -127,7 +127,7 @@ export default function Transportes() {
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginBottom: 12 }}>
             <div>
-              <div className="input-label">Código *</div>
+              <div className="input-label">Código</div>
               <input className="input" value={form.codigo} onChange={(e) => set("codigo", e.target.value)} placeholder="Ej: DALF" />
             </div>
             <div>
@@ -135,7 +135,7 @@ export default function Transportes() {
               <input className="input" value={form.razon_social} onChange={(e) => set("razon_social", e.target.value)} placeholder="Ej: DON ALFREDO" />
             </div>
             <div>
-              <div className="input-label">Teléfono *</div>
+              <div className="input-label">Teléfono</div>
               <input className="input" value={form.telefono} onChange={(e) => set("telefono", e.target.value)} placeholder="Ej: (011) 4xxx-xxxx" />
             </div>
           </div>

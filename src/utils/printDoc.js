@@ -91,8 +91,9 @@ export function printWebOrderPDF(order) {
   );
   const total = Number(order.total) || items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
 
-  const itemsHtml = items.map((it) => `
+  const itemsHtml = items.map((it, idx) => `
     <tr>
+      <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${idx + 1}</td>
       <td style="font-family:monospace;font-size:11px;color:#555">${it.code || "—"}</td>
       <td>${it.name || "—"}</td>
       <td class="right" style="font-family:monospace">${it.quantity}</td>
@@ -130,6 +131,7 @@ export function printWebOrderPDF(order) {
     <table>
       <thead>
         <tr>
+          <th style="width:30px;text-align:center">Nº</th>
           <th style="width:80px">Código</th>
           <th>Descripción</th>
           <th class="right" style="width:60px">Cant.</th>
@@ -138,11 +140,11 @@ export function printWebOrderPDF(order) {
         </tr>
       </thead>
       <tbody>
-        ${itemsHtml || "<tr><td colspan='5' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
+        ${itemsHtml || "<tr><td colspan='6' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
       </tbody>
       <tfoot>
         <tr class="total-row">
-          <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
+          <td colspan="5" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
           <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
         </tr>
       </tfoot>
@@ -173,8 +175,9 @@ function buildRemitoHtml(remito, sinPrecios = false) {
   );
   const total = items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
 
-  const itemsHtml = items.map((it) => `
+  const itemsHtml = items.map((it, idx) => `
     <tr>
+      <td style="font-family:monospace;color:#999;text-align:center;width:25px">${idx + 1}</td>
       <td style="font-family:monospace;color:#555">${it.code || "—"}</td>
       <td>${it.name || it.description || "—"}</td>
       <td class="right" style="font-family:monospace">${it.quantity}</td>
@@ -185,7 +188,7 @@ function buildRemitoHtml(remito, sinPrecios = false) {
     </tr>
   `).join("");
 
-  const cols = sinPrecios ? 3 : 5;
+  const cols = sinPrecios ? 4 : 6;
 
   const copyHtml = `
   <div class="remito-copy">
@@ -210,6 +213,7 @@ function buildRemitoHtml(remito, sinPrecios = false) {
     <table>
       <thead>
         <tr>
+          <th style="width:25px;text-align:center">Nº</th>
           <th style="width:70px">Código</th>
           <th>Descripción</th>
           <th class="right" style="width:50px">Cant.</th>
@@ -225,7 +229,7 @@ function buildRemitoHtml(remito, sinPrecios = false) {
       ${!sinPrecios ? `
       <tfoot>
         <tr class="total-row">
-          <td colspan="4" style="text-align:right;font-size:11px;color:#555">TOTAL</td>
+          <td colspan="5" style="text-align:right;font-size:11px;color:#555">TOTAL</td>
           <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
         </tr>
       </tfoot>` : ""}
@@ -312,8 +316,9 @@ function buildComprobanteHtml(doc) {
   const descuentoPct  = Number(doc.descuento_pct ?? 0) || 0;
   const subtotalDisp  = toDisplayPrice(itemsTotalARS);
 
-  const itemsHtml = normalizedItems.map((it) => `
+  const itemsHtml = normalizedItems.map((it, idx) => `
     <tr>
+      <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${idx + 1}</td>
       <td style="font-family:monospace;font-size:11px;color:#555">${it.code}</td>
       <td>${it.name}</td>
       <td class="right" style="font-family:monospace">${it.quantity}</td>
@@ -375,6 +380,7 @@ function buildComprobanteHtml(doc) {
     <table>
       <thead>
         <tr>
+          <th style="width:30px;text-align:center">Nº</th>
           <th style="width:80px">Código</th>
           <th>Descripción</th>
           <th class="right" style="width:60px">Cant.</th>
