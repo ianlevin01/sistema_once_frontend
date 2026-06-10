@@ -460,6 +460,8 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [orderItems,     setOrderItems]     = useState({});
   const [soloCC,         setSoloCC]         = useState(false);
+  const [filterFromDate, setFilterFromDate] = useState("");
+  const [filterToDate,   setFilterToDate]   = useState("");
 
   const toggleDetails = async (orderId) => {
     if (expandedOrders.has(orderId)) {
@@ -491,14 +493,18 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   }
 
   const esProveedor = mode === "proveedor";
-  const saldoColor  = saldo > 0 ? "var(--danger)" : saldo < 0 ? "var(--success)" : "var(--text-dim)";
-  const saldoLabel  = esProveedor
-    ? (saldo > 0 ? "Le debemos" : "Sin deuda")
-    : (saldo > 0 ? "Debe" : "Saldo a favor");
 
-  // Calcular saldo acumulado por movimiento (solo los que afectan saldo, de más viejo a más nuevo)
-  const movsConSaldo = (() => {
-    const reversed = [...movimientos].reverse();
+  // Helper: convertir timestamp UTC a fecha YYYY-MM-DD en zona horaria local
+  const getLocalDateStr = (timestamp) => {
+    if (!timestamp) return "";
+    const d = new Date(timestamp);
+    return d.toLocaleDateString("sv"); // sv = ISO format YYYY-MM-DD
+  };
+
+  // Calcular saldo acumulado PARA TODOS los movimientos (con historia completa)
+  // Esto es independiente de los filtros
+  const movsConSaldoReal = (() => {
+    const reversed = [...movimientos].reverse(); // Más viejo a más nuevo
     let running = 0;
     const withBal = reversed.map((m) => {
       if (m.afecta_saldo !== false) {
@@ -506,30 +512,100 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
       }
       return { ...m, _saldo_momento: running };
     });
-    return withBal.reverse();
+    return withBal.reverse(); // Vuelve a DESC (más nuevo a más viejo)
   })();
 
-  const movsVisibles = soloCC ? movsConSaldo.filter((m) => m.afecta_saldo !== false) : movsConSaldo;
+  // Ahora filtrar para mostrar en la tabla
+  const movsVisibles = (() => {
+    let resultado = soloCC
+      ? movsConSaldoReal.filter((m) => m.afecta_saldo !== false)
+      : movsConSaldoReal;
+
+    if (!filterFromDate && !filterToDate) return resultado;
+
+    return resultado.filter((m) => {
+      const movDate = getLocalDateStr(m.created_at);
+      if (filterFromDate && movDate < filterFromDate) return false;
+      if (filterToDate && movDate > filterToDate) return false;
+      return true;
+    });
+  })();
+
+  // Calcular saldo inicial: suma de movimientos DESDE el filterFromDate (sin limitar por filterToDate)
+  const sumaMovsDesdeInicio = filterFromDate ? movsConSaldoReal
+    .filter(m => {
+      const movDate = getLocalDateStr(m.created_at);
+      return movDate >= filterFromDate; // Solo desde la fecha inicial, sin límite superior
+    })
+    .reduce((acc, m) => {
+      if (m.afecta_saldo === false) return acc;
+      return acc + (m.tipo === "debito" ? Number(m.monto) : -Number(m.monto));
+    }, 0) : 0;
+
+  const saldoInicial = filterFromDate ? saldo - sumaMovsDesdeInicio : saldo;
+
+  // Si hay "hasta", mostrar saldo AL "hasta"
+  const sumaDepues = filterToDate ? movimientos.reduce((acc, m) => {
+    const movDate = getLocalDateStr(m.created_at);
+    if (movDate <= filterToDate) return acc;
+    if (m.afecta_saldo === false) return acc;
+    return acc + (m.tipo === "debito" ? Number(m.monto) : -Number(m.monto));
+  }, 0) : 0;
+
+  const saldoMostrado = filterToDate ? saldo - sumaDepues : saldo;
+
+  const saldoColor  = saldoMostrado > 0 ? "var(--danger)" : saldoMostrado < 0 ? "var(--success)" : "var(--text-dim)";
+  const saldoLabel  = esProveedor
+    ? (saldoMostrado > 0 ? "Le debemos" : "Sin deuda")
+    : (saldoMostrado > 0 ? "Debe" : "Saldo a favor");
 
   const GRID = "110px 1fr 130px 120px 110px 70px 120px 60px 36px";
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 16, marginBottom: 16 }}>
-        <div style={{ flex: 1, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: "18px 22px" }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div style={{ flex: 1, minWidth: 300, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: "18px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Saldo de la cuenta</div>
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Saldo de la cuenta{filterToDate ? ` al ${filterToDate}` : ""}</div>
             <DivisaBadge divisa={divisa} />
           </div>
           <div style={{ fontSize: 28, fontFamily: "var(--font-mono)", fontWeight: 800, color: saldoColor }}>
-            {fmtMontoSigned(saldo, divisa)}
+            {fmtMontoSigned(saldoMostrado, divisa)}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>{saldoLabel}</div>
           {cotizacion > 0 && (
             <div style={{ marginTop: 8, fontSize: 11, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-              ≈ {fmtMontoSigned(divisa === "USD" ? saldo * cotizacion : saldo / cotizacion, divisa === "USD" ? "ARS" : "USD")}
+              ≈ {fmtMontoSigned(divisa === "USD" ? saldoMostrado * cotizacion : saldoMostrado / cotizacion, divisa === "USD" ? "ARS" : "USD")}
               {" · cotiz. $"}{cotizacion.toLocaleString("es-AR")}
             </div>
+          )}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Desde</label>
+            <input
+              type="date"
+              value={filterFromDate}
+              onChange={(e) => setFilterFromDate(e.target.value)}
+              style={{ padding: "6px 8px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-mono)" }}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <label style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Hasta</label>
+            <input
+              type="date"
+              value={filterToDate}
+              onChange={(e) => setFilterToDate(e.target.value)}
+              style={{ padding: "6px 8px", fontSize: 12, border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg)", color: "var(--text)", fontFamily: "var(--font-mono)" }}
+            />
+          </div>
+          {(filterFromDate || filterToDate) && (
+            <button
+              onClick={() => { setFilterFromDate(""); setFilterToDate(""); }}
+              style={{ padding: "6px 12px", fontSize: 11, border: "1px solid var(--border)", borderRadius: 4, background: "var(--bg)", color: "var(--text-dim)", cursor: "pointer", alignSelf: "flex-end", whiteSpace: "nowrap" }}
+            >
+              Limpiar filtro
+            </button>
           )}
         </div>
       </div>
@@ -556,7 +632,12 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
         <div style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12, padding: "24px 0" }}>Sin movimientos</div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
-          <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "8px 12px", background: "var(--bg3)", borderRadius: "6px 6px 0 0", borderBottom: "2px solid var(--border)" }}>
+          {filterFromDate && (
+            <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-muted)", padding: "8px 12px", background: "var(--bg3)", borderRadius: "6px 6px 0 0", borderBottom: "1px solid var(--border)" }}>
+              Saldo al {filterFromDate}: <span style={{ fontWeight: 700, color: saldoInicial > 0 ? "var(--danger)" : saldoInicial < 0 ? "var(--success)" : "var(--text-dim)" }}>{fmtMontoSigned(saldoInicial, divisa)}</span>
+            </div>
+          )}
+          <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "8px 12px", background: "var(--bg3)", borderRadius: filterFromDate ? "0" : "6px 6px 0 0", borderBottom: "2px solid var(--border)" }}>
             {["Fecha", "Concepto", "Método", "Monto", "Original", "D.Cobro", "Saldo", "Tipo", ""].map((h) => (
               <div key={h} style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
