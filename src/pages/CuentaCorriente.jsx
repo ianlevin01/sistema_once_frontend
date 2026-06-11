@@ -502,13 +502,25 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   };
 
   // Calcular saldo acumulado PARA TODOS los movimientos (con historia completa)
-  // Esto es independiente de los filtros
+  // Para proveedores: saldo_inicial suma, pagos restan
   const movsConSaldoReal = (() => {
     const reversed = [...movimientos].reverse(); // Más viejo a más nuevo
     let running = 0;
     const withBal = reversed.map((m) => {
       if (m.afecta_saldo !== false) {
-        running += m.tipo === "debito" ? Number(m.monto) : -Number(m.monto);
+        if (esProveedor) {
+          // Para proveedores: saldo_inicial y reposiciones suman, pagos restan
+          if (m.concepto && m.concepto.toLowerCase().includes('saldo_inicial')) {
+            running += Number(m.monto); // saldo_inicial suma
+          } else if (m.tipo === "debito") {
+            running -= Number(m.monto); // pagos (débito) restan
+          } else {
+            running += Number(m.monto); // reposiciones (cobro) suman
+          }
+        } else {
+          // Para clientes: débito suma, pago resta
+          running += m.tipo === "debito" ? Number(m.monto) : -Number(m.monto);
+        }
       }
       return { ...m, _saldo_momento: running };
     });
@@ -692,8 +704,11 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                     <span style={{ fontSize: 13, ...visualStyle }}>{m.concepto || "—"}</span>
                   )}
                   <span style={{ fontSize: 12, fontFamily: "var(--font-mono)", color: isVisual ? "#1d4ed8" : "var(--text-muted)", fontWeight: isVisual ? 700 : 400 }}>{metodoDisplay}</span>
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: isVisual ? "#1d4ed8" : (m.tipo === "debito" ? "var(--danger)" : "var(--success)") }}>
-                    {m.tipo === "debito" ? "+" : "−"}{fmtMonto(m.monto, divisaCC)}
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 14, fontWeight: 700, color: isVisual ? "#1d4ed8" : (esProveedor && m.concepto && m.concepto.toLowerCase().includes('saldo_inicial') ? "var(--text)" : (m.tipo === "debito" ? "var(--danger)" : "var(--success)")) }}>
+                    {esProveedor
+                      ? (m.concepto && m.concepto.toLowerCase().includes('saldo_inicial') ? "+" : (m.tipo === "debito" ? "−" : "+"))
+                      : (m.tipo === "debito" ? "+" : "−")
+                    }{fmtMonto(m.monto, divisaCC)}
                   </span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: hayConv ? "var(--text-muted)" : "var(--text-dim)" }}>
                     {hayConv && m.monto_original != null ? fmtMonto(m.monto_original, divisaCobro) : "—"}
