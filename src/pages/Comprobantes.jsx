@@ -616,6 +616,7 @@ export default function Comprobantes({ initialCreating = false }) {
   const [comprobantes, setComprobantes] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
+  const [loadingDetail,setLoadingDetail]= useState(false);
   const [creating,     setCreating]     = useState(initialCreating);
   const [editingId,    setEditingId]    = useState(null); // id del comprobante en edición
 
@@ -1045,8 +1046,11 @@ export default function Comprobantes({ initialCreating = false }) {
   };
 
   const openDetail = async (id) => {
+    if (loadingDetail) return;
+    setLoadingDetail(true);
     try { const { data } = await getComprobante(id); setSelected(data); }
     catch { addToast("Error cargando", "error"); }
+    finally { setLoadingDetail(false); }
   };
 
   // ── RENDER ─────────────────────────────────────────────────────
@@ -1180,8 +1184,8 @@ export default function Comprobantes({ initialCreating = false }) {
                         </td>
                         <td>
                           <div style={{ display:"flex", gap:6 }}>
-                            <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)}>Ver</button>
-                            <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }}>🖨</button>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openDetail(c.id)} disabled={loadingDetail}>Ver</button>
+                            <button className="btn btn-ghost btn-sm" title="Imprimir" onClick={async () => { const { data } = await getComprobante(c.id); printComprobantePDF(data); }} disabled={loadingDetail}>🖨</button>
                             <button
                               className="btn btn-ghost btn-sm"
                               onClick={() => window.open(`/comprobantes/editar/${c.id}`, "_blank")}
