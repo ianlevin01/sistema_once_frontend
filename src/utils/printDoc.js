@@ -85,13 +85,13 @@ const BASE_CSS = `
     background: #f0f0f0;
     color: #333;
   }
-  .page { break-after: page; position: relative; padding-bottom: 60px; }
+  .page { break-after: page; position: relative; padding-bottom: 80px; }
   .page:last-child { break-after: auto; }
-  .page-number { position: absolute; bottom: 10px; right: 20px; font-size: 10px; color: #999; }
+  .page-number { position: absolute; bottom: 20px; right: 30px; font-size: 12px; color: #333; font-weight: 600; }
   @media print {
     body { padding: 16px 20px; }
     @page { margin: 1cm; }
-    .page { break-after: page; }
+    .page { break-after: page; padding-bottom: 80px; }
     .page:last-child { break-after: auto; }
   }
 `;
