@@ -85,9 +85,9 @@ const BASE_CSS = `
     background: #f0f0f0;
     color: #333;
   }
-  .page { break-after: page; position: relative; padding-bottom: 80px; }
+  .page { break-after: page; position: relative; padding-bottom: 100px; }
   .page:last-child { break-after: auto; }
-  .page-number { position: absolute; bottom: 20px; right: 30px; font-size: 12px; color: #333; font-weight: 600; }
+  .page-number { position: absolute; bottom: 30px; right: 40px; font-size: 14px; color: #000; font-weight: 700; border: 1px solid #333; padding: 4px 8px; background: #f5f5f5; }
   @media print {
     body { padding: 16px 20px; }
     @page { margin: 1cm; }
