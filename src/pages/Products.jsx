@@ -205,6 +205,9 @@ export default function Products() {
   const [selectedCodes,  setSelectedCodes]  = useState(new Set());
   const [expandedRows,   setExpandedRows]   = useState(new Set());
   const [applying,       setApplying]       = useState(false);
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [duplicateCodes, setDuplicateCodes] = useState([]);
+  const [confirmApplyWithDuplicates, setConfirmApplyWithDuplicates] = useState(false);
   const fileInputRef = useRef(null);
 
   // ── Agregar stock ────────────────────────────────────────────────────────
@@ -569,15 +572,34 @@ export default function Products() {
 
   const handleApply = async () => {
     if (!importFile || selectedCodes.size === 0) return;
+
+    // Verificar si hay códigos duplicados en los seleccionados
+    const duplicatesInSelected = (diffResult?.duplicateCodes || []).filter((code) =>
+      selectedCodes.has(code)
+    );
+
+    if (duplicatesInSelected.length > 0 && !confirmApplyWithDuplicates) {
+      setDuplicateCodes(duplicatesInSelected);
+      setShowDuplicateWarning(true);
+      return;
+    }
+
     setApplying(true);
     try {
       const { data } = await importProductsApply(importFile, includeStock, [...selectedCodes]);
-      addToast(`${data.applied} producto${data.applied !== 1 ? "s" : ""} actualizados`, "success");
+      addToast(
+        `${data.applied} producto${data.applied !== 1 ? "s" : ""} actualizados${
+          data.duplicateWarning ? ` (${data.duplicateWarning})` : ""
+        }`,
+        "success"
+      );
       setDiffResult(null);
       setImportFile(null);
       setImportFileName("");
       setSelectedCodes(new Set());
       setExpandedRows(new Set());
+      setConfirmApplyWithDuplicates(false);
+      setShowDuplicateWarning(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       addToast(err?.response?.data?.message || "Error aplicando cambios", "error");
@@ -1223,6 +1245,54 @@ export default function Products() {
                       </button>
                     </div>
                   </div>
+
+                  {/* Modal de advertencia por duplicados */}
+                  {showDuplicateWarning && (
+                    <div style={{ position:"fixed", top:0, left:0, right:0, bottom:0, background:"rgba(0,0,0,0.5)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+                      <div style={{ background:"var(--bg)", borderRadius:8, padding:24, maxWidth:500, boxShadow:"0 20px 25px rgba(0,0,0,0.15)" }}>
+                        <div style={{ display:"flex", gap:12, marginBottom:16 }}>
+                          <span style={{ fontSize:24, color:"var(--warning)" }}>⚠️</span>
+                          <div>
+                            <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>Códigos duplicados detectados</div>
+                            <div style={{ fontSize:13, color:"var(--text-muted)" }}>
+                              Los siguientes códigos aparecen múltiples veces en el Excel. Se utilizará solo la primera ocurrencia de cada uno:
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:6, padding:12, marginBottom:20, maxHeight:200, overflowY:"auto" }}>
+                          <div style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text)" }}>
+                            {duplicateCodes.map((code) => (
+                              <div key={code} style={{ padding:4 }}>• {code}</div>
+                            ))}
+                          </div>
+                        </div>
+                        <div style={{ display:"flex", gap:10 }}>
+                          <button
+                            className="btn btn-ghost"
+                            onClick={() => {
+                              setShowDuplicateWarning(false);
+                              setDuplicateCodes([]);
+                              setConfirmApplyWithDuplicates(false);
+                            }}
+                            style={{ flex:1 }}
+                          >
+                            Cancelar
+                          </button>
+                          <button
+                            className="btn btn-primary"
+                            onClick={() => {
+                              setConfirmApplyWithDuplicates(true);
+                              setShowDuplicateWarning(false);
+                              handleApply();
+                            }}
+                            style={{ flex:1 }}
+                          >
+                            Aplicar de todas formas
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Tabla de diferencias */}
                   <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
