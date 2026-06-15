@@ -19,7 +19,8 @@ import UltimasCompras from "./pages/UltimasCompras";
 import StockMovimientos from "./pages/StockMovimientos";
 import CatalogosPersonalizados from "./pages/CatalogosPersonalizados";
 import Dashboard from "./pages/Dashboard";
-import Rentabilidad from "./pages/Rentabilidad";
+import Rentabilidad  from "./pages/Rentabilidad";
+import AsistenteIA  from "./pages/AsistenteIA";
 
 // Ruta protegida: redirige a /login si no hay sesión.
 // Si el usuario es vendedor y la ruta no está permitida, redirige a su home.
@@ -38,6 +39,14 @@ function SuperAdminRoute({ children }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   if (user?.role !== "superadmin") return <Navigate to="/dashboard" replace />;
+  return children;
+}
+
+// Ruta exclusiva admin o superadmin
+function AdminRoute({ children }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  if (user?.role !== "admin" && user?.role !== "superadmin") return <Navigate to="/dashboard" replace />;
   return children;
 }
 
@@ -122,6 +131,9 @@ function AppRoutes() {
       } />
       <Route path="/rentabilidad" element={
         <SuperAdminRoute><Layout><Rentabilidad /></Layout></SuperAdminRoute>
+      } />
+      <Route path="/asistente-ia" element={
+        <AdminRoute><Layout><AsistenteIA /></Layout></AdminRoute>
       } />
 
       {/* Fallback */}

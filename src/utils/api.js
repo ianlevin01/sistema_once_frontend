@@ -191,4 +191,9 @@ export const createGastoFijo       = (data)      => api.post("/rentabilidad/gast
 export const updateGastoFijo       = (id, data)  => api.put(`/rentabilidad/gastos-fijos/${id}`, data);
 export const deleteGastoFijo       = (id)        => api.delete(`/rentabilidad/gastos-fijos/${id}`);
 
+// ── ASISTENTE IA (interno) ────────────────────────────────────
+export const aiAgentChat         = (messages)          => api.post("/ai/agent/chat", { messages });
+export const getAIPermissions    = ()                  => api.get("/ai/agent/permissions");
+export const updateAIPermission  = (section, data)     => api.put(`/ai/agent/permissions/${section}`, data);
+
 export default api;

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../utils/useToast";
 import api from "../utils/api";
-import { getWarehouses, createWarehouse } from "../utils/api";
+import { getWarehouses, createWarehouse, getAIPermissions, updateAIPermission } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 
 const fmt  = (v, dec = 2) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -52,6 +52,10 @@ export default function Configuracion() {
   const [preferredWarehouse, setPreferredWarehouse] = useState("");
   const [savingPw,           setSavingPw]           = useState(false);
 
+  // ── Permisos Asistente IA ─────────────────────────────────────
+  const [aiPerms,      setAiPerms]      = useState({});
+  const [savingAiPerm, setSavingAiPerm] = useState(null);
+
   // ── Estado admin ──────────────────────────────────────────────
   const [config, setConfig] = useState({
     cotizacion_dolar: "",
@@ -67,9 +71,10 @@ export default function Configuracion() {
     if (isVendedor) { setLoading(false); return; }
     (async () => {
       try {
-        const [{ data: cfg }, { data: whs }] = await Promise.all([
+        const [{ data: cfg }, { data: whs }, { data: aiPermsData }] = await Promise.all([
           api.get("/config/precios"),
           getWarehouses(),
+          getAIPermissions(),
         ]);
         setConfig({
           cotizacion_dolar: String(cfg.cotizacion_dolar),
@@ -86,6 +91,9 @@ export default function Configuracion() {
         });
         setPreferredWarehouse(cfg.preferred_warehouse_id ?? "");
         setWarehouses(whs || []);
+        const permMap = {};
+        for (const p of (aiPermsData || [])) permMap[p.section] = p;
+        setAiPerms(permMap);
       } catch {
         addToast("Error cargando configuración", "error");
       }
@@ -167,6 +175,29 @@ export default function Configuracion() {
       addToast(msg, "error");
     }
     setSavingWh(false);
+  };
+
+  // can_create: true = esta sección también tiene acciones de escritura habilitables
+  const AI_SECTIONS = [
+    { key: "clientes",         label: "Clientes",         can_create: true,  readDesc: "Buscar clientes por nombre o documento",                   createDesc: "Crear nuevos clientes" },
+    { key: "cuenta_corriente", label: "Cuenta Corriente", can_create: true,  readDesc: "Consultar saldo y movimientos de cuentas",                  createDesc: "Abrir cuentas · Registrar cobranzas y cargos" },
+    { key: "proveedores",      label: "Proveedores",      can_create: true,  readDesc: "Buscar proveedores y consultar su cuenta corriente",        createDesc: "Registrar movimientos en cuentas de proveedores" },
+    { key: "productos",        label: "Productos",        can_create: false, readDesc: "Buscar productos por nombre o código",                      createDesc: null },
+    { key: "stock",            label: "Stock",            can_create: true,  readDesc: "Consultar depósitos y movimientos de stock por producto",   createDesc: "Agregar unidades de stock a productos" },
+    { key: "comprobantes",     label: "Comprobantes",     can_create: false, readDesc: "Listar y consultar comprobantes con detalle de items",      createDesc: null },
+  ];
+
+  const handleToggleAIPerm = async (section, field, value) => {
+    setSavingAiPerm(section + field);
+    const current = aiPerms[section] || {};
+    const updated = { ...current, [field]: value };
+    try {
+      await updateAIPermission(section, updated);
+      setAiPerms((prev) => ({ ...prev, [section]: { ...current, ...updated } }));
+    } catch {
+      addToast("Error guardando permiso", "error");
+    }
+    setSavingAiPerm(null);
   };
 
   const precios = calcPrecios(costoDemo, config);
@@ -458,6 +489,93 @@ export default function Configuracion() {
             )}
           </div>
         </div>
+        {/* ── Asistente IA ── */}
+        <div style={{ marginTop:32 }}>
+          <div className="card" style={{ padding:"24px 24px" }}>
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>
+              Asistente IA — Permisos
+            </div>
+            <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:20, lineHeight:1.5 }}>
+              Habilitá qué puede consultar y modificar el asistente. Solo los administradores pueden usarlo.
+              Las acciones de modificación siempre piden confirmación antes de ejecutarse.
+            </div>
+
+            {/* Encabezados */}
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 110px 110px", gap:0, marginBottom:4, padding:"0 18px" }}>
+              <div />
+              <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"center" }}>Consultar</div>
+              <div style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", textAlign:"center" }}>Modificar</div>
+            </div>
+
+            <div style={{ border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+              {AI_SECTIONS.map((s, i) => {
+                const perm        = aiPerms[s.key] || {};
+                const readEnabled = !!perm.can_read;
+                const writeEnabled= !!perm.can_create;
+                const savingRead  = savingAiPerm === s.key + "can_read";
+                const savingWrite = savingAiPerm === s.key + "can_create";
+
+                const Toggle = ({ enabled, saving, onToggle }) => (
+                  <div style={{ display:"flex", justifyContent:"center", alignItems:"center" }}>
+                    <div
+                      onClick={() => !saving && onToggle()}
+                      style={{
+                        width:42, height:24, borderRadius:12, position:"relative",
+                        background: enabled ? "var(--success)" : "var(--border)",
+                        cursor: saving ? "default" : "pointer",
+                        opacity: saving ? 0.5 : 1,
+                        transition: "background 0.2s, opacity 0.15s",
+                        flexShrink: 0,
+                      }}
+                    >
+                      <div style={{
+                        position:"absolute", top:3, left: enabled ? 21 : 3,
+                        width:18, height:18, borderRadius:"50%", background:"#fff",
+                        boxShadow:"0 1px 3px rgba(0,0,0,0.2)",
+                        transition:"left 0.2s",
+                      }} />
+                    </div>
+                  </div>
+                );
+
+                return (
+                  <div key={s.key} style={{
+                    display:"grid", gridTemplateColumns:"1fr 110px 110px",
+                    alignItems:"center",
+                    padding:"14px 18px",
+                    borderBottom: i < AI_SECTIONS.length - 1 ? "1px solid var(--border)" : "none",
+                    background: i % 2 === 0 ? "transparent" : "var(--bg2)",
+                  }}>
+                    <div>
+                      <div style={{ fontSize:14, fontWeight:600, color:"var(--text)", marginBottom:2 }}>{s.label}</div>
+                      <div style={{ fontSize:11, color:"var(--text-dim)" }}>
+                        {readEnabled ? s.readDesc : s.readDesc}
+                        {s.can_create && writeEnabled && ` · ${s.createDesc}`}
+                      </div>
+                    </div>
+
+                    <Toggle
+                      enabled={readEnabled}
+                      saving={savingRead}
+                      onToggle={() => handleToggleAIPerm(s.key, "can_read", !readEnabled)}
+                    />
+
+                    {s.can_create ? (
+                      <Toggle
+                        enabled={writeEnabled}
+                        saving={savingWrite}
+                        onToggle={() => handleToggleAIPerm(s.key, "can_create", !writeEnabled)}
+                      />
+                    ) : (
+                      <div style={{ textAlign:"center", fontSize:12, color:"var(--text-dim)" }}>—</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
       </div>
     </>
   );

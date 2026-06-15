@@ -85,13 +85,13 @@ const BASE_CSS = `
     background: #f0f0f0;
     color: #333;
   }
-  .page { break-after: page; position: relative; padding-bottom: 100px; }
+  .page { break-after: page; }
   .page:last-child { break-after: auto; }
-  .page-number { position: absolute; bottom: 30px; right: 40px; font-size: 14px; color: #000; font-weight: 700; border: 1px solid #333; padding: 4px 8px; background: #f5f5f5; }
+  .page-number { display: inline-block; font-size: 11px; color: #555; font-weight: 700; border: 1px solid #333; padding: 3px 8px; background: #f5f5f5; }
   @media print {
     body { padding: 16px 20px; }
     @page { margin: 1cm; }
-    .page { break-after: page; padding-bottom: 80px; }
+    .page { break-after: page; }
     .page:last-child { break-after: auto; }
   }
 `;
@@ -104,8 +104,6 @@ export function printWebOrderPDF(order) {
     (a.name || "").localeCompare(b.name || "", "es")
   );
   const total = Number(order.total) || items.reduce((a, i) => a + i.quantity * Number(i.unit_price || 0), 0);
-  const pages = divideIntoPages(items, 25);
-  const totalPages = pages.length;
 
   const headerHtml = `
     <div class="header">
@@ -124,70 +122,58 @@ export function printWebOrderPDF(order) {
       </div>
     </div>`;
 
-  const pagesHtml = pages.map((pageItems, pageIdx) => {
-    const pageNumber = pageIdx + 1;
-    const itemsHtml = pageItems.map((it, idx) => `
-      <tr>
-        <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${pageIdx * 25 + idx + 1}</td>
-        <td style="font-family:monospace;font-size:11px;color:#555">${it.code || "—"}</td>
-        <td>${it.name || "—"}</td>
-        <td class="right" style="font-family:monospace">${it.quantity}</td>
-        <td class="right" style="font-family:monospace">$${fmtMoney(it.unit_price)}</td>
-        <td class="right" style="font-family:monospace;font-weight:700">$${fmtMoney(it.quantity * Number(it.unit_price || 0))}</td>
-      </tr>
-    `).join("");
-
-    const isLastPage = pageNumber === totalPages;
-
-    return `
-    <div class="page">
-      ${pageIdx === 0 ? headerHtml : ""}
-      <div class="section" style="margin-top: ${pageIdx > 0 ? "0" : "0"}">
-        <div class="section-title">Productos (${pageIdx === 0 ? items.length : "continuación"})</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:30px;text-align:center">Nº</th>
-              <th style="width:80px">Código</th>
-              <th>Descripción</th>
-              <th class="right" style="width:60px">Cant.</th>
-              <th class="right" style="width:110px">P. Unit.</th>
-              <th class="right" style="width:120px">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-          ${isLastPage ? `
-          <tfoot>
-            <tr class="total-row">
-              <td colspan="5" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
-              <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
-            </tr>
-          </tfoot>` : ""}
-        </table>
-      </div>
-      ${isLastPage && order.observaciones ? `
-      <div class="section">
-        <div class="section-title">Observaciones</div>
-        <div style="font-size:12px;color:#444;line-height:1.6">${order.observaciones}</div>
-      </div>` : ""}
-      <div class="page-number">${totalPages > 1 ? `${pageNumber}/${totalPages}` : ""}</div>
-    </div>`;
-  }).join("");
+  const itemsHtml = items.map((it, idx) => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${idx + 1}</td>
+      <td style="font-family:monospace;font-size:11px;color:#555">${it.code || "—"}</td>
+      <td>${it.name || "—"}</td>
+      <td class="right" style="font-family:monospace">${it.quantity}</td>
+      <td class="right" style="font-family:monospace">$${fmtMoney(it.unit_price)}</td>
+      <td class="right" style="font-family:monospace;font-weight:700">$${fmtMoney(it.quantity * Number(it.unit_price || 0))}</td>
+    </tr>
+  `).join("");
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <title>Pedido Web N° ${order.numero || "—"}</title>
-  <style>${BASE_CSS}</style>
+  <style>
+    ${BASE_CSS}
+    thead { display: table-header-group; }
+    tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    @page { margin: 1cm 1cm 1.5cm 1cm; @bottom-right { content: counter(page) " / " counter(pages); font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 700; color: #555; } }
+  </style>
 </head>
 <body>
-  ${pagesHtml}
-  <div class="footer">
-    Documento generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
+  ${headerHtml}
+  <div class="section">
+    <div class="section-title">Productos (${items.length})</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;text-align:center">Nº</th>
+          <th style="width:80px">Código</th>
+          <th>Descripción</th>
+          <th class="right" style="width:60px">Cant.</th>
+          <th class="right" style="width:110px">P. Unit.</th>
+          <th class="right" style="width:120px">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml}
+        <tr class="total-row">
+          <td colspan="5" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
+          <td class="right" style="font-family:monospace">$${fmtMoney(total)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+  ${order.observaciones ? `
+  <div class="section" style="margin-top:16px">
+    <div class="section-title">Observaciones</div>
+    <div style="font-size:12px;color:#444;line-height:1.6">${order.observaciones}</div>
+  </div>` : ""}
 </body>
 </html>`;
 
@@ -385,85 +371,71 @@ function buildComprobanteHtml(doc) {
       </div>
     </div>`;
 
-  const pages = divideIntoPages(normalizedItems, 25);
-  const totalPages = pages.length;
-
-  const pagesHtml = pages.map((pageItems, pageIdx) => {
-    const pageNumber = pageIdx + 1;
-    const isLastPage = pageNumber === totalPages;
-    const itemsHtml = pageItems.map((it, idx) => `
-      <tr>
-        <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${pageIdx * 25 + idx + 1}</td>
-        <td style="font-family:monospace;font-size:11px;color:#555">${it.code}</td>
-        <td>${it.name}</td>
-        <td class="right" style="font-family:monospace">${it.quantity}</td>
-        <td class="right" style="font-family:monospace">${prefix}${fmtMoney(toDisplayPrice(it.unit_price))}</td>
-        <td class="right" style="font-family:monospace;font-weight:700">${prefix}${fmtMoney(toDisplayPrice(it.quantity * it.unit_price))}</td>
-      </tr>
-    `).join("");
-
-    return `
-    <div class="page">
-      ${pageIdx === 0 ? headerHtml : ""}
-      <div class="section" style="margin-top: ${pageIdx > 0 ? "0" : "0"}">
-        <div class="section-title">Productos (${pageIdx === 0 ? normalizedItems.length : "continuación"})</div>
-        <table>
-          <thead>
-            <tr>
-              <th style="width:30px;text-align:center">Nº</th>
-              <th style="width:80px">Código</th>
-              <th>Descripción</th>
-              <th class="right" style="width:60px">Cant.</th>
-              <th class="right" style="width:110px">P. Unit.</th>
-              <th class="right" style="width:120px">Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml || "<tr><td colspan='6' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
-          </tbody>
-          ${isLastPage ? `
-          <tfoot>
-            ${descuentoPct !== 0 ? `
-            <tr style="border-top:1px solid #ddd">
-              <td colspan="4" style="text-align:right;font-size:11px;color:#555">SUBTOTAL</td>
-              <td class="right" style="font-family:monospace;font-size:12px">${prefix}${fmtMoney(subtotalDisp)}</td>
-            </tr>
-            <tr>
-              <td colspan="4" style="text-align:right;font-size:11px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
-                ${descuentoPct > 0 ? 'DESCUENTO' : 'RECARGO'} ${Math.abs(descuentoPct)}%
-              </td>
-              <td class="right" style="font-family:monospace;font-size:12px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
-                ${descuentoPct > 0 ? '−' : '+'}${prefix}${fmtMoney(Math.abs(subtotalDisp - total))}
-              </td>
-            </tr>` : ''}
-            <tr class="total-row">
-              <td colspan="4" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
-              <td class="right" style="font-family:monospace">${prefix}${fmtMoney(total)}</td>
-            </tr>
-          </tfoot>` : ""}
-        </table>
-      </div>
-      ${isLastPage && doc.texto_libre ? `
-      <div class="section">
-        <div class="section-title">Observaciones</div>
-        <div style="font-size:12px;color:#444;line-height:1.6">${doc.texto_libre}</div>
-      </div>` : ""}
-      <div class="page-number">${totalPages > 1 ? `${pageNumber}/${totalPages}` : ""}</div>
-    </div>`;
-  }).join("");
+  const itemsHtml = normalizedItems.map((it, idx) => `
+    <tr>
+      <td style="font-family:monospace;font-size:11px;color:#999;text-align:center;width:30px">${idx + 1}</td>
+      <td style="font-family:monospace;font-size:11px;color:#555">${it.code}</td>
+      <td>${it.name}</td>
+      <td class="right" style="font-family:monospace">${it.quantity}</td>
+      <td class="right" style="font-family:monospace">${prefix}${fmtMoney(toDisplayPrice(it.unit_price))}</td>
+      <td class="right" style="font-family:monospace;font-weight:700">${prefix}${fmtMoney(toDisplayPrice(it.quantity * it.unit_price))}</td>
+    </tr>
+  `).join("");
 
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
   <title>${doc.tipo || "Comprobante"} — ${entityName}</title>
-  <style>${BASE_CSS}</style>
+  <style>
+    ${BASE_CSS}
+    thead { display: table-header-group; }
+    tbody tr { break-inside: avoid; page-break-inside: avoid; }
+    @page { margin: 1cm 1cm 1.5cm 1cm; @bottom-right { content: counter(page) " / " counter(pages); font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 11px; font-weight: 700; color: #555; } }
+  </style>
 </head>
 <body>
-  ${pagesHtml}
-  <div class="footer">
-    Documento generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}
+  ${headerHtml}
+  <div class="section">
+    <div class="section-title">Productos (${normalizedItems.length})</div>
+    <table>
+      <thead>
+        <tr>
+          <th style="width:30px;text-align:center">Nº</th>
+          <th style="width:80px">Código</th>
+          <th>Descripción</th>
+          <th class="right" style="width:60px">Cant.</th>
+          <th class="right" style="width:110px">P. Unit.</th>
+          <th class="right" style="width:120px">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsHtml || "<tr><td colspan='6' style='text-align:center;color:#999;padding:20px'>Sin productos</td></tr>"}
+        ${descuentoPct !== 0 ? `
+        <tr style="border-top:1px solid #ddd">
+          <td colspan="5" style="text-align:right;font-size:11px;color:#555">SUBTOTAL</td>
+          <td class="right" style="font-family:monospace;font-size:12px">${prefix}${fmtMoney(subtotalDisp)}</td>
+        </tr>
+        <tr>
+          <td colspan="5" style="text-align:right;font-size:11px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
+            ${descuentoPct > 0 ? 'DESCUENTO' : 'RECARGO'} ${Math.abs(descuentoPct)}%
+          </td>
+          <td class="right" style="font-family:monospace;font-size:12px;color:${descuentoPct > 0 ? '#16a34a' : '#dc2626'};font-weight:700">
+            ${descuentoPct > 0 ? '−' : '+'}${prefix}${fmtMoney(Math.abs(subtotalDisp - total))}
+          </td>
+        </tr>` : ''}
+        <tr class="total-row">
+          <td colspan="5" style="text-align:right;font-size:12px;color:#555">TOTAL</td>
+          <td class="right" style="font-family:monospace">${prefix}${fmtMoney(total)}</td>
+        </tr>
+      </tbody>
+    </table>
   </div>
+  ${doc.texto_libre ? `
+  <div class="section" style="margin-top:16px">
+    <div class="section-title">Observaciones</div>
+    <div style="font-size:12px;color:#444;line-height:1.6">${doc.texto_libre}</div>
+  </div>` : ""}
 </body>
 </html>`;
 
@@ -876,9 +848,6 @@ export function printCatalogoPDF(items, opts = {}) {
     ${cardsHtml || "<p style='color:#aaa;grid-column:1/-1;text-align:center;padding:40px'>Sin productos</p>"}
   </div>
 
-  <div class="catalog-footer">
-    Catálogo generado el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · oncepuntos.com.ar
-  </div>
 </body>
 </html>`;
 
@@ -995,9 +964,6 @@ export function printPreciosPDF(items, opts = {}) {
     ${itemsHtml || "<p style='color:#aaa;grid-column:1/-1;text-align:center;padding:40px'>Sin productos</p>"}
   </div>
 
-  <div class="prices-footer">
-    Lista de precios generada el ${new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })} · oncepuntos.com.ar
-  </div>
 </body>
 </html>`;
 
@@ -1036,8 +1002,6 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
       </tr>`;
   }).join("");
 
-  const now = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
-
   const html = `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1056,7 +1020,6 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
     <div class="doc-info">
       <div class="doc-tipo">CUENTA CORRIENTE</div>
       <div>${esProveedor ? "Proveedor" : "Cliente"}</div>
-      <div style="font-size:10px;color:#aaa;margin-top:4px">Generado: ${now}</div>
     </div>
   </div>
 
@@ -1088,7 +1051,6 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
     </table>
   </div>
 
-  <div class="footer">Documento generado el ${now}</div>
 </body>
 </html>`;
 
@@ -1138,7 +1100,6 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
 
   const totalClientes    = clientes.reduce((a, c) => a + Math.max(0, toARS(c.saldo || 0, c.divisa ?? "ARS")), 0);
   const totalProveedores = proveedores.reduce((a, p) => a + Math.max(0, toARS(p.saldo || 0, p.divisa ?? "ARS")), 0);
-  const now = new Date().toLocaleString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
 
   const html = `<!DOCTYPE html>
 <html lang="es">
@@ -1155,7 +1116,6 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
     </div>
     <div class="doc-info">
       ${cotizacion > 0 ? `<div>💱 USD: $${Number(cotizacion).toLocaleString("es-AR")}</div>` : ""}
-      <div style="font-size:10px;color:#aaa;margin-top:4px">Generado: ${now}</div>
     </div>
   </div>
 
@@ -1198,7 +1158,6 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
     </table>
   </div>` : ""}
 
-  <div class="footer">Documento generado el ${now}</div>
 </body>
 </html>`;
 

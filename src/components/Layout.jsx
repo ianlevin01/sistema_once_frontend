@@ -90,6 +90,7 @@ const PAGE_TITLES = {
   "/transportes":      "Transportes",
   "/catalogos":        "Catálogos Personalizados",
   "/rentabilidad":     "Rentabilidad",
+  "/asistente-ia":    "Asistente IA",
 };
 
 function CajaNavItem({ item, location }) {
@@ -143,6 +144,7 @@ export default function Layout({ children }) {
 
   const isVendedor    = user?.role === "vendedor";
   const isSuperAdmin  = user?.role === "superadmin";
+  const isAdmin       = user?.role === "admin" || isSuperAdmin;
   const NAV = isVendedor ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
 
@@ -225,6 +227,21 @@ export default function Layout({ children }) {
               )}
             </div>
           ))}
+          {isAdmin && (
+            <div>
+              <div className="sidebar-section">
+                <span className="sidebar-section-label">Herramientas</span>
+              </div>
+              <NavLink
+                to="/asistente-ia"
+                className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
+                title="Asistente IA"
+              >
+                <span className="icon">🤖</span>
+                <span className="link-label">Asistente IA</span>
+              </NavLink>
+            </div>
+          )}
           {isSuperAdmin && (
             <div>
               <div className="sidebar-section">
