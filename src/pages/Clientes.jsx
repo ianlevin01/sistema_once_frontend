@@ -1,9 +1,104 @@
 import { useState, useEffect, useRef } from "react";
 import * as XLSX from "xlsx";
-import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes, getVendedoresActivos } from "../utils/api";
+import { searchCustomers, createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente, getClientes, getVendedoresActivos, getMarketingLog, getMarketingConfig, setMarketingEnabled } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useNavigate } from "react-router-dom";
 import EmailMarketingTab from "./EmailMarketingTab";
+
+function MarketingAutoTab() {
+  const [rows, setRows]             = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(null);
+  const [enabled, setEnabled]       = useState(false);
+  const [toggling, setToggling]     = useState(false);
+  const [configLoaded, setConfigLoaded] = useState(false);
+
+  useEffect(() => {
+    Promise.all([
+      getMarketingLog().then(({ data }) => setRows(data)),
+      getMarketingConfig().then(({ data }) => { setEnabled(data.email_marketing_enabled); setConfigLoaded(true); }),
+    ])
+      .catch(() => setError("Error cargando datos"))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleToggle = async () => {
+    setToggling(true);
+    try {
+      const { data } = await setMarketingEnabled(!enabled);
+      setEnabled(data.email_marketing_enabled);
+    } catch {
+      setError("Error actualizando configuración");
+    } finally {
+      setToggling(false);
+    }
+  };
+
+  if (loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>Cargando...</div>;
+  if (error)   return <div style={{ padding: 40, textAlign: "center", color: "var(--danger)" }}>{error}</div>;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Toggle de activación */}
+      {configLoaded && (
+        <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", background: enabled ? "var(--success-dim, #f0fdf4)" : "var(--bg3)", border: `1px solid ${enabled ? "var(--success, #22c55e)" : "var(--border)"}`, borderRadius: "var(--radius)", flexShrink: 0 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "var(--text)" }}>Marketing automático por email</div>
+            <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 2 }}>
+              {enabled
+                ? "Activo — se envían emails cada mañana a las 7:30 con novedades relevantes para cada cliente."
+                : "Inactivo — no se envían emails automáticos."}
+            </div>
+          </div>
+          <button
+            onClick={handleToggle}
+            disabled={toggling}
+            style={{
+              padding: "8px 18px", borderRadius: 6, border: "none", cursor: toggling ? "default" : "pointer",
+              fontWeight: 700, fontSize: 13,
+              background: enabled ? "var(--danger, #ef4444)" : "var(--success, #22c55e)",
+              color: "#fff", opacity: toggling ? 0.7 : 1, transition: "all 0.15s",
+            }}
+          >
+            {toggling ? "..." : enabled ? "Desactivar" : "Activar"}
+          </button>
+        </div>
+      )}
+
+      {/* Historial */}
+      <div style={{ flex: 1, overflowY: "auto", background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: "var(--radius)", overflow: "hidden" }}>
+        {rows.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", color: "var(--text-dim)" }}>No se enviaron emails de marketing automático todavía.</div>
+        ) : (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
+                {["Fecha", "Cliente", "Email", "Asunto", "Productos enviados"].map((h) => (
+                  <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "var(--text-dim)" }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={r.id} style={{ borderBottom: i < rows.length - 1 ? "1px solid var(--border)" : "none" }}>
+                  <td style={{ padding: "10px 14px", fontFamily: "var(--font-mono)", fontSize: 12, whiteSpace: "nowrap" }}>
+                    {new Date(r.sent_at).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })}
+                  </td>
+                  <td style={{ padding: "10px 14px", fontWeight: 600, fontSize: 13 }}>{r.customer_name || "—"}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12, color: "var(--text-dim)" }}>{r.email}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>{r.subject}</td>
+                  <td style={{ padding: "10px 14px", fontSize: 12 }}>
+                    {r.products?.length > 0 ? r.products.map((p) => p.name).join(", ") : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+}
 
 const EMPTY = { name: "", document: "", phone: "", email: "", domicilio: "", localidad: "", provincia: "", codigo_postal: "", transporte: "", divisa: "ARS", vendedor: "" };
 
@@ -131,7 +226,7 @@ export default function Clientes() {
 
       {/* Tab bar */}
       <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--bg2)", flexShrink: 0 }}>
-        {[["clientes", "Buscar clientes"], ["email", "Email Marketing"]].map(([tab, label]) => (
+        {[["clientes", "Buscar clientes"], ["email", "Email Marketing"], ["marketing-auto", "Marketing Automático"]].map(([tab, label]) => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{
             padding: "10px 20px", border: "none", background: "none", cursor: "pointer",
             fontSize: 13, fontFamily: "var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
@@ -230,9 +325,13 @@ export default function Clientes() {
             </div>
           )}
         </div>
-      ) : (
+      ) : activeTab === "email" ? (
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", padding: "12px 24px 0" }}>
           <EmailMarketingTab />
+        </div>
+      ) : (
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+          <MarketingAutoTab />
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -362,6 +362,58 @@ export default function Products() {
     { file: null, preview: null, existingKey: null },
   ];
   const [imgSlots, setImgSlots] = useState(EMPTY_IMGS);
+  const [aiImgModal, setAiImgModal]       = useState(false);
+  const [aiPrompt, setAiPrompt]           = useState("");
+  const [aiLoading, setAiLoading]         = useState(false);
+  const [aiPreview, setAiPreview]         = useState(null);
+  const [aiB64, setAiB64]                 = useState(null);
+  const [aiRefFile, setAiRefFile]         = useState(null);
+  const [aiRefPreview, setAiRefPreview]   = useState(null);
+  const aiRefInputRef = useRef(null);
+
+  const handleGenerateImage = async () => {
+    if (!aiPrompt.trim()) return;
+    setAiLoading(true);
+    setAiPreview(null);
+    setAiB64(null);
+    try {
+      const { data } = await generateProductImage(aiPrompt, aiRefFile || null);
+      setAiB64(data.b64);
+      setAiPreview(`data:image/png;base64,${data.b64}`);
+    } catch {
+      addToast("Error generando imagen", "error");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleUseAiImage = () => {
+    if (!aiB64) return;
+    // Convertir base64 a File
+    const byteString = atob(aiB64);
+    const arr = new Uint8Array(byteString.length);
+    for (let i = 0; i < byteString.length; i++) arr[i] = byteString.charCodeAt(i);
+    const blob = new Blob([arr], { type: "image/png" });
+    const file = new File([blob], "ai-generated.png", { type: "image/png" });
+    const preview = `data:image/png;base64,${aiB64}`;
+    // Asignar al primer slot vacío, o al slot 0 si todos tienen imagen
+    const emptyIdx = imgSlots.findIndex((s) => !s.file && !s.existingKey && !s.preview);
+    const idx = emptyIdx >= 0 ? emptyIdx : 0;
+    setImgSlots((prev) => prev.map((s, i) => i === idx ? { file, preview, existingKey: null } : s));
+    setAiImgModal(false);
+    setAiPrompt("");
+    setAiPreview(null);
+    setAiB64(null);
+  };
+
+  const closeAiModal = () => {
+    setAiImgModal(false);
+    setAiPrompt("");
+    setAiPreview(null);
+    setAiB64(null);
+    setAiRefFile(null);
+    setAiRefPreview(null);
+  };
 
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -1466,8 +1518,17 @@ export default function Products() {
               />
             ))}
           </div>
-          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, color:"var(--text-dim)", marginBottom:2 }}>
-            Formatos: JPG, PNG, WEBP · Arrastrá o hacé click en cada slot
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:2 }}>
+            <div style={{ fontFamily:"var(--font-sans)", fontSize:11, color:"var(--text-dim)" }}>
+              Formatos: JPG, PNG, WEBP · Arrastrá o hacé click en cada slot
+            </div>
+            <button
+              type="button"
+              onClick={() => setAiImgModal(true)}
+              style={{ fontSize:11, padding:"4px 10px", borderRadius:5, border:"1px solid var(--accent)", background:"var(--accent-dim, #eff6ff)", color:"var(--accent)", cursor:"pointer", fontFamily:"var(--font-sans)", fontWeight:600 }}
+            >
+              ✨ Generar con IA
+            </button>
           </div>
           <hr className="divider" />
           <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:8 }}>Precios</div>
@@ -1601,6 +1662,88 @@ export default function Products() {
                 </button>
               )}
               <button className="btn btn-ghost" onClick={() => setOverrideModal(false)}>Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ── Modal generación de imagen con IA ── */}
+      {aiImgModal && (
+        <div className="modal-overlay" onClick={closeAiModal}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">✨ Generar imagen con IA</span>
+              <button className="modal-close" onClick={closeAiModal}>✕</button>
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Descripción de la imagen</label>
+              <textarea
+                className="input"
+                rows={3}
+                placeholder="Ej: Parlante bluetooth negro sobre fondo blanco, estilo minimalista, foto de producto profesional"
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                style={{ resize: "vertical", fontFamily: "var(--font-sans)", fontSize: 13 }}
+              />
+            </div>
+
+            <div className="input-group">
+              <label className="input-label">Imagen de referencia (opcional)</label>
+              <input
+                ref={aiRefInputRef}
+                type="file"
+                accept="image/*"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  const f = e.target.files[0];
+                  if (!f) return;
+                  setAiRefFile(f);
+                  setAiRefPreview(URL.createObjectURL(f));
+                }}
+              />
+              {aiRefPreview ? (
+                <div style={{ position: "relative", display: "inline-block" }}>
+                  <img src={aiRefPreview} alt="Referencia" style={{ height: 72, borderRadius: 6, border: "1px solid var(--border)", objectFit: "cover" }} />
+                  <button
+                    onClick={() => { setAiRefFile(null); setAiRefPreview(null); }}
+                    style={{ position: "absolute", top: 3, right: 3, background: "rgba(0,0,0,0.55)", border: "none", borderRadius: "50%", width: 18, height: 18, color: "#fff", fontSize: 9, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                  >✕</button>
+                </div>
+              ) : (
+                <button className="btn btn-ghost" style={{ fontSize: 12 }} onClick={() => aiRefInputRef.current?.click()}>
+                  + Agregar imagen de referencia
+                </button>
+              )}
+            </div>
+
+            {aiPreview && (
+              <div style={{ margin: "12px 0", borderRadius: 8, overflow: "hidden", border: "1px solid var(--border)" }}>
+                <img src={aiPreview} alt="Imagen generada" style={{ width: "100%", display: "block" }} />
+              </div>
+            )}
+
+            {aiLoading && (
+              <div style={{ textAlign: "center", padding: "24px 0", color: "var(--text-dim)", fontSize: 13 }}>
+                Generando imagen... puede tardar unos segundos
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+              {!aiPreview ? (
+                <button className="btn btn-primary" onClick={handleGenerateImage} disabled={aiLoading || !aiPrompt.trim()}>
+                  {aiLoading ? "Generando..." : "Generar"}
+                </button>
+              ) : (
+                <>
+                  <button className="btn btn-primary" onClick={handleUseAiImage}>
+                    Usar imagen
+                  </button>
+                  <button className="btn btn-ghost" onClick={handleGenerateImage} disabled={aiLoading}>
+                    {aiLoading ? "Generando..." : "Regenerar"}
+                  </button>
+                </>
+              )}
+              <button className="btn btn-ghost" onClick={closeAiModal}>Cancelar</button>
             </div>
           </div>
         </div>

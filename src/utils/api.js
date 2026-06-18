@@ -56,6 +56,7 @@ export const createCustomer    = (data)       => api.post("/customers", data);
 export const updateCustomer    = (id, data)   => api.put(`/customers/${id}`, data);
 export const deleteCustomer    = (id)         => api.delete(`/customers/${id}`);
 export const openCuentaCorriente = (id)       => api.post(`/customers/${id}/cuenta-corriente`);
+export const getMarketingLog     = ()          => api.get("/customers/marketing-log");
 
 // ── PROVEEDORES ───────────────────────────────────────────────
 export const searchProveedores          = (q)         => api.get(`/proveedores/search?q=${encodeURIComponent(q)}`);
@@ -84,7 +85,9 @@ export const editarMovimientoCC   = (movId, data) => api.put(`/cuenta-corriente/
 export const eliminarMovimientoCC = (movId, data) => api.delete(`/cuenta-corriente/movimientos/${movId}`, { data });
 
 // ── PRICE CONFIG (cotización del dólar) ───────────────────────
-export const getPriceConfig = () => api.get("/config/precios");
+export const getPriceConfig             = ()       => api.get("/config/precios");
+export const getMarketingConfig         = ()       => api.get("/config/marketing");
+export const setMarketingEnabled        = (enabled) => api.patch("/config/marketing", { email_marketing_enabled: enabled });
 
 // ── PRODUCTS ──────────────────────────────────────────────────
 export const searchProducts          = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);
@@ -105,7 +108,16 @@ export const agregarStock         = (id, qty)    => api.patch(`/products/${id}/s
 export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
 export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
 export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);
-export const exportProducts = ()                 => api.get("/products/export", { responseType: "blob" });
+export const exportProducts        = ()           => api.get("/products/export", { responseType: "blob" });
+export const generateProductImage  = (prompt, referenceImage) => {
+  if (referenceImage) {
+    const fd = new FormData();
+    fd.append("prompt", prompt);
+    fd.append("referenceImage", referenceImage);
+    return api.post("/products/generate-image", fd);
+  }
+  return api.post("/products/generate-image", { prompt });
+};
 export const importProductsDiff = (file, includeStock) => {
   const fd = new FormData();
   fd.append("file", file);
