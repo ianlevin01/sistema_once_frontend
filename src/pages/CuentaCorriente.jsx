@@ -503,28 +503,26 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
 
   // Calcular saldo acumulado PARA TODOS los movimientos (con historia completa)
   // Para proveedores: saldo_inicial suma, pagos restan
+  // El array resultante queda en orden ASC (más viejo primero, más nuevo al final)
   const movsConSaldoReal = (() => {
-    const reversed = [...movimientos].reverse(); // Más viejo a más nuevo
+    const asc = [...movimientos].reverse(); // API devuelve DESC, invertimos a ASC
     let running = 0;
-    const withBal = reversed.map((m) => {
+    return asc.map((m) => {
       if (m.afecta_saldo !== false) {
         if (esProveedor) {
-          // Para proveedores: saldo_inicial y reposiciones suman, pagos restan
           if (m.concepto && m.concepto.toLowerCase().includes('saldo_inicial')) {
-            running += Number(m.monto); // saldo_inicial suma
+            running += Number(m.monto);
           } else if (m.tipo === "debito") {
-            running -= Number(m.monto); // pagos (débito) restan
+            running -= Number(m.monto);
           } else {
-            running += Number(m.monto); // reposiciones (cobro) suman
+            running += Number(m.monto);
           }
         } else {
-          // Para clientes: débito suma, pago resta
           running += m.tipo === "debito" ? Number(m.monto) : -Number(m.monto);
         }
       }
       return { ...m, _saldo_momento: running };
     });
-    return withBal.reverse(); // Vuelve a DESC (más nuevo a más viejo)
   })();
 
   // Ahora filtrar para mostrar en la tabla

@@ -9,6 +9,28 @@ function formatDate(iso) {
   return d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function renderContent(content) {
+  const parts = content.split(/(!\[.*?\]\(https?:\/\/[^\)]+\))/g);
+  return parts.map((part, i) => {
+    const imgMatch = part.match(/!\[(.*?)\]\((https?:\/\/[^\)]+)\)/);
+    if (imgMatch) {
+      return (
+        <img
+          key={i}
+          src={imgMatch[2]}
+          alt={imgMatch[1]}
+          style={{
+            maxWidth: "100%", maxHeight: 220, borderRadius: 8,
+            display: "block", marginTop: 6, objectFit: "contain",
+            background: "#fff",
+          }}
+        />
+      );
+    }
+    return <span key={i} style={{ whiteSpace: "pre-wrap" }}>{part}</span>;
+  });
+}
+
 export default function AsistenteIA() {
   const [messages, setMessages] = useState(() => {
     try {
@@ -138,10 +160,9 @@ export default function AsistenteIA() {
               color: msg.role === "user" ? "#fff" : msg.isError ? "#c00" : "#222",
               fontSize: 14,
               lineHeight: 1.5,
-              whiteSpace: "pre-wrap",
               wordBreak: "break-word",
             }}>
-              {msg.content}
+              {msg.role === "user" ? msg.content : renderContent(msg.content)}
             </div>
           </div>
         ))}

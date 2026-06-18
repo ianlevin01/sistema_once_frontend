@@ -68,7 +68,7 @@ function LeftPanel({
   provSel, provQuery, setProvQuery, provResults, selectProv, setProvSel,
   warehouses, warehouseId, setWarehouseId,
   vendedores, lastPrice, user,
-  onSave, onCancel, onReset, saving, isEditing,
+  onSave, onCancel, onReset, onPresupuestar, saving, isEditing,
   total, itemCount,
   onObsEnter,
 }) {
@@ -603,6 +603,11 @@ function LeftPanel({
         <button className="btn btn-ghost" onClick={onCancel} style={{ width:"100%", fontSize:13 }}>
           Cancelar
         </button>
+        {isEditing && tipo === "Nota de Pedido" && onPresupuestar && (
+          <button className="btn btn-primary" onClick={onPresupuestar} disabled={saving} style={{ width:"100%", fontSize:13, marginTop:6 }}>
+            → Presupuestar
+          </button>
+        )}
       </div>
     </div>
   );
@@ -907,7 +912,7 @@ export default function Comprobantes({ initialCreating = false }) {
         window.opener?.location.reload();
         try {
           const { data: compFull } = await getComprobante(nuevoComp.id);
-          await printComprobantePDF(compFull);
+          if (tipo !== "Nota de Pedido") await printComprobantePDF(compFull);
         } catch { /* si falla el print igual cerramos */ }
         window.close();
         return;
@@ -1011,7 +1016,7 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante actualizado", "success");
       if (editId) {
         window.opener?.location.reload();
-        await printComprobantePDF(updatedComp);
+        if (tipo !== "Nota de Pedido") await printComprobantePDF(updatedComp);
         window.close();
         return;
       }
@@ -1043,6 +1048,36 @@ export default function Comprobantes({ initialCreating = false }) {
       loadAll(appliedFrom, appliedTo);
     } catch (err) { addToast(err?.response?.data?.message || "Clave incorrecta", "error"); }
     finally { setDeleting(false); }
+  };
+
+  const handlePresupuestar = async () => {
+    setSaving(true);
+    try {
+      await createComprobante({
+        customer_id:     custSel?.id || null,
+        supplier_id:     null,
+        user_id:         null,
+        payment_method:  payMethod,
+        tipo:            "Presupuesto",
+        vendedor,
+        price_type:      priceType,
+        texto_libre:     textoLibre,
+        divisa,
+        descuento_pct:   admiteDescuento ? descuentoPctNum : 0,
+        source_nota_id:  editingId,
+        items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
+      });
+      addToast("Presupuesto creado y NdP eliminada", "success");
+      if (editId) {
+        window.opener?.location.reload();
+        window.close();
+        return;
+      }
+      setCreating(false); setEditingId(null); resetForm(); loadAll(appliedFrom, appliedTo);
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error al presupuestar", "error");
+    }
+    setSaving(false);
   };
 
   const openDetail = async (id) => {
@@ -1357,6 +1392,7 @@ export default function Comprobantes({ initialCreating = false }) {
             onSave={isEditing ? handleSaveEdit : handleCreate}
             onCancel={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
             onReset={resetForm}
+            onPresupuestar={isEditing && tipo === "Nota de Pedido" ? handlePresupuestar : undefined}
             saving={saving} isEditing={isEditing}
             total={total} itemCount={items.length}
             onObsEnter={() => prodSearchRef.current?.focus()}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "../utils/useAuth";
+import logo from "../assets/logo.png";
 
 export default function Login() {
   useEffect(() => { document.title = "Iniciar sesión — Once"; }, []);
@@ -52,18 +53,7 @@ export default function Login() {
       }}>
         {/* Logo / título */}
         <div style={{ textAlign: "center", marginBottom: 32 }}>
-          <div style={{
-            width: 52, height: 52, borderRadius: 12,
-            background: "var(--accent)", margin: "0 auto 14px",
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 24,
-          }}>S</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "var(--text)", marginBottom: 4 }}>
-            SistemaOnce
-          </div>
-          <div style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>
-            Pasteur 280 · Local 11
-          </div>
+          <img src={logo} alt="Logo" style={{ height: 80, objectFit: "contain", marginBottom: 14 }} />
         </div>
 
         <form onSubmit={handleSubmit}>
