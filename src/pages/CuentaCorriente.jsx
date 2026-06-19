@@ -472,7 +472,12 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
     if (!orderItems[orderId]) {
       try {
         const { data } = await getComprobante(orderId);
-        setOrderItems((prev) => ({ ...prev, [orderId]: data.items ?? [] }));
+        const itemsConMeta = (data.items ?? []).map((it) => ({
+          ...it,
+          _divisa: data.divisa,
+          _cotizacion_dolar: data.cotizacion_dolar,
+        }));
+        setOrderItems((prev) => ({ ...prev, [orderId]: itemsConMeta }));
       } catch {
         setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
       }
@@ -751,7 +756,13 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                               </td>
                               <td style={{ padding: "5px 8px", textAlign: "center", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{it.quantity}</td>
                               <td style={{ padding: "5px 0 5px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>
-                                {(it.quantity * Number(it.unit_price)).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                {(() => {
+                                  const unitARS = Number(it.unit_price);
+                                  const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
+                                    ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
+                                    : unitARS;
+                                  return (it.quantity * unitDisp).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                })()}
                               </td>
                             </tr>
                           ))}

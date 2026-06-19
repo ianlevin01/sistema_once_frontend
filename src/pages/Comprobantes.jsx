@@ -1475,10 +1475,14 @@ export default function Comprobantes({ initialCreating = false }) {
                       <span style={{ color:"rgba(255,200,0,0.8)" }}>⏱</span>
                       <span>Última venta a <strong style={{ color:"var(--text)" }}>{custSel.name}</strong>:</span>
                       <span style={{ color:"var(--accent)", fontWeight:700 }}>
-                        {divisa === "USD"
-                          ? `USD ${fmt(Number(lastPrice.unit_price) / cotizacion)}`
-                          : `$${fmt(lastPrice.unit_price)}`
-                        }
+                        {(() => {
+                          const lastUSD = (lastPrice.divisa === "USD" && lastPrice.cotizacion_dolar)
+                            ? Number(lastPrice.unit_price) / Number(lastPrice.cotizacion_dolar)
+                            : Number(lastPrice.unit_price) / cotizacion;
+                          return divisa === "USD"
+                            ? `USD ${fmt(lastUSD)}`
+                            : `$${fmt(lastUSD * cotizacion)}`;
+                        })()}
                       </span>
                       <span style={{ color:"var(--text-dim)" }}>el {new Date(lastPrice.created_at).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" })}</span>
                     </div>
