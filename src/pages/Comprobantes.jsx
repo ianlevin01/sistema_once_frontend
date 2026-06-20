@@ -603,7 +603,7 @@ function LeftPanel({
         <button className="btn btn-ghost" onClick={onCancel} style={{ width:"100%", fontSize:13 }}>
           Cancelar
         </button>
-        {isEditing && tipo === "Nota de Pedido" && onPresupuestar && (
+        {isEditing && (tipo === "Nota de Pedido" || tipo === "Nota de Pedido Web") && onPresupuestar && (
           <button className="btn btn-primary" onClick={onPresupuestar} disabled={saving} style={{ width:"100%", fontSize:13, marginTop:6 }}>
             → Presupuestar
           </button>
@@ -1392,7 +1392,7 @@ export default function Comprobantes({ initialCreating = false }) {
             onSave={isEditing ? handleSaveEdit : handleCreate}
             onCancel={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
             onReset={resetForm}
-            onPresupuestar={isEditing && tipo === "Nota de Pedido" ? handlePresupuestar : undefined}
+            onPresupuestar={isEditing && (tipo === "Nota de Pedido" || tipo === "Nota de Pedido Web") ? handlePresupuestar : undefined}
             saving={saving} isEditing={isEditing}
             total={total} itemCount={items.length}
             onObsEnter={() => prodSearchRef.current?.focus()}
