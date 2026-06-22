@@ -187,8 +187,7 @@ export default function Layout({ children }) {
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">S</div>
           <div className="sidebar-logo-text">
-            <h1>SistemaOnce</h1>
-            <span>Pasteur 280 · Local 11</span>
+            <h1>{user?.negocio_name || "Sistema"}</h1>
           </div>
         </div>
 
