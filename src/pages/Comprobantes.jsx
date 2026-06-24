@@ -3,7 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   getComprobantes, getComprobante, createComprobante, updateComprobante,
   deleteComprobante, searchCustomers, searchProveedores, getWarehouses,
-  getLastSalePrice, getPriceConfig,
+  getLastSalePrice, getPriceConfig, getCustomer,
 } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
@@ -1051,7 +1051,23 @@ export default function Comprobantes({ initialCreating = false }) {
   };
 
   const handlePresupuestar = async () => {
+    if (!custSel?.id) {
+      addToast("Seleccioná un cliente antes de presupuestar", "error");
+      return;
+    }
     setSaving(true);
+    try {
+      const { data: clienteData } = await getCustomer(custSel.id);
+      if (!clienteData.tiene_cc) {
+        addToast("El cliente seleccionado no posee una cuenta corriente", "error");
+        setSaving(false);
+        return;
+      }
+    } catch {
+      addToast("No se pudo verificar la cuenta corriente del cliente", "error");
+      setSaving(false);
+      return;
+    }
     try {
       await createComprobante({
         customer_id:     custSel?.id || null,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "../utils/useToast";
-import api, { searchCustomers, createComprobante } from "../utils/api";
+import api, { searchCustomers, createComprobante, getCustomer } from "../utils/api";
 import { useVendedores } from "../utils/useVendedores";
 import { useAuth } from "../utils/useAuth";
 import ProductSearchBar from "../components/ProductSearchBar";
@@ -487,10 +487,8 @@ export default function WebOrders() {
     setPresNoCCWarning(false);
     if (selected.customer_id) {
       setPresCustSel({ id: selected.customer_id, name: selected.customer_name });
-      // Verificar si el cliente tiene CC
-      searchCustomers(selected.customer_name || "", true).then(({ data }) => {
-        const hasCC = data.some((c) => c.id === selected.customer_id);
-        setPresNoCCWarning(!hasCC);
+      getCustomer(selected.customer_id).then(({ data }) => {
+        setPresNoCCWarning(!data.tiene_cc);
       }).catch(() => {});
     } else {
       setPresCustSel(null);
@@ -541,6 +539,7 @@ export default function WebOrders() {
 
   const presHandleCreate = async () => {
     if (!presCustSel)          { addToast("Seleccioná un cliente", "error"); return; }
+    if (presNoCCWarning)       { addToast("El cliente seleccionado no posee una cuenta corriente", "error"); return; }
     if (presItems.length === 0){ addToast("Agregá al menos un producto", "error"); return; }
     setPresSaving(true);
     try {
@@ -616,8 +615,8 @@ export default function WebOrders() {
                         <button onClick={() => { setPresCustSel(null); setPresNoCCWarning(false); }} style={{ background:"none", border:"none", color: presNoCCWarning ? "#92400e" : "var(--accent)", cursor:"pointer", fontSize:14 }}>✕</button>
                       </div>
                       {presNoCCWarning && (
-                        <div style={{ marginTop:5, padding:"5px 8px", background:"rgba(234,179,8,.10)", border:"1px solid #ca8a04", borderRadius:4, fontSize:10, color:"#92400e", lineHeight:1.5 }}>
-                          ⚠️ Sin CC registrada. Podés usarlo igual o ✕ para buscar uno con CC.
+                        <div style={{ marginTop:5, padding:"5px 8px", background:"rgba(220,38,38,.08)", border:"1px solid #dc2626", borderRadius:4, fontSize:10, color:"#dc2626", lineHeight:1.5 }}>
+                          ⛔ El cliente seleccionado no posee una cuenta corriente. Cambiá el cliente para poder presupuestar.
                         </div>
                       )}
                     </>
@@ -686,7 +685,7 @@ export default function WebOrders() {
                 </div>
 
                 <div style={{ padding:"12px 14px", borderTop:"1px solid var(--border)", display:"flex", flexDirection:"column", gap:8, flexShrink:0 }}>
-                  <button className="btn btn-primary" onClick={presHandleCreate} disabled={presSaving}
+                  <button className="btn btn-primary" onClick={presHandleCreate} disabled={presSaving || presNoCCWarning}
                     style={{ width:"100%", fontSize:13, padding:"10px" }}>
                     {presSaving ? "Guardando..." : "✓ Cerrar presupuesto"}
                   </button>

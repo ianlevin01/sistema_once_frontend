@@ -305,6 +305,7 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
                   <input className="input" type="number" min="0" step="0.01"
                     value={fila.cotizacionCustom}
                     onChange={(e) => setFila(i, "cotizacionCustom", e.target.value)}
+                    onWheel={(e) => e.target.blur()}
                     placeholder={String(cotizacion)}
                   />
                 </div>
@@ -312,7 +313,9 @@ function CobranzaModal({ open, onClose, onConfirm, mode, selectedName, divisaCue
               <div className="input-group">
                 <label className="input-label">Monto ({fila.divisa_cobro})</label>
                 <input className="input" type="number" min="0" step="0.01" value={fila.monto}
-                  onChange={(e) => setFila(i, "monto", e.target.value)} autoFocus={i === 0} />
+                  onChange={(e) => setFila(i, "monto", e.target.value)}
+                  onWheel={(e) => e.target.blur()}
+                  autoFocus={i === 0} />
                 {previewConversion(fila) && (
                   <div style={{ marginTop: 6, padding: "6px 10px", background: "rgba(255,200,0,0.08)", border: "1px solid rgba(255,200,0,0.25)", borderRadius: 5, fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>
                     ⇄ {previewConversion(fila)}
@@ -404,7 +407,7 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 
           <div className="input-group">
             <label className="input-label">Nuevo monto ({divisaCC})</label>
-            <input className="input" type="number" min="0" step="0.01" value={form.monto} onChange={setF("monto")} autoFocus />
+            <input className="input" type="number" min="0" step="0.01" value={form.monto} onChange={setF("monto")} onWheel={(e) => e.target.blur()} autoFocus />
             <div style={{ fontSize: 11, color: "var(--text-dim)", marginTop: 4 }}>
               Cambiar el monto ajusta automáticamente el saldo de la cuenta
             </div>

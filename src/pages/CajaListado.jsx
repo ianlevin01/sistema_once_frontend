@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import {
   searchCustomers, createComprobante, deleteComprobante, deleteRemito,
-  getListadoCaja, getCashMovements, getCobranzasCC, getComprobante,
+  getListadoCaja, getCashMovements, getCobranzasCC, getComprobante, getCustomer,
 } from "../utils/api";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
@@ -208,6 +208,16 @@ function usePresModal({ addToast, onSuccess, vendedores = [], user }) {
       if (!warehouseId) { addToast("Seleccioná el depósito","error"); return; }
     } else {
       if (!custSel) { addToast("Seleccioná un cliente","error"); return; }
+      try {
+        const { data: clienteData } = await getCustomer(custSel.id);
+        if (!clienteData.tiene_cc) {
+          addToast("El cliente seleccionado no posee una cuenta corriente", "error");
+          return;
+        }
+      } catch {
+        addToast("No se pudo verificar la cuenta corriente del cliente", "error");
+        return;
+      }
     }
     if (items.length === 0) { addToast("Agregá al menos un producto","error"); return; }
     setSaving(true);
