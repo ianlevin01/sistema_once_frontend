@@ -95,8 +95,8 @@ export const getProductsForReorder   = (limit)      => api.get(`/products?limit=
 export const reorderProducts         = (ids)        => api.post("/products/reorder", { ids });
 export const getProductsForCatalog = (categoryId) =>
   categoryId && categoryId !== "all"
-    ? api.get(`/products?category_id=${categoryId}&limit=300&sort=name_asc`)
-    : api.get(`/products?limit=500&sort=name_asc`);
+    ? api.get(`/products?category_id=${categoryId}&limit=300`)
+    : api.get(`/products?limit=500`);
 export const getProduct           = (id)         => api.get(`/products/${id}`);
 export const createProduct        = (data)       => api.post("/products", data);
 export const updateProduct        = (id, data)   => api.put(`/products/${id}`, data);

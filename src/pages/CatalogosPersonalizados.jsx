@@ -10,6 +10,7 @@ export default function CatalogosPersonalizados() {
   const [products,     setProducts]     = useState([]);
   const [config,       setConfig]       = useState({});   // { [id]: { included, displayName, description, priceValue } }
   const [loading,      setLoading]      = useState(false);
+  const [autoSelect,   setAutoSelect]   = useState("");
   const [columns,      setColumns]      = useState(3);
   const [catalogTitle, setCatalogTitle] = useState("Catálogo de Productos");
   const [printType,    setPrintType]    = useState("catalogo");
@@ -89,19 +90,19 @@ export default function CatalogosPersonalizados() {
     setLoading(true);
     try {
       const { data } = await getProductsForCatalog(selectedCat);
+      const n = parseInt(autoSelect, 10);
+      const autoSelectN = !isNaN(n) && n > 0 ? n : 0;
       setProducts(data);
       setConfig((prev) => {
         const next = { ...prev };
-        data.forEach((p) => {
-          if (!next[p.id]) {
-            const precio1 = p.prices?.[0]?.price ?? null;
-            next[p.id] = {
-              included:    false,
-              displayName: p.name,
-              description: p.description || "",
-              priceValue:  precio1 != null ? String(Math.round(precio1)) : "",
-            };
-          }
+        data.forEach((p, idx) => {
+          const precio1 = p.prices?.[0]?.price ?? null;
+          next[p.id] = {
+            included:    autoSelectN > 0 ? idx < autoSelectN : (prev[p.id]?.included ?? false),
+            displayName: prev[p.id]?.displayName ?? p.name,
+            description: prev[p.id]?.description ?? (p.description || ""),
+            priceValue:  prev[p.id]?.priceValue  ?? (precio1 != null ? String(Math.round(precio1)) : ""),
+          };
         });
         return next;
       });
@@ -163,7 +164,7 @@ export default function CatalogosPersonalizados() {
         {/* Selector de categoría */}
         <div>
           <div className="input-label">Categoría</div>
-          <div style={{ display: "flex", gap: 8 }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <select
               className="input"
               value={selectedCat}
@@ -176,6 +177,17 @@ export default function CatalogosPersonalizados() {
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <input
+              className="input"
+              type="number"
+              min="0"
+              value={autoSelect}
+              onChange={(e) => setAutoSelect(e.target.value)}
+              onWheel={(e) => e.target.blur()}
+              placeholder="Cant."
+              title="Cantidad a pre-seleccionar (los más nuevos)"
+              style={{ width: 72 }}
+            />
             <button
               className="btn btn-primary"
               onClick={loadProducts}
