@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink, useLocation, useNavigate, Outlet } from "react-router-dom";
 
 import { useAuth } from "../utils/useAuth";
+import { getRecordatoriosPendientes } from "../utils/api";
 
 const NAV_ADMIN = [
   {
@@ -47,7 +48,8 @@ const NAV_ADMIN = [
 ];
 
 const NAV_SUPERADMIN_EXTRA = [
-  { to: "/rentabilidad", label: "Rentabilidad", icon: "📈" },
+  { to: "/rentabilidad",   label: "Rentabilidad",   icon: "📈" },
+  { to: "/recordatorios",  label: "Recordatorios",  icon: "🔔" },
 ];
 
 const NAV_VENDEDOR = [
@@ -89,8 +91,9 @@ const PAGE_TITLES = {
   "/configuracion":    "Configuración",
   "/transportes":      "Transportes",
   "/catalogos":        "Catálogos Personalizados",
-  "/rentabilidad":     "Rentabilidad",
-  "/asistente-ia":    "Asistente IA",
+  "/rentabilidad":    "Rentabilidad",
+  "/asistente-ia":   "Asistente IA",
+  "/recordatorios":  "Recordatorios",
 };
 
 function CajaNavItem({ item, location }) {
@@ -147,6 +150,43 @@ export default function Layout({ children }) {
   const isAdmin       = user?.role === "admin" || isSuperAdmin;
   const NAV = isVendedor ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
+
+  // ── Recordatorios polling (solo superadmin) ────────────────────────────
+  const [pendientesCount,  setPendientesCount]  = useState(0);
+  const [notifVisible,     setNotifVisible]      = useState(false);
+  const [notifItems,       setNotifItems]        = useState([]);
+  const prevCountRef = useRef(null); // null = primera carga, no mostrar popup
+
+  const checkRecordatorios = useCallback(async () => {
+    if (!isSuperAdmin) return;
+    try {
+      const { data } = await getRecordatoriosPendientes();
+      const count = data.length;
+      if (count > 0 && prevCountRef.current === 0) {
+        setNotifItems(data.slice(0, 1));
+        setNotifVisible(true);
+        setTimeout(() => setNotifVisible(false), 8000);
+      }
+      prevCountRef.current = count;
+      setPendientesCount(count);
+    } catch { /* silencioso */ }
+  }, [isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    checkRecordatorios().then(() => {});
+    const interval = setInterval(checkRecordatorios, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [isSuperAdmin, checkRecordatorios]);
+
+  useEffect(() => {
+    const handler = () => {
+      prevCountRef.current = 0;
+      setPendientesCount(0);
+    };
+    window.addEventListener('recordatorios-todos-leidos', handler);
+    return () => window.removeEventListener('recordatorios-todos-leidos', handler);
+  }, []);
 
   const handleLogout = () => {
     logout();
@@ -335,10 +375,76 @@ export default function Layout({ children }) {
             }}>
               {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" })}
             </span>
+            {isSuperAdmin && (
+              <button
+                onClick={() => navigate("/recordatorios")}
+                title="Recordatorios"
+                style={{
+                  position: "relative", background: pendientesCount > 0 ? "var(--accent-light)" : "var(--bg3)",
+                  border: `1px solid ${pendientesCount > 0 ? "var(--accent)" : "var(--border)"}`,
+                  borderRadius: "var(--radius)", padding: "4px 10px", cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 6, fontSize: 14,
+                }}
+              >
+                🔔
+                {pendientesCount > 0 && (
+                  <span style={{
+                    fontSize: 11, fontWeight: 700, fontFamily: "var(--font-mono)",
+                    color: "var(--accent)", lineHeight: 1,
+                  }}>
+                    {pendientesCount}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </header>
-        <div className="page">{children}</div>
+        <div className="page">{children ?? <Outlet />}</div>
       </div>
+
+      {/* ── Notificación flotante de nuevos recordatorios ── */}
+      {isSuperAdmin && notifVisible && notifItems.length > 0 && (
+        <div style={{
+          position: "fixed", top: 64, right: 20, zIndex: 9999,
+          maxWidth: 340, display: "flex", flexDirection: "column", gap: 8,
+        }}>
+          {notifItems.slice(0, 3).map((r, i) => (
+            <div key={i} style={{
+              background: "var(--bg2)", border: "1px solid var(--accent)",
+              borderRadius: 10, padding: "12px 16px",
+              boxShadow: "0 4px 20px rgba(0,0,0,0.18)",
+              display: "flex", gap: 10, alignItems: "flex-start",
+              animation: "slideIn 0.25s ease",
+            }}>
+              <span style={{ fontSize: 20, flexShrink: 0 }}>🔔</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text)", marginBottom: 2 }}>
+                  {r.customer_name}
+                </div>
+                <div style={{ fontSize: 12, color: "var(--text-muted)", lineHeight: 1.5 }}>
+                  {r.mensaje}
+                </div>
+              </div>
+              <button
+                onClick={() => setNotifVisible(false)}
+                style={{ background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: 16, padding: 0, lineHeight: 1, flexShrink: 0 }}
+              >✕</button>
+            </div>
+          ))}
+          {notifItems.length > 3 && (
+            <div style={{
+              background: "var(--bg2)", border: "1px solid var(--border)",
+              borderRadius: 10, padding: "8px 16px", fontSize: 12,
+              color: "var(--text-dim)", textAlign: "center",
+            }}>
+              +{notifItems.length - 3} más · <button
+                onClick={() => { navigate("/recordatorios"); setNotifVisible(false); }}
+                style={{ background: "none", border: "none", color: "var(--accent)", cursor: "pointer", fontSize: 12, fontWeight: 600, padding: 0 }}
+              >Ver todos</button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -552,6 +552,7 @@ export default function WebOrders() {
         price_type:     presPriceType,
         texto_libre:    presTexto,
         web_order_id:   selected?.id,
+        source_nota_id: selected?.order_id || null,
         descuento_pct:  presDescuentoPctNum > 0 ? presDescuentoPctNum : undefined,
         items: presItems.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
       });

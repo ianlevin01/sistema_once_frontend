@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage, getProductReservas, getComprobante } from "../utils/api";
+import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
 
@@ -131,6 +132,7 @@ export default function Products() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [modal,         setModal]         = useState(null);
   const [form,          setForm]          = useState(EMPTY_FORM);
+  const [formOverride,  setFormOverride]  = useState({ pct_1:"", pct_2:"", pct_3:"", pct_4:"", pct_5:"" });
   const [saving,        setSaving]        = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const listRef     = useRef(null);
@@ -230,6 +232,21 @@ export default function Products() {
       addToast(err?.response?.data?.message || "Error agregando stock", "error");
     }
     setStockSaving(false);
+  };
+
+  // ── Reservas ─────────────────────────────────────────────────────────────
+  const [reservasModal,   setReservasModal]   = useState(false);
+  const [reservasData,    setReservasData]    = useState([]);
+  const [reservasLoading, setReservasLoading] = useState(false);
+
+  const openReservas = async () => {
+    setReservasModal(true);
+    setReservasLoading(true);
+    try {
+      const { data } = await getProductReservas(selected.id);
+      setReservasData(data);
+    } catch { addToast("Error cargando reservas", "error"); }
+    setReservasLoading(false);
   };
 
   // ── Price overrides ───────────────────────────────────────────────────────
@@ -496,6 +513,7 @@ export default function Products() {
     setForm(EMPTY_FORM);
     setImgSlots(EMPTY_IMGS);
     setCatInput("");
+    setFormOverride({ pct_1:"", pct_2:"", pct_3:"", pct_4:"", pct_5:"" });
     setModal("new");
   };
 
@@ -525,6 +543,13 @@ export default function Products() {
       { file: null, preview: imgs[2]?.url || null, existingKey: imgs[2]?.key || null },
     ]);
     setCatInput(selected.category_name || categories.find((c) => c.id === selected.category_id)?.name || "");
+    setFormOverride({
+      pct_1: selected.ovr_pct_1 != null ? String(selected.ovr_pct_1) : "",
+      pct_2: selected.ovr_pct_2 != null ? String(selected.ovr_pct_2) : "",
+      pct_3: selected.ovr_pct_3 != null ? String(selected.ovr_pct_3) : "",
+      pct_4: selected.ovr_pct_4 != null ? String(selected.ovr_pct_4) : "",
+      pct_5: selected.ovr_pct_5 != null ? String(selected.ovr_pct_5) : "",
+    });
     setModal("edit");
   };
 
@@ -544,13 +569,29 @@ export default function Products() {
       imgSlots.forEach((slot) => {
         if (slot.file) fd.append("images", slot.file);
       });
+      const hasOverride = Object.values(formOverride).some((v) => v !== "");
+      const overridePayload = {
+        pct_1: formOverride.pct_1 !== "" ? Number(formOverride.pct_1) : null,
+        pct_2: formOverride.pct_2 !== "" ? Number(formOverride.pct_2) : null,
+        pct_3: formOverride.pct_3 !== "" ? Number(formOverride.pct_3) : null,
+        pct_4: formOverride.pct_4 !== "" ? Number(formOverride.pct_4) : null,
+        pct_5: formOverride.pct_5 !== "" ? Number(formOverride.pct_5) : null,
+      };
       if (modal === "edit" && selected) {
         await updateProduct(selected.id, fd);
+        if (hasOverride) {
+          await setProductOverride(selected.id, overridePayload);
+        } else if (selected.has_price_override) {
+          await deleteProductOverride(selected.id);
+        }
         const { data } = await getProduct(selected.id);
         setSelected(data);
         addToast("Producto actualizado", "success");
       } else {
-        await createProduct(fd);
+        const { data: newProduct } = await createProduct(fd);
+        if (hasOverride && newProduct?.id) {
+          await setProductOverride(newProduct.id, overridePayload);
+        }
         addToast("Producto creado", "success");
         if (query) { const { data } = await searchProducts(query); setResults(data); }
       }
@@ -962,9 +1003,12 @@ export default function Products() {
                     <span style={{ fontSize:11, fontWeight:600, color:"#fff", textTransform:"uppercase", letterSpacing:"0.06em" }}>Stock por depósito</span>
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
                       {totalReserved > 0 && (
-                        <span style={{ fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, color:"#fff", background:"rgba(255,200,0,0.35)", padding:"1px 8px", borderRadius:4, border:"1px solid rgba(255,200,0,0.5)" }}>
-                          R:{FMTN(totalReserved)}
-                        </span>
+                        <button
+                          onClick={openReservas}
+                          style={{ fontFamily:"var(--font-mono)", fontSize:12, fontWeight:700, color:"#fff", background:"rgba(255,200,0,0.35)", padding:"1px 8px", borderRadius:4, border:"1px solid rgba(255,200,0,0.5)", cursor:"pointer", lineHeight:1.4 }}
+                        >
+                          Reserva:{FMTN(totalReserved)}
+                        </button>
                       )}
                       {stock.length > 0 && (
                         <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"#fff", background:"rgba(255,255,255,0.2)", padding:"1px 8px", borderRadius:4 }}>
@@ -1621,7 +1665,85 @@ export default function Products() {
             <input type="checkbox" id="active" checked={form.active} onChange={f("active")} style={{ accentColor:"var(--accent)", width:15, height:15 }} />
             <label htmlFor="active" style={{ fontSize:13, color:"var(--text-muted)", cursor:"pointer" }}>Producto activo</label>
           </div>
+          <hr className="divider" />
+          <div style={{ fontFamily:"var(--font-sans)", fontSize:11, fontWeight:600, color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.04em", marginBottom:4 }}>
+            % Personalizados
+          </div>
+          <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:12 }}>
+            Dejá vacío para usar el porcentaje global del sistema.
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+            {[1,2,3,4,5].map((n) => (
+              <div key={n}>
+                <div className="input-label">Precio #{n} %</div>
+                <input
+                  className="input"
+                  type="text" inputMode="decimal"
+                  placeholder={modal === "edit" && selected ? `Global: ${selected[`global_pct_${n}`] ?? "?"}%` : "% global"}
+                  value={formOverride[`pct_${n}`]}
+                  onChange={(e) => setFormOverride((fo) => ({ ...fo, [`pct_${n}`]: e.target.value }))}
+                  onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                />
+              </div>
+            ))}
+          </div>
         </Modal>
+      )}
+
+      {/* ── Modal de reservas ── */}
+      {reservasModal && selected && (
+        <div className="modal-overlay" onClick={() => setReservasModal(false)}>
+          <div className="modal" style={{ maxWidth:680 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Reservas — {selected.code || selected.name}</span>
+              <button className="modal-close" onClick={() => setReservasModal(false)}>✕</button>
+            </div>
+            {reservasLoading ? (
+              <div style={{ padding:"24px", textAlign:"center", color:"var(--text-dim)", fontSize:13 }}>Cargando...</div>
+            ) : reservasData.length === 0 ? (
+              <div style={{ padding:"24px", textAlign:"center", color:"var(--text-dim)", fontSize:13 }}>Sin reservas activas</div>
+            ) : (
+              <div>
+                <div style={{ display:"grid", gridTemplateColumns:"1.3fr 1fr 1fr 80px 60px", gap:0, padding:"6px 14px", borderBottom:"1px solid var(--border)", background:"var(--bg3)" }}>
+                  {["Comprobante","Cliente","Depósito","Fecha","Cant."].map((h) => (
+                    <span key={h} style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em" }}>{h}</span>
+                  ))}
+                </div>
+                {reservasData.map((row) => (
+                  <div key={row.id} style={{ display:"grid", gridTemplateColumns:"1.3fr 1fr 1fr 80px 60px", gap:0, padding:"9px 14px", borderBottom:"1px solid var(--border)", alignItems:"center" }}>
+                    <button
+                      style={{ fontSize: 13, background: "none", border: "none", cursor: "pointer", padding: 0, color: "var(--accent)", textDecoration: "underline", textAlign: "left" }}
+                      title="Imprimir comprobante"
+                      onClick={async () => {
+                        try { const { data } = await getComprobante(row.id); printComprobantePDF(data); } catch {}
+                      }}
+                    >
+                      {row.tipo} — {row.id.slice(0, 8)}
+                    </button>
+                    <span style={{ fontSize:12, color:"var(--text)", fontWeight:600, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {row.customer_name || <span style={{ color:"var(--text-dim)" }}>—</span>}
+                    </span>
+                    <span style={{ fontSize:12, color:"var(--text-muted)", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {row.warehouse_name}
+                    </span>
+                    <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>
+                      {new Date(row.created_at).toLocaleDateString("es-AR", { timeZone:"America/Argentina/Buenos_Aires" })}
+                    </span>
+                    <span style={{ fontSize:13, fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)", textAlign:"right" }}>
+                      {row.quantity}
+                    </span>
+                  </div>
+                ))}
+                <div style={{ padding:"10px 14px", borderTop:"1px solid var(--border)", background:"var(--bg3)", display:"flex", justifyContent:"flex-end", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>Total:</span>
+                  <span style={{ fontSize:14, fontFamily:"var(--font-mono)", fontWeight:700, color:"var(--accent)" }}>
+                    {reservasData.reduce((a, r) => a + Number(r.quantity), 0)}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* ── Modal de porcentajes por producto ── */}

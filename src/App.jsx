@@ -21,6 +21,7 @@ import CatalogosPersonalizados from "./pages/CatalogosPersonalizados";
 import Dashboard from "./pages/Dashboard";
 import Rentabilidad  from "./pages/Rentabilidad";
 import AsistenteIA  from "./pages/AsistenteIA";
+import Recordatorios from "./pages/Recordatorios";
 
 // Ruta protegida: redirige a /login si no hay sesión.
 // Si el usuario es vendedor y la ruta no está permitida, redirige a su home.
@@ -62,79 +63,34 @@ function AppRoutes() {
         element={isAuthenticated ? <Navigate to={homePath} replace /> : <Login />}
       />
 
-      {/* Rutas protegidas */}
-      <Route path="/" element={<PrivateRoute><Navigate to={homePath} replace /></PrivateRoute>} />
-
-      <Route path="/dashboard" element={
-        <PrivateRoute><Layout><Dashboard /></Layout></PrivateRoute>
-      } />
-
-      <Route path="/comprobantes" element={
-        <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>
-      } />
-      <Route path="/comprobantes/nuevo" element={
-        <PrivateRoute><Layout><Comprobantes initialCreating={true} /></Layout></PrivateRoute>
-      } />
-      <Route path="/comprobantes/editar/:editId" element={
-        <PrivateRoute><Layout><Comprobantes /></Layout></PrivateRoute>
-      } />
-      <Route path="/remitos" element={
-        <PrivateRoute><Layout><Remitos /></Layout></PrivateRoute>
-      } />
-      <Route path="/remitos/nuevo" element={
-        <PrivateRoute><Layout><Remitos initialCreating={true} /></Layout></PrivateRoute>
-      } />
-      <Route path="/remitos/editar/:editId" element={
-        <PrivateRoute><Layout><Remitos /></Layout></PrivateRoute>
-      } />
-      <Route path="/caja" element={
-        <PrivateRoute><Layout><Cash /></Layout></PrivateRoute>
-      } />
-      <Route path="/caja/listado" element={
-        <PrivateRoute><Layout><CajaListado /></Layout></PrivateRoute>
-      } />
-      <Route path="/pedidos-web" element={
-        <PrivateRoute><Layout><WebOrders /></Layout></PrivateRoute>
-      } />
-      <Route path="/cuenta-corriente" element={
-        <PrivateRoute><Layout><CuentaCorriente /></Layout></PrivateRoute>
-      } />
-      <Route path="/productos" element={
-        <PrivateRoute><Layout><Products /></Layout></PrivateRoute>
-      } />
-      <Route path="/productos/ultimas-compras" element={
-        <PrivateRoute><Layout><UltimasCompras /></Layout></PrivateRoute>
-      } />
-      <Route path="/stock-movimientos" element={
-        <PrivateRoute><Layout><StockMovimientos /></Layout></PrivateRoute>
-      } />
-      <Route path="/vendedores" element={
-        <PrivateRoute><Layout><Vendedores /></Layout></PrivateRoute>
-      } />
-      <Route path="/configuracion" element={
-        <PrivateRoute><Layout><Configuracion /></Layout></PrivateRoute>
-      } />
-      <Route path="/calculadora" element={
-        <PrivateRoute><Layout><Calculadora /></Layout></PrivateRoute>
-      } />
-      <Route path="/usuarios" element={
-        <PrivateRoute><Layout><Usuarios /></Layout></PrivateRoute>
-      } />
-      <Route path="/transportes" element={
-        <PrivateRoute><Layout><Transportes /></Layout></PrivateRoute>
-      } />
-      <Route path="/clientes" element={
-        <PrivateRoute><Layout><Clientes /></Layout></PrivateRoute>
-      } />
-      <Route path="/catalogos" element={
-        <PrivateRoute><Layout><CatalogosPersonalizados /></Layout></PrivateRoute>
-      } />
-      <Route path="/rentabilidad" element={
-        <SuperAdminRoute><Layout><Rentabilidad /></Layout></SuperAdminRoute>
-      } />
-      <Route path="/asistente-ia" element={
-        <AdminRoute><Layout><AsistenteIA /></Layout></AdminRoute>
-      } />
+      {/* Todas las rutas autenticadas comparten una sola instancia de Layout */}
+      <Route element={<PrivateRoute><Layout /></PrivateRoute>}>
+        <Route path="/" element={<Navigate to={homePath} replace />} />
+        <Route path="/dashboard"                element={<Dashboard />} />
+        <Route path="/comprobantes"             element={<Comprobantes />} />
+        <Route path="/comprobantes/nuevo"       element={<Comprobantes initialCreating={true} />} />
+        <Route path="/comprobantes/editar/:editId" element={<Comprobantes />} />
+        <Route path="/remitos"                  element={<Remitos />} />
+        <Route path="/remitos/nuevo"            element={<Remitos initialCreating={true} />} />
+        <Route path="/remitos/editar/:editId"   element={<Remitos />} />
+        <Route path="/caja"                     element={<Cash />} />
+        <Route path="/caja/listado"             element={<CajaListado />} />
+        <Route path="/pedidos-web"              element={<WebOrders />} />
+        <Route path="/cuenta-corriente"         element={<CuentaCorriente />} />
+        <Route path="/productos"                element={<Products />} />
+        <Route path="/productos/ultimas-compras" element={<UltimasCompras />} />
+        <Route path="/stock-movimientos"        element={<StockMovimientos />} />
+        <Route path="/vendedores"               element={<Vendedores />} />
+        <Route path="/configuracion"            element={<Configuracion />} />
+        <Route path="/calculadora"              element={<Calculadora />} />
+        <Route path="/usuarios"                 element={<Usuarios />} />
+        <Route path="/transportes"              element={<Transportes />} />
+        <Route path="/clientes"                 element={<Clientes />} />
+        <Route path="/catalogos"               element={<CatalogosPersonalizados />} />
+        <Route path="/asistente-ia"            element={<AdminRoute><AsistenteIA /></AdminRoute>} />
+        <Route path="/rentabilidad"            element={<SuperAdminRoute><Rentabilidad /></SuperAdminRoute>} />
+        <Route path="/recordatorios"           element={<SuperAdminRoute><Recordatorios /></SuperAdminRoute>} />
+      </Route>
 
       {/* Fallback */}
       <Route path="*" element={<Navigate to={homePath} replace />} />

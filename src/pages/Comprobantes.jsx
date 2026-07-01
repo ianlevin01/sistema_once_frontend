@@ -912,7 +912,7 @@ export default function Comprobantes({ initialCreating = false }) {
         window.opener?.location.reload();
         try {
           const { data: compFull } = await getComprobante(nuevoComp.id);
-          if (tipo !== "Nota de Pedido") await printComprobantePDF(compFull);
+          await printComprobantePDF(compFull);
         } catch { /* si falla el print igual cerramos */ }
         window.close();
         return;
@@ -1016,7 +1016,7 @@ export default function Comprobantes({ initialCreating = false }) {
       addToast("Comprobante actualizado", "success");
       if (editId) {
         window.opener?.location.reload();
-        if (tipo !== "Nota de Pedido") await printComprobantePDF(updatedComp);
+        await printComprobantePDF(updatedComp);
         window.close();
         return;
       }
@@ -1549,6 +1549,12 @@ export default function Comprobantes({ initialCreating = false }) {
                     <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", alignSelf:"center", marginRight:4 }}>
                       Stock:
                     </span>
+                    {prodSel.qxb && (
+                      <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"2px 10px", borderRadius:5, fontSize:12, border:"1px solid var(--border)", background:"var(--bg2)", fontFamily:"var(--font-mono)", marginRight:4 }}>
+                        <span style={{ fontSize:11, color:"var(--text-muted)" }}>QxB</span>
+                        <span style={{ fontWeight:700, color:"var(--text)" }}>{prodSel.qxb}</span>
+                      </span>
+                    )}
                     {stockRows.map((s) => {
                       const qty = Number(s.quantity) || 0;
                       const pos = qty > 0;

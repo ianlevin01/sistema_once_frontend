@@ -105,6 +105,7 @@ export const getCategories        = ()           => api.get("/products/categorie
 export const createCategory       = (name, parent_id = null) => api.post("/products/categories", { name, parent_id });
 export const subirProducto        = (id)         => api.patch(`/products/${id}/subir`);
 export const agregarStock         = (id, qty)    => api.patch(`/products/${id}/stock`, { quantity: qty });
+export const getProductReservas   = (id)         => api.get(`/products/${id}/reservas`);
 export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
 export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
 export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);
@@ -207,5 +208,11 @@ export const deleteGastoFijo       = (id)        => api.delete(`/rentabilidad/ga
 export const aiAgentChat         = (messages)          => api.post("/ai/agent/chat", { messages });
 export const getAIPermissions    = ()                  => api.get("/ai/agent/permissions");
 export const updateAIPermission  = (section, data)     => api.put(`/ai/agent/permissions/${section}`, data);
+
+// ── RECORDATORIOS ─────────────────────────────────────────────
+export const getRecordatoriosPendientes = ()   => api.get("/recordatorios/pendientes");
+export const getRecordatorios           = ()   => api.get("/recordatorios");
+export const marcarRecordatorioLeido    = (id) => api.post(`/recordatorios/${id}/leer`);
+export const marcarTodosRecordatoriosLeidos = () => api.post("/recordatorios/leer-todos");
 
 export default api;
