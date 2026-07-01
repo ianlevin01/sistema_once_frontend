@@ -18,6 +18,7 @@ export default function Cash() {
   const [to,          setTo]          = useState(today());
   const [appliedFrom, setAppliedFrom] = useState(today());
   const [appliedTo,   setAppliedTo]   = useState(today());
+  const [soloManuales, setSoloManuales] = useState(false);
   const filterDirty = from !== appliedFrom || to !== appliedTo;
   const { addToast, ToastContainer } = useToast();
 
@@ -36,9 +37,11 @@ export default function Cash() {
 
   useEffect(() => { load(today(), today()); }, []);
 
+  const movsFiltrados = soloManuales ? movements.filter((m) => !m.reference_id) : movements;
+
   // Separar movimientos por divisa para los totales
-  const movsARS = movements.filter((m) => (m.divisa || "ARS") === "ARS");
-  const movsUSD = movements.filter((m) => (m.divisa || "ARS") === "USD");
+  const movsARS = movsFiltrados.filter((m) => (m.divisa || "ARS") === "ARS");
+  const movsUSD = movsFiltrados.filter((m) => (m.divisa || "ARS") === "USD");
 
   const totalIngresoARS = movsARS.filter((m) => m.type === "ingreso").reduce((a, m) => a + Number(m.amount), 0);
   const totalEgresoARS  = movsARS.filter((m) => m.type === "egreso" ).reduce((a, m) => a + Number(m.amount), 0);
@@ -140,13 +143,30 @@ export default function Cash() {
         </button>
       </div>
 
+      <div style={{ display:"flex", gap:4, marginBottom:8 }}>
+        {[["Todos", false], ["Solo manuales", true]].map(([label, val]) => (
+          <button
+            key={label}
+            onClick={() => setSoloManuales(val)}
+            style={{
+              fontSize:12, padding:"5px 12px", borderRadius:4, cursor:"pointer", border:"1px solid var(--border)",
+              background: soloManuales === val ? "var(--accent)" : "var(--bg2)",
+              color: soloManuales === val ? "#fff" : "var(--text-muted)",
+              fontWeight: soloManuales === val ? 600 : 400,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div className="card">
         <div className="card-header">
           <span className="card-title">Movimientos de caja</span>
-          <span className="badge badge-info">{movements.length}</span>
+          <span className="badge badge-info">{movsFiltrados.length}</span>
         </div>
 
-        {loading ? <div className="empty">Cargando...</div> : movements.length === 0 ? (
+        {loading ? <div className="empty">Cargando...</div> : movsFiltrados.length === 0 ? (
           <div className="empty">Sin movimientos</div>
         ) : (
           <div className="table-wrap">
@@ -155,7 +175,7 @@ export default function Cash() {
                 <tr><th>Tipo</th><th>Fuente</th><th>Observaciones</th><th>Divisa</th><th>Monto</th><th>Fecha</th></tr>
               </thead>
               <tbody>
-                {movements.map((m) => {
+                {movsFiltrados.map((m) => {
                   const esUSD = (m.divisa || "ARS") === "USD";
                   return (
                     <tr key={m.id}>
