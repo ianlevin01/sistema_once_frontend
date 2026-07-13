@@ -465,6 +465,13 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
   const [soloCC,         setSoloCC]         = useState(false);
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate,   setFilterToDate]   = useState("");
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    if (cc) {
+      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }), 80);
+    }
+  }, [cc]);
 
   const toggleDetails = async (orderId) => {
     if (expandedOrders.has(orderId)) {
@@ -777,6 +784,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
               </div>
             );
           })}
+          <div ref={bottomRef} />
         </div>
       )}
     </div>
