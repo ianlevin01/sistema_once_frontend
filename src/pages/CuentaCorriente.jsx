@@ -11,6 +11,7 @@ import {
   editarMovimientoProv, eliminarMovimientoProv,
   getCCProveedoresSummary,
   getPriceConfig, getTransportes, getComprobante, getVendedoresActivos,
+  deleteComprobante,
 } from "../utils/api";
 import { printComprobantePDF, printCCPDF, printCCGeneralPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
@@ -458,13 +459,17 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 // ─────────────────────────────────────────────────────────────
 // Vista de cuenta corriente
 // ─────────────────────────────────────────────────────────────
-function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
+function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
   const navigate = useNavigate();
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [orderItems,     setOrderItems]     = useState({});
   const [soloCC,         setSoloCC]         = useState(false);
   const [filterFromDate, setFilterFromDate] = useState("");
   const [filterToDate,   setFilterToDate]   = useState("");
+  const [vistaDoble,     setVistaDoble]     = useState(false);
+  const [deleteCompModal, setDeleteCompModal] = useState(null); // { id, concepto }
+  const [deleteCompPwd,   setDeleteCompPwd]   = useState("");
+  const [deletingComp,    setDeletingComp]    = useState(false);
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -492,6 +497,20 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
         setOrderItems((prev) => ({ ...prev, [orderId]: [] }));
       }
     }
+  };
+
+  const handleDeleteComp = async () => {
+    if (!deleteCompPwd.trim()) return;
+    setDeletingComp(true);
+    try {
+      await deleteComprobante(deleteCompModal.id, deleteCompPwd);
+      setDeleteCompModal(null);
+      setDeleteCompPwd("");
+      onRefreshCC?.();
+    } catch (err) {
+      alert(err?.response?.data?.message || "Clave incorrecta");
+    }
+    setDeletingComp(false);
   };
 
   if (loadingCC) {
@@ -588,6 +607,43 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
 
   return (
     <div>
+      {deleteCompModal && (
+        <div className="modal-overlay" onClick={() => { setDeleteCompModal(null); setDeleteCompPwd(""); }}>
+          <div className="modal" style={{ maxWidth: 380 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Eliminar comprobante</span>
+              <button className="modal-close" onClick={() => { setDeleteCompModal(null); setDeleteCompPwd(""); }}>✕</button>
+            </div>
+            <p style={{ fontSize: 13, color: "var(--text-dim)", marginBottom: 4 }}>
+              <strong style={{ color: "var(--text)" }}>{deleteCompModal.concepto}</strong>
+            </p>
+            <p style={{ fontSize: 12, color: "var(--text-dim)", marginBottom: 16 }}>
+              Se revertirá el stock y la cuenta corriente. Esta acción no se puede deshacer.<br />
+              Ingresá la clave de superadmin para confirmar.
+            </p>
+            <input
+              type="password"
+              placeholder="Clave de superadmin"
+              value={deleteCompPwd}
+              onChange={(e) => setDeleteCompPwd(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleDeleteComp()}
+              autoFocus
+              style={{ width: "100%", padding: "8px 12px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg)", color: "var(--text)", marginBottom: 16, boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => { setDeleteCompModal(null); setDeleteCompPwd(""); }}
+                style={{ padding: "7px 18px", fontSize: 13, border: "1px solid var(--border)", borderRadius: 6, background: "var(--bg3)", color: "var(--text-dim)", cursor: "pointer" }}
+              >Cancelar</button>
+              <button
+                onClick={handleDeleteComp}
+                disabled={!deleteCompPwd.trim() || deletingComp}
+                style={{ padding: "7px 18px", fontSize: 13, border: "none", borderRadius: 6, background: "var(--danger)", color: "#fff", cursor: "pointer", opacity: (!deleteCompPwd.trim() || deletingComp) ? 0.5 : 1 }}
+              >{deletingComp ? "Eliminando..." : "Eliminar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
       <div style={{ display: "flex", gap: 16, marginBottom: 16, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div style={{ flex: 1, minWidth: 300, background: "var(--bg2)", border: "1px solid var(--border)", borderRadius: 8, padding: "18px 22px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
@@ -637,7 +693,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <div style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-          Movimientos ({movsVisibles.length}{soloCC ? ` de ${movsConSaldo.length}` : ""})
+          Movimientos ({movsVisibles.length}{soloCC ? ` de ${movsConSaldoReal.length}` : ""})
         </div>
         <button
           onClick={() => setSoloCC((v) => !v)}
@@ -651,10 +707,185 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
         >
           {soloCC ? "✓ Solo Cta Cte" : "Todos"}
         </button>
+        <button
+          onClick={() => setVistaDoble((v) => !v)}
+          style={{
+            fontSize: 11, padding: "3px 10px", borderRadius: 4, cursor: "pointer",
+            border: `1px solid ${vistaDoble ? "var(--accent)" : "var(--border)"}`,
+            background: vistaDoble ? "var(--accent)" : "var(--bg3)",
+            color: vistaDoble ? "#fff" : "var(--text-muted)",
+            fontFamily: "var(--font-mono)",
+          }}
+        >
+          {vistaDoble ? "✓ Vista separada" : "Vista separada"}
+        </button>
       </div>
 
       {!movsVisibles.length ? (
         <div style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12, padding: "24px 0" }}>Sin movimientos</div>
+      ) : vistaDoble ? (
+        (() => {
+          const movsComprobantes = movsVisibles.filter((m) => m.order_id);
+          const movsCobranzas    = movsVisibles.filter((m) => !m.order_id);
+          const GRID_COMP  = "90px 1fr 100px 60px";
+          const GRID_COB   = "90px 1fr 100px 110px 30px";
+          const colHdr = (label) => (
+            <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
+          );
+          const renderItemsExpanded = (m) => {
+            const items = orderItems[m.order_id] ?? null;
+            return (
+              <div style={{ background: "var(--bg2)", borderTop: "1px solid var(--border)", padding: "10px 16px 12px" }}>
+                {items === null ? (
+                  <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Cargando...</span>
+                ) : items.length === 0 ? (
+                  <span style={{ fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin artículos</span>
+                ) : (
+                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+                    <thead>
+                      <tr style={{ color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 10, textTransform: "uppercase", letterSpacing: "0.07em" }}>
+                        <th style={{ textAlign: "left",  padding: "0 8px 6px 0", fontWeight: 600 }}>Artículo</th>
+                        <th style={{ textAlign: "center", padding: "0 8px 6px", fontWeight: 600, width: 50 }}>Cant.</th>
+                        <th style={{ textAlign: "right",  padding: "0 0 6px 8px", fontWeight: 600, width: 100 }}>Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.map((it, idx) => (
+                        <tr key={idx} style={{ borderTop: "1px solid var(--border)" }}>
+                          <td style={{ padding: "5px 8px 5px 0", color: "var(--text)" }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#2563eb", fontWeight: 600, marginRight: 6 }}>{it.code || it.product_code || "—"}</span>
+                            {it.name || it.product_name || "—"}
+                          </td>
+                          <td style={{ padding: "5px 8px", textAlign: "center", fontFamily: "var(--font-mono)", color: "var(--text-muted)" }}>{it.quantity}</td>
+                          <td style={{ padding: "5px 0 5px 8px", textAlign: "right", fontFamily: "var(--font-mono)", fontWeight: 700, color: "var(--accent)" }}>
+                            {(() => {
+                              const unitARS  = Number(it.unit_price);
+                              const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
+                                ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
+                                : unitARS;
+                              return (it.quantity * unitDisp).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                            })()}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            );
+          };
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+              {/* ── COMPROBANTES ── */}
+              <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+                <div style={{ padding: "8px 12px", background: "var(--bg3)", borderBottom: "2px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Comprobantes ({movsComprobantes.length})</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: GRID_COMP, gap: 8, padding: "6px 12px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
+                  {["Fecha", "Concepto", "Monto", "Tipo"].map(colHdr)}
+                </div>
+                {movsComprobantes.length === 0 ? (
+                  <div style={{ padding: "16px 12px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin comprobantes</div>
+                ) : (
+                  movsComprobantes.map((m) => {
+                    const divisaCC   = m.divisa_cuenta ?? divisa;
+                    const isExpanded = expandedOrders.has(m.order_id);
+                    const isVisual   = m.afecta_saldo === false;
+                    const montoColor = isVisual ? "#1d4ed8"
+                      : (esProveedor && m.concepto?.toLowerCase().includes("saldo_inicial") ? "var(--text)"
+                        : m.tipo === "debito" ? "var(--danger)" : "var(--success)");
+                    const montoSign  = isVisual ? ""
+                      : (esProveedor
+                        ? (m.concepto?.toLowerCase().includes("saldo_inicial") ? "+" : m.tipo === "debito" ? "−" : "+")
+                        : (m.tipo === "debito" ? "+" : "−"));
+                    return (
+                      <div key={m.id} style={{ borderBottom: "1px solid var(--border)", background: isVisual ? "rgba(29,78,216,0.04)" : "var(--bg)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: GRID_COMP, gap: 8, padding: "9px 12px", alignItems: "center" }}>
+                          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-muted)", ...(isVisual ? { fontWeight: 700, color: "#1d4ed8" } : {}) }}>{fmtDate(m.created_at)}</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                            <button
+                              style={{ fontSize: 12, background: "none", border: "none", cursor: "pointer", padding: 0, color: isVisual ? "#1d4ed8" : "var(--accent)", textDecoration: "underline", textAlign: "left", fontWeight: isVisual ? 700 : 400 }}
+                              title="Imprimir comprobante"
+                              onClick={async () => { try { const { data } = await getComprobante(m.order_id); printComprobantePDF(data); } catch {} }}
+                            >
+                              {m.concepto || "Ver comprobante"}
+                            </button>
+                            <div style={{ display: "flex", gap: 4 }}>
+                              <button
+                                style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
+                                title="Editar comprobante"
+                                onClick={() => window.open(`/comprobantes/editar/${m.order_id}`, "_blank")}
+                              >✏️ Editar</button>
+                              <button
+                                style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: isExpanded ? "var(--accent)" : "var(--text-dim)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
+                                title="Ver artículos"
+                                onClick={() => toggleDetails(m.order_id)}
+                              >{isExpanded ? "▲ Ocultar" : "▼ Items"}</button>
+                              <button
+                                style={{ background: "none", border: "1px solid var(--danger)", cursor: "pointer", color: "var(--danger)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
+                                title="Eliminar comprobante"
+                                onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
+                              >🗑️</button>
+                            </div>
+                          </div>
+                          <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: montoColor }}>{montoSign}{fmtMonto(m.monto, divisaCC)}</span>
+                          <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 9, opacity: isVisual ? 0.5 : 1 }}>{m.tipo === "debito" ? "Déb" : "Cobro"}</span>
+                        </div>
+                        {isExpanded && renderItemsExpanded(m)}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* ── COBRANZAS ── */}
+              <div style={{ border: "1px solid var(--border)", borderRadius: 6, overflow: "hidden" }}>
+                <div style={{ padding: "8px 12px", background: "var(--bg3)", borderBottom: "2px solid var(--border)" }}>
+                  <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Cobranzas ({movsCobranzas.length})</span>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: GRID_COB, gap: 8, padding: "6px 12px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
+                  {["Fecha", "Concepto", "Método", "Monto", ""].map(colHdr)}
+                </div>
+                {movsCobranzas.length === 0 ? (
+                  <div style={{ padding: "16px 12px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin cobranzas</div>
+                ) : (
+                  movsCobranzas.map((m) => {
+                    const divisaCC   = m.divisa_cuenta ?? divisa;
+                    const divisaCobro = m.divisa_cobro ?? divisaCC;
+                    const isVisual   = m.afecta_saldo === false;
+                    const metodo     = m.metodo_pago || (!isVisual ? "Cta Cte" : "—");
+                    const montoColor = isVisual ? "#1d4ed8"
+                      : (m.tipo === "debito" ? "var(--danger)" : "var(--success)");
+                    const montoSign  = isVisual ? "" : (esProveedor
+                      ? (m.tipo === "debito" ? "−" : "+")
+                      : (m.tipo === "debito" ? "+" : "−"));
+                    return (
+                      <div key={m.id} style={{ borderBottom: "1px solid var(--border)", background: isVisual ? "rgba(29,78,216,0.04)" : "var(--bg)" }}>
+                        <div style={{ display: "grid", gridTemplateColumns: GRID_COB, gap: 8, padding: "9px 12px", alignItems: "center" }}>
+                          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--text-muted)", ...(isVisual ? { fontWeight: 700, color: "#1d4ed8" } : {}) }}>{fmtDate(m.created_at)}</span>
+                          <span style={{ fontSize: 12, ...(isVisual ? { fontWeight: 700, color: "#1d4ed8" } : {}) }}>{m.concepto || "—"}</span>
+                          <span style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: isVisual ? "#1d4ed8" : "var(--text-muted)" }}>{metodo}</span>
+                          <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+                            <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: montoColor }}>{montoSign}{fmtMonto(m.monto, divisaCC)}</span>
+                            {m.monto_original != null && divisaCobro !== divisaCC && (
+                              <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)" }}>{fmtMonto(m.monto_original, divisaCobro)}</span>
+                            )}
+                          </div>
+                          <button
+                            onClick={() => onEditMov(m)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 13, padding: "2px 3px", borderRadius: 4 }}
+                            title="Editar movimiento"
+                          >✏️</button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+              <div ref={bottomRef} />
+            </div>
+          );
+        })()
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
           {filterFromDate && (
@@ -675,7 +906,6 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
             const items       = m.order_id ? (orderItems[m.order_id] ?? null) : null;
             const isVisual    = m.afecta_saldo === false;
             const metodoDisplay = m.metodo_pago || (!isVisual ? "Cta Cte" : "—");
-            // Entradas visuales (no-CC): negrita azul llamativo
             const visualStyle = isVisual
               ? { fontWeight: 700, color: "#1d4ed8" }
               : {};
@@ -711,6 +941,13 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov }) {
                         onClick={() => toggleDetails(m.order_id)}
                       >
                         {isExpanded ? "▲ Ocultar" : "▼ Detalles"}
+                      </button>
+                      <button
+                        style={{ background: "none", border: "1px solid var(--danger)", cursor: "pointer", color: "var(--danger)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
+                        title="Eliminar comprobante"
+                        onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
+                      >
+                        🗑️ Eliminar
                       </button>
                     </div>
                   ) : (
@@ -1127,7 +1364,7 @@ function EntityPanel({
           ) : loadingDetail ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Cargando...</div>
           ) : viewCC ? (
-            <CCView cc={cc} loadingCC={loadingCC} mode={mode} cotizacion={cotizacion} onEditMov={setMovEditando} />
+            <CCView cc={cc} loadingCC={loadingCC} mode={mode} cotizacion={cotizacion} onEditMov={setMovEditando} onRefreshCC={() => loadCC(selected.id)} />
           ) : (
             <EntityFicha selected={selected} mode={mode} />
           )}
