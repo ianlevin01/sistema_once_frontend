@@ -727,7 +727,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
         (() => {
           const movsComprobantes = movsVisibles.filter((m) => m.order_id);
           const movsCobranzas    = movsVisibles.filter((m) => !m.order_id);
-          const GRID_COMP  = "90px 1fr 100px 60px";
+          const GRID_COMP  = "90px 1fr 100px 60px 28px";
           const GRID_COB   = "90px 1fr 100px 110px 30px";
           const colHdr = (label) => (
             <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
@@ -782,7 +782,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                   <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Comprobantes ({movsComprobantes.length})</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: GRID_COMP, gap: 8, padding: "6px 12px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-                  {["Fecha", "Concepto", "Monto", "Tipo"].map(colHdr)}
+                  {["Fecha", "Concepto", "Monto", "Tipo", ""].map(colHdr)}
                 </div>
                 {movsComprobantes.length === 0 ? (
                   <div style={{ padding: "16px 12px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin comprobantes</div>
@@ -821,15 +821,15 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                                 title="Ver artículos"
                                 onClick={() => toggleDetails(m.order_id)}
                               >{isExpanded ? "▲ Ocultar" : "▼ Items"}</button>
-                              <button
-                                style={{ background: "none", border: "1px solid var(--danger)", cursor: "pointer", color: "var(--danger)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
-                                title="Eliminar comprobante"
-                                onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
-                              >🗑️</button>
                             </div>
                           </div>
                           <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: montoColor }}>{montoSign}{fmtMonto(m.monto, divisaCC)}</span>
                           <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 9, opacity: isVisual ? 0.5 : 1 }}>{m.tipo === "debito" ? "Déb" : "Cobro"}</span>
+                          <button
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 13, padding: "2px 3px", borderRadius: 4 }}
+                            title="Eliminar comprobante"
+                            onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
+                          >🗑️</button>
                         </div>
                         {isExpanded && renderItemsExpanded(m)}
                       </div>
@@ -942,13 +942,6 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                       >
                         {isExpanded ? "▲ Ocultar" : "▼ Detalles"}
                       </button>
-                      <button
-                        style={{ background: "none", border: "1px solid var(--danger)", cursor: "pointer", color: "var(--danger)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
-                        title="Eliminar comprobante"
-                        onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
-                      >
-                        🗑️ Eliminar
-                      </button>
                     </div>
                   ) : (
                     <span style={{ fontSize: 13, ...visualStyle }}>{m.concepto || "—"}</span>
@@ -970,7 +963,14 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                   <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10, opacity: isVisual ? 0.5 : 1 }}>
                     {m.tipo === "debito" ? "Déb" : "Cobro"}
                   </span>
-                  {!m.order_id && (
+                  {m.order_id ? (
+                    <button
+                      onClick={() => { setDeleteCompModal({ id: m.order_id, concepto: m.concepto || "Comprobante" }); setDeleteCompPwd(""); }}
+                      style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
+                      title="Eliminar comprobante">
+                      🗑️
+                    </button>
+                  ) : (
                     <button
                       onClick={() => onEditMov(m)}
                       style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-dim)", fontSize: 14, padding: "2px 4px", borderRadius: 4 }}
