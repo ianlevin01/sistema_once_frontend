@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { getCategories, getProductsForCatalog, searchProducts } from "../utils/api";
+import { getCategories, getProductsForCatalog, searchProducts, getPriceConfig } from "../utils/api";
 import { printCatalogoPDF, printPreciosPDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 
@@ -15,6 +15,7 @@ export default function CatalogosPersonalizados() {
   const [catalogTitle, setCatalogTitle] = useState("Catálogo de Productos");
   const [printType,    setPrintType]    = useState("catalogo");
   const [priceTier,    setPriceTier]    = useState("");
+  const [cotizacion,   setCotizacion]   = useState(1);
   const { addToast, ToastContainer } = useToast();
 
   // Buscador de producto individual
@@ -27,6 +28,9 @@ export default function CatalogosPersonalizados() {
     getCategories()
       .then((r) => setCategories(r.data || r))
       .catch(() => addToast("Error cargando categorías", "error"));
+    getPriceConfig()
+      .then((r) => setCotizacion(Number(r.data?.cotizacion_dolar || 1)))
+      .catch(() => {});
   }, []);
 
   // Búsqueda de producto con debounce
@@ -275,9 +279,15 @@ export default function CatalogosPersonalizados() {
                   const next = { ...prev };
                   products.forEach((p) => {
                     if (!next[p.id]?.included) return;
-                    const priceObj = p.prices?.find((pr) => pr.price_type === tier);
-                    if (priceObj?.price != null) {
-                      next[p.id] = { ...next[p.id], priceValue: String(Math.round(priceObj.price)) };
+                    let computedPrice = null;
+                    if (tier === "costo") {
+                      if (p.costo_usd != null) computedPrice = Number(p.costo_usd) * cotizacion;
+                    } else {
+                      const priceObj = p.prices?.find((pr) => pr.price_type === tier);
+                      if (priceObj?.price != null) computedPrice = Number(priceObj.price);
+                    }
+                    if (computedPrice != null) {
+                      next[p.id] = { ...next[p.id], priceValue: String(Math.round(computedPrice)) };
                     }
                   });
                   return next;
