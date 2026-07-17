@@ -124,17 +124,18 @@ export default function CatalogosPersonalizados() {
     });
 
   const handleGenerate = () => {
+    const sinPrecio = priceTier === "sin_precio";
     const included = products
       .filter((p) => config[p.id]?.included)
       .map((p) => {
         const cfg = config[p.id] || {};
         const rawPrice = cfg.priceValue?.toString().trim();
-        const price = rawPrice !== "" && rawPrice != null ? Number(rawPrice.replace(",", ".")) : null;
+        const price = sinPrecio ? null : (rawPrice !== "" && rawPrice != null ? Number(rawPrice.replace(",", ".")) : null);
         return {
           displayName: cfg.displayName || p.name,
           description: cfg.description || "",
-          price:       !isNaN(price) ? price : null,
-          priceValue:  !isNaN(price) ? price : null,
+          price:       sinPrecio ? null : (!isNaN(price) ? price : null),
+          priceValue:  sinPrecio ? null : (!isNaN(price) ? price : null),
           imageUrl:    p.images?.[0]?.url || null,
           code:        p.code || "",
           qxb:         p.qxb || "",
@@ -269,7 +270,7 @@ export default function CatalogosPersonalizados() {
               onChange={(e) => {
                 const tier = e.target.value;
                 setPriceTier(tier);
-                if (!tier) return;
+                if (!tier || tier === "sin_precio") return;
                 setConfig((prev) => {
                   const next = { ...prev };
                   products.forEach((p) => {
@@ -282,12 +283,14 @@ export default function CatalogosPersonalizados() {
                   return next;
                 });
               }}
-              style={{ width: 140 }}
+              style={{ width: 160 }}
             >
               <option value="">— Seleccionar —</option>
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={`precio_${n}`}>Precio {n}</option>
               ))}
+              <option value="costo">Precio costo</option>
+              <option value="sin_precio">Sin precio</option>
             </select>
           </div>
           <div>
