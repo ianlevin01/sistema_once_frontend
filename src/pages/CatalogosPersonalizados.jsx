@@ -14,6 +14,7 @@ export default function CatalogosPersonalizados() {
   const [columns,      setColumns]      = useState(3);
   const [catalogTitle, setCatalogTitle] = useState("Catálogo de Productos");
   const [printType,    setPrintType]    = useState("catalogo");
+  const [priceTier,    setPriceTier]    = useState("");
   const { addToast, ToastContainer } = useToast();
 
   // Buscador de producto individual
@@ -260,6 +261,35 @@ export default function CatalogosPersonalizados() {
           background: "var(--bg2)", border: "1px solid var(--border)",
           borderRadius: "var(--radius)", padding: "12px 16px",
         }}>
+          <div>
+            <div className="input-label">Precio para seleccionados</div>
+            <select
+              className="input"
+              value={priceTier}
+              onChange={(e) => {
+                const tier = e.target.value;
+                setPriceTier(tier);
+                if (!tier) return;
+                setConfig((prev) => {
+                  const next = { ...prev };
+                  products.forEach((p) => {
+                    if (!next[p.id]?.included) return;
+                    const priceObj = p.prices?.find((pr) => pr.price_type === tier);
+                    if (priceObj?.price != null) {
+                      next[p.id] = { ...next[p.id], priceValue: String(Math.round(priceObj.price)) };
+                    }
+                  });
+                  return next;
+                });
+              }}
+              style={{ width: 140 }}
+            >
+              <option value="">— Seleccionar —</option>
+              {[1, 2, 3, 4, 5].map((n) => (
+                <option key={n} value={`precio_${n}`}>Precio {n}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <div className="input-label">Título del catálogo</div>
             <input
