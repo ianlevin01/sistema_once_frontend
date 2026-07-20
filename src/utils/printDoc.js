@@ -1170,20 +1170,27 @@ export function printCCGeneralPDF({ clientes, proveedores, cotizacion }) {
 // El PDF se ve idéntico al documento — renderizado por Chrome headless.
 // ─────────────────────────────────────────────────────────────
 async function openPrintWindow(html) {
+  // Abrir la ventana inmediatamente (dentro del evento de usuario)
+  // para evitar que el popup blocker la bloquee en generaciones largas.
+  const tab = window.open("", "_blank");
+  if (!tab) {
+    alert("Habilitá las ventanas emergentes para ver el documento.");
+    return;
+  }
+  tab.document.write(
+    "<html><body style='font-family:sans-serif;text-align:center;padding:60px;color:#555'>" +
+    "<p style='font-size:16px'>Generando PDF, por favor esperá...</p></body></html>"
+  );
+
   try {
-    // Usa la instancia de axios (misma baseURL y token que el resto de la app)
     const res  = await api.post("/print/pdf", { html }, { responseType: "blob" });
     const blob = res.data;
     const url  = URL.createObjectURL(blob);
-    const tab  = window.open(url, "_blank");
-    if (!tab) {
-      alert("Habilitá las ventanas emergentes para ver el documento.");
-      URL.revokeObjectURL(url);
-      return;
-    }
+    tab.location.href = url;
     setTimeout(() => URL.revokeObjectURL(url), 120_000);
   } catch (err) {
     console.error("[openPrintWindow]", err);
+    tab.close();
     alert("No se pudo generar el PDF. Verificá tu conexión e intentá de nuevo.");
   }
 }
