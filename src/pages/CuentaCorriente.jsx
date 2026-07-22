@@ -1526,17 +1526,33 @@ function TabGeneral({ cotizacion }) {
   const filteredProveedores = cuentasProveedores.filter((p) => !search.trim() || p.name?.toLowerCase().includes(search.toLowerCase()));
   const toARS = (monto, divisa) => divisa === "USD" ? monto * (cotizacion || 1) : monto;
 
-  const totalDeudaClientes    = filteredClientes.reduce((a, c) => a + Math.max(0, toARS(Number(c.saldo || 0), c.divisa ?? "ARS")), 0);
-  const totalDeudaProveedores = filteredProveedores.reduce((a, p) => a + Math.max(0, toARS(Number(p.saldo || 0), p.divisa ?? "ARS")), 0);
+  const ccARS   = filteredClientes.filter(c => (c.divisa ?? "ARS") === "ARS" && Number(c.saldo) > 0).reduce((a, c) => a + Number(c.saldo), 0);
+  const ccUSD   = filteredClientes.filter(c => c.divisa === "USD"            && Number(c.saldo) > 0).reduce((a, c) => a + Number(c.saldo), 0);
+  const provARS = filteredProveedores.filter(p => (p.divisa ?? "ARS") === "ARS" && Number(p.saldo) > 0).reduce((a, p) => a + Number(p.saldo), 0);
+  const provUSD = filteredProveedores.filter(p => p.divisa === "USD"              && Number(p.saldo) > 0).reduce((a, p) => a + Number(p.saldo), 0);
 
   return (
     <>
       <ToastContainer />
       <div className="stats-row" style={{ marginBottom: 20 }}>
-        <div className="stat-card"><div className="stat-label">Clientes con saldo</div><div className="stat-value accent">{filteredClientes.filter((c) => Number(c.saldo || 0) > 0).length}</div></div>
-        <div className="stat-card"><div className="stat-label">Deuda clientes (ARS equiv.)</div><div className="stat-value danger">{fmtARS(totalDeudaClientes)}</div></div>
-        <div className="stat-card"><div className="stat-label">Proveedores con saldo</div><div className="stat-value accent">{filteredProveedores.filter((p) => Number(p.saldo || 0) > 0).length}</div></div>
-        <div className="stat-card"><div className="stat-label">Deuda proveedores (ARS equiv.)</div><div className="stat-value danger">{fmtARS(totalDeudaProveedores)}</div></div>
+        <div className="stat-card" style={{ borderLeft: "4px solid var(--accent)" }}>
+          <div className="stat-label">Clientes con saldo</div>
+          <div className="stat-value" style={{ color: "var(--accent)", fontSize: 21 }}>{filteredClientes.filter(c => Number(c.saldo || 0) > 0).length}</div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: "4px solid var(--warning)" }}>
+          <div className="stat-label">Deuda clientes</div>
+          <div className="stat-value" style={{ color: "var(--warning)", fontSize: 21 }}>{fmtARS(ccARS)}</div>
+          {ccUSD > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4, fontFamily: "var(--font-mono)" }}>+ {fmtUSD(ccUSD)}</div>}
+        </div>
+        <div className="stat-card" style={{ borderLeft: "4px solid var(--accent)" }}>
+          <div className="stat-label">Proveedores con saldo</div>
+          <div className="stat-value" style={{ color: "var(--accent)", fontSize: 21 }}>{filteredProveedores.filter(p => Number(p.saldo || 0) > 0).length}</div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: "4px solid var(--danger)" }}>
+          <div className="stat-label">Deuda a proveedores</div>
+          <div className="stat-value" style={{ color: "var(--danger)", fontSize: 21 }}>{fmtARS(provARS)}</div>
+          {provUSD > 0 && <div style={{ fontSize: 12, color: "var(--text-dim)", marginTop: 4, fontFamily: "var(--font-mono)" }}>+ {fmtUSD(provUSD)}</div>}
+        </div>
       </div>
       <div style={{ display: "flex", gap: 10, marginBottom: 16, alignItems: "center", flexWrap: "wrap" }}>
         <div style={{ display: "flex", gap: 4 }}>
