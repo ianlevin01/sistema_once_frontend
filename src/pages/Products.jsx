@@ -197,6 +197,45 @@ export default function Products() {
     setReorderSaving(false);
   };
 
+  // ── Stock por Depósito ────────────────────────────────────────────────────
+  const [depWarehouse, setDepWarehouse] = useState(null);
+  const [depQuery,     setDepQuery]     = useState("");
+  const [depProducts,  setDepProducts]  = useState([]);
+  const [depLoading,   setDepLoading]   = useState(false);
+  const depSearchIdRef = useRef(0);
+
+  const loadDep = async (wh, q = "") => {
+    if (!wh) { setDepProducts([]); return; }
+    const id = ++depSearchIdRef.current;
+    setDepLoading(true);
+    try {
+      let rows;
+      if (q.trim()) {
+        const { data } = await searchProducts(q.trim());
+        rows = Array.isArray(data) ? data : [];
+      } else {
+        const { data } = await getProductsForReorder(80);
+        rows = Array.isArray(data) ? data : (data?.products ?? []);
+      }
+      if (id !== depSearchIdRef.current) return;
+      setDepProducts(rows);
+    } catch { /* silencioso */ }
+    if (id !== depSearchIdRef.current) return;
+    setDepLoading(false);
+  };
+
+  useEffect(() => {
+    if (!depWarehouse) { setDepProducts([]); setDepQuery(""); return; }
+    loadDep(depWarehouse);
+    setDepQuery("");
+  }, [depWarehouse?.id]);
+
+  useEffect(() => {
+    if (!depWarehouse) return;
+    const t = setTimeout(() => loadDep(depWarehouse, depQuery), depQuery.trim() ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [depQuery]);
+
   // ── Tab / Import-Export ───────────────────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState("catalogo");
   const [importFile,     setImportFile]     = useState(null);
@@ -785,7 +824,7 @@ export default function Products() {
 
         {/* ══ TAB BAR ════════════════════════════════════════════════════════ */}
         <div style={{ display:"flex", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0 }}>
-          {[["catalogo","Catálogo"],["import","Actualización masiva"],["ordenar","Ordenar"]].filter(([tab]) => !isVendedor || tab === "catalogo").map(([tab, label]) => (
+          {[["catalogo","Catálogo"],["deposito","Stock por depósito"],["import","Actualización masiva"],["ordenar","Ordenar"]].filter(([tab]) => !isVendedor || tab === "catalogo" || tab === "deposito").map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding:"10px 20px", border:"none", background:"none", cursor:"pointer",
               fontSize:13, fontFamily:"var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
@@ -1244,6 +1283,177 @@ export default function Products() {
                   ))}
                 </div>
               </>
+            )}
+          </div>
+        </div>
+        ) : activeTab === "deposito" ? (
+        /* ══ PESTAÑA STOCK POR DEPÓSITO ═══════════════════════════════════ */
+        <div style={{ flex:1, overflowY:"auto", background:"var(--bg)", padding:"28px 32px" }}>
+          <style>{`@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}`}</style>
+          <div style={{ maxWidth:960 }}>
+
+            <div style={{ marginBottom:24 }}>
+              <div style={{ fontSize:15, fontWeight:700, color:"var(--text)", marginBottom:4 }}>Stock por depósito</div>
+              <div style={{ fontSize:12, color:"var(--text-dim)" }}>
+                Seleccioná un depósito para ver el stock de cada producto. Podés buscar por código o nombre.
+              </div>
+            </div>
+
+            {/* Selector de depósito */}
+            <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:20 }}>
+              <select
+                className="input"
+                value={depWarehouse?.id || ""}
+                onChange={(e) => setDepWarehouse(warehouseList.find((w) => w.id === e.target.value) || null)}
+                style={{ width:240 }}
+              >
+                <option value="">Seleccionar depósito…</option>
+                {warehouseList.map((w) => (
+                  <option key={w.id} value={w.id}>{w.name}</option>
+                ))}
+              </select>
+              {depWarehouse && (
+                <span style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
+                  {depLoading ? "Cargando…" : `${depProducts.length} producto${depProducts.length !== 1 ? "s" : ""}`}
+                </span>
+              )}
+            </div>
+
+            {depWarehouse ? (
+              <>
+                {/* Buscador */}
+                <div style={{ marginBottom:16 }}>
+                  <div className="search-bar">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      placeholder="Buscar por código o nombre…"
+                      value={depQuery}
+                      onChange={(e) => setDepQuery(e.target.value)}
+                    />
+                    {depQuery && (
+                      <button
+                        onClick={() => setDepQuery("")}
+                        style={{ background:"none", border:"none", color:"var(--text-dim)", cursor:"pointer", fontSize:14, padding:"0 4px" }}
+                      >✕</button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tabla */}
+                <div style={{ background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:8, overflow:"hidden" }}>
+                  {/* Cabecera */}
+                  <div style={{
+                    display:"grid", gridTemplateColumns:"130px 1fr 170px 110px",
+                    padding:"8px 16px", background:"var(--bg3)", borderBottom:"1px solid var(--border)",
+                  }}>
+                    {[["CÓDIGO",false],["NOMBRE",false],["CATEGORÍA",false],["STOCK",true]].map(([h, right]) => (
+                      <div key={h} style={{
+                        fontSize:10, fontFamily:"var(--font-mono)", fontWeight:600,
+                        color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.07em",
+                        textAlign: right ? "right" : "left",
+                      }}>{h}</div>
+                    ))}
+                  </div>
+
+                  {/* Cuerpo */}
+                  <div style={{ maxHeight:"calc(100vh - 340px)", overflowY:"auto" }}>
+                    {depLoading ? (
+                      Array.from({ length: 10 }).map((_, i) => (
+                        <div key={i} style={{
+                          display:"grid", gridTemplateColumns:"130px 1fr 170px 110px",
+                          padding:"11px 16px", borderBottom:"1px solid var(--border)", alignItems:"center", gap:8,
+                        }}>
+                          {[[56,false],[200,false],[80,false],[36,true]].map(([w, right], j) => (
+                            <div key={j} style={{
+                              height:12, width:w, borderRadius:3,
+                              background:"linear-gradient(90deg,var(--bg3) 25%,var(--border) 50%,var(--bg3) 75%)",
+                              backgroundSize:"200% 100%", animation:"shimmer 1.4s infinite",
+                              animationDelay:`${i * 0.05}s`,
+                              marginLeft: right ? "auto" : 0,
+                            }} />
+                          ))}
+                        </div>
+                      ))
+                    ) : depProducts.length === 0 ? (
+                      <div style={{ padding:"56px", textAlign:"center", color:"var(--text-dim)", fontSize:13 }}>
+                        {depQuery.trim() ? `Sin resultados para "${depQuery}"` : "No hay productos cargados"}
+                      </div>
+                    ) : (
+                      depProducts.map((p) => {
+                        const entry = (p.stock || []).find((s) => s.warehouse_id === depWarehouse.id);
+                        const qty   = entry != null ? Number(entry.quantity) : null;
+                        const isPos  = qty !== null && qty > 0;
+                        const isZero = qty === 0;
+                        return (
+                          <div
+                            key={p.id}
+                            style={{
+                              display:"grid", gridTemplateColumns:"130px 1fr 170px 110px",
+                              padding:"10px 16px", borderBottom:"1px solid var(--border)", alignItems:"center",
+                              background: isPos ? "rgba(37,99,235,0.025)" : "transparent",
+                              transition:"background 0.1s",
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = "var(--bg3)"; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = isPos ? "rgba(37,99,235,0.025)" : "transparent"; }}
+                          >
+                            <div>
+                              <span style={{
+                                fontFamily:"var(--font-mono)", fontSize:11,
+                                color:"var(--accent)", background:"var(--accent-light)",
+                                padding:"2px 8px", borderRadius:4,
+                              }}>{p.code || "—"}</span>
+                            </div>
+                            <div style={{
+                              fontSize:13, fontWeight:500, color:"var(--text)",
+                              paddingRight:12, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                            }}>{p.name}</div>
+                            <div style={{
+                              fontSize:11, color:"var(--text-muted)", fontFamily:"var(--font-mono)",
+                              overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap",
+                            }}>{p.category_name || "—"}</div>
+                            <div style={{ textAlign:"right" }}>
+                              <span style={{
+                                fontFamily:"var(--font-mono)", fontSize:14, fontWeight:700,
+                                color: isPos ? "var(--accent)" : isZero ? "var(--text-muted)" : "var(--text-dim)",
+                              }}>
+                                {qty === null ? "—" : Number(qty).toLocaleString("es-AR")}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Footer con total */}
+                  {!depLoading && depProducts.length > 0 && (() => {
+                    const totalEnDep = depProducts.reduce((acc, p) => {
+                      const entry = (p.stock || []).find((s) => s.warehouse_id === depWarehouse.id);
+                      return acc + (entry != null ? Number(entry.quantity) : 0);
+                    }, 0);
+                    return (
+                      <div style={{
+                        padding:"10px 16px", borderTop:"2px solid var(--accent)",
+                        background:"var(--accent-light)", display:"flex", justifyContent:"space-between", alignItems:"center",
+                      }}>
+                        <span style={{ fontSize:11, fontWeight:600, color:"var(--accent)", textTransform:"uppercase", letterSpacing:"0.04em" }}>
+                          Total en {depWarehouse.name}
+                        </span>
+                        <span style={{ fontFamily:"var(--font-mono)", fontSize:15, fontWeight:700, color:"var(--accent)" }}>
+                          {totalEnDep.toLocaleString("es-AR")}
+                        </span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              </>
+            ) : (
+              <div style={{
+                padding:"72px 40px", textAlign:"center", color:"var(--text-dim)", fontSize:13,
+                background:"var(--bg2)", borderRadius:8, border:"2px dashed var(--border)",
+              }}>
+                Seleccioná un depósito para comenzar
+              </div>
             )}
           </div>
         </div>
