@@ -986,7 +986,7 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
 
   const fmt = (n, dv) => `${dv === "USD" ? "USD " : "$"}${fmtMoney(n)}`;
 
-  const rowsHtml = movimientos.map((m) => {
+  const rowsHtml = [...movimientos].reverse().map((m) => {
     const divisaCC    = m.divisa_cuenta ?? divisa;
     const hayConv     = m.divisa_cobro && m.divisa_cobro !== divisaCC;
     const signo       = m.tipo === "debito" ? "+" : "−";
