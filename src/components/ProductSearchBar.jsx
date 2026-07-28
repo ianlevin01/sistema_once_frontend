@@ -38,9 +38,10 @@ function calcDropdownPos(anchorEl, preferUp = false) {
 // la imagen o el detalle) NO afectan el layout de la lista de resultados,
 // eliminando el mouseLeave/mouseEnter espurio que causaba el flickering.
 const PreviewPanel = memo(({ product, loading, priceType, divisa = "ARS" }) => {
-  const photos  = product?.images?.map((i) => i.url).filter(Boolean) || [];
-  const price   = product ? extractPrice(product, priceType, divisa) : 0;
-  const prefix  = divisa === "USD" ? "USD " : "$";
+  const photos      = product?.images?.map((i) => i.url).filter(Boolean) || [];
+  const price       = product ? extractPrice(product, priceType, divisa) : 0;
+  const prefix      = divisa === "USD" ? "USD " : "$";
+  const totalStock  = product ? (product.stock || []).reduce((s, w) => s + Number(w.quantity || 0), 0) : null;
 
   return (
     <div style={{
@@ -85,21 +86,30 @@ const PreviewPanel = memo(({ product, loading, priceType, divisa = "ARS" }) => {
 
       {product ? (
         <div style={{ width: "100%", textAlign: "center" }}>
-          {product.code && (
-            <div style={{
-              display:      "inline-block",
-              fontFamily:   "var(--font-mono)",
-              fontSize:     10,
-              color:        "var(--accent)",
-              background:   "var(--accent-dim)",
-              border:       "1px solid var(--accent)",
-              borderRadius: 4,
-              padding:      "2px 8px",
-              marginBottom: 8,
-            }}>
-              {product.code}
-            </div>
-          )}
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:10, marginBottom:8 }}>
+            {product.code && (
+              <span style={{
+                fontFamily:   "var(--font-mono)",
+                fontSize:     10,
+                color:        "var(--accent)",
+                background:   "var(--accent-dim)",
+                border:       "1px solid var(--accent)",
+                borderRadius: 4,
+                padding:      "2px 8px",
+              }}>
+                {product.code}
+              </span>
+            )}
+            {totalStock !== null && (
+              <span style={{ display:"flex", alignItems:"center", gap:4 }}>
+                <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>Stock</span>
+                <span style={{
+                  fontFamily:"var(--font-mono)", fontSize:11, fontWeight:700,
+                  color: totalStock > 0 ? "var(--accent)" : "var(--text-dim)",
+                }}>{totalStock.toLocaleString("es-AR")}</span>
+              </span>
+            )}
+          </div>
           <div style={{
             fontSize:     12,
             fontWeight:   600,
