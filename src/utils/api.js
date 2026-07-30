@@ -79,7 +79,7 @@ export const getCuentaCorrienteCliente  = (id)       => api.get(`/cuenta-corrien
 export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/pago`, data);
 export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/saldo`, data);
 export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/cobranza`, data);
-export const getCobranzasCC             = (from, to) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : ""}`);
+export const getCobranzasCC             = (from, to, personal = false) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
 // Editar / eliminar movimientos de cliente
 export const editarMovimientoCC   = (movId, data) => api.put(`/cuenta-corriente/movimientos/${movId}`, data);
 export const eliminarMovimientoCC = (movId, data) => api.delete(`/cuenta-corriente/movimientos/${movId}`, { data });
@@ -168,12 +168,12 @@ export const getUltimasCompras = (from, to) =>
   api.get(`/comprobantes/ultimas-compras${from && to ? `?from=${from}&to=${to}` : ""}`);
 
 // ── CAJA LISTADO ──────────────────────────────────────────────
-export const getListadoCaja = (from, to) =>
-  api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : ""}`);
+export const getListadoCaja = (from, to, personal = false) =>
+  api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
 
 // ── CASH ──────────────────────────────────────────────────────
-export const getCashMovements   = (from, to) =>
-  api.get(`/cash${from && to ? `?from=${from}&to=${to}` : ""}`);
+export const getCashMovements   = (from, to, personal = false) =>
+  api.get(`/cash${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
 export const getCashMovement    = (id)   => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 
@@ -214,5 +214,14 @@ export const getRecordatoriosPendientes = ()   => api.get("/recordatorios/pendie
 export const getRecordatorios           = ()   => api.get("/recordatorios");
 export const marcarRecordatorioLeido    = (id) => api.post(`/recordatorios/${id}/leer`);
 export const marcarTodosRecordatoriosLeidos = () => api.post("/recordatorios/leer-todos");
+
+// WhatsApp
+export const getWhatsAppStatus      = ()     => api.get("/whatsapp/status");
+export const connectWhatsApp        = (data) => api.post("/whatsapp/connect", data || {});
+export const disconnectWhatsApp     = ()     => api.post("/whatsapp/disconnect");
+export const getWhatsAppFeatures    = ()     => api.get("/whatsapp/features");
+export const updateWhatsAppFeatures = (data) => api.put("/whatsapp/features", data);
+export const getWhatsAppQR          = ()     => api.get("/whatsapp/qr");
+export const sendWhatsAppMessage    = (data) => api.post("/whatsapp/send", data);
 
 export default api;

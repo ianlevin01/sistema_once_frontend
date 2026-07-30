@@ -951,7 +951,8 @@ export default function CajaListado() {
   useEffect(() => { document.title = "Listado de caja — Once"; }, []);
   const [from, setFrom] = useState(today());
   const [to,   setTo]   = useState(today());
-  const [loading, setLoading] = useState(false);
+  const [loading,       setLoading]       = useState(false);
+  const [vistaPersonal, setVistaPersonal] = useState(false);
 
   const [presupuestos, setPresupuestos] = useState([]);
   const [reposiciones, setReposiciones] = useState([]);
@@ -993,9 +994,9 @@ export default function CajaListado() {
     setLoading(true);
     try {
       const [listadoRes, cashRes, cobranzasRes] = await Promise.all([
-        getListadoCaja(from, to),
-        getCashMovements(from, to),
-        getCobranzasCC(from, to),
+        getListadoCaja(from, to, vistaPersonal),
+        getCashMovements(from, to, vistaPersonal),
+        getCobranzasCC(from, to, vistaPersonal),
       ]);
       const data = listadoRes.data;
       setPresupuestos(data.presupuestos  || []);
@@ -1008,7 +1009,16 @@ export default function CajaListado() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [vistaPersonal]);
+
+  // Recargar cuando el usuario vuelve a esta pestaña
+  const loadRef = useRef(null);
+  loadRef.current = load;
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === "visible") loadRef.current?.(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, []);
 
   // ── Separar por tipo y divisa ────────────────────────────────
   const soloPresupuestos = presupuestos.filter((p) => p.tipo !== "Devolucion");
@@ -1184,6 +1194,28 @@ export default function CajaListado() {
         <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>HASTA</span>
         <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ width:140 }} />
         <button className="btn btn-ghost" onClick={load}>Filtrar</button>
+        <div style={{ marginLeft:"auto", display:"flex", gap:4, background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:6, padding:3 }}>
+          <button
+            onClick={() => setVistaPersonal(false)}
+            style={{
+              padding:"5px 12px", borderRadius:4, fontSize:12, fontFamily:"var(--font-mono)", cursor:"pointer", border:"none",
+              background: !vistaPersonal ? "var(--accent)" : "transparent",
+              color:      !vistaPersonal ? "#fff"          : "var(--text-dim)",
+              fontWeight: !vistaPersonal ? 700             : 400,
+            }}>
+            Depósito
+          </button>
+          <button
+            onClick={() => setVistaPersonal(true)}
+            style={{
+              padding:"5px 12px", borderRadius:4, fontSize:12, fontFamily:"var(--font-mono)", cursor:"pointer", border:"none",
+              background: vistaPersonal ? "var(--accent)" : "transparent",
+              color:      vistaPersonal ? "#fff"          : "var(--text-dim)",
+              fontWeight: vistaPersonal ? 700             : 400,
+            }}>
+            Personal
+          </button>
+        </div>
       </div>
 
       {loading ? (
