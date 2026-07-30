@@ -1695,6 +1695,23 @@ export default function CajaListado() {
                 </table>
               </div>
             )}
+            {(() => {
+              const dp = Number(viewItem.descuento_pct ?? 0);
+              if (!dp) return null;
+              const itemsARS = (viewItem.items || []).reduce((s, i) => s + Number(i.unit_price || 0) * Number(i.quantity || 0), 0);
+              const cotiz = Number(viewItem.cotizacion_dolar) || 1;
+              const subtotal = viewItem.divisa === "USD" ? itemsARS / cotiz : itemsARS;
+              const prefix = viewItem.divisa === "USD" ? "USD " : "$";
+              const descAmount = subtotal * Math.abs(dp) / 100;
+              return (
+                <div style={{ marginTop:10, padding:"6px 4px", display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4, fontSize:13, color:"var(--text-muted)" }}>
+                  <span>Subtotal: <strong>{prefix}{fmt(subtotal)}</strong></span>
+                  <span style={{ color: dp > 0 ? "var(--success)" : "var(--danger)", fontWeight:700 }}>
+                    {dp > 0 ? "Descuento" : "Recargo"} {Math.abs(dp)}%: {dp > 0 ? "−" : "+"}{prefix}{fmt(descAmount)}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

@@ -325,12 +325,17 @@ function buildComprobanteHtml(doc) {
 
   const itemsTotalARS = normalizedItems.reduce((a, i) => a + i.quantity * i.unit_price, 0);
   const total = Number(doc.total) || itemsTotalARS;
-  const cotizacion = (divisa === "USD" && total > 0 && itemsTotalARS > 0)
-    ? itemsTotalARS / total
+  const descuentoPct  = Number(doc.descuento_pct ?? 0) || 0;
+  // cotizacion_dolar guardada en la orden es la fuente de verdad para USD.
+  // Derivarla de itemsTotalARS/total falla cuando hay descuento porque total ya
+  // lleva el descuento aplicado y la fórmula termina inflando la cotización.
+  const cotizacion = (divisa === "USD")
+    ? (Number(doc.cotizacion_dolar) || (itemsTotalARS > 0 && total > 0
+        ? itemsTotalARS / (total / (1 - descuentoPct / 100))
+        : 1))
     : 1;
   const toDisplayPrice = (arsPrice) => divisa === "USD" ? arsPrice / cotizacion : arsPrice;
 
-  const descuentoPct  = Number(doc.descuento_pct ?? 0) || 0;
   const subtotalDisp  = toDisplayPrice(itemsTotalARS);
 
   const tipoColorMap = {
