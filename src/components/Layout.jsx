@@ -50,6 +50,7 @@ const NAV_ADMIN = [
 const NAV_SUPERADMIN_EXTRA = [
   { to: "/rentabilidad",   label: "Rentabilidad",   icon: "📈" },
   { to: "/recordatorios",  label: "Recordatorios",  icon: "🔔" },
+  { to: "/whatsapp",       label: "WhatsApp",        icon: "💬" },
 ];
 
 const NAV_VENDEDOR = [
@@ -94,6 +95,7 @@ const PAGE_TITLES = {
   "/rentabilidad":    "Rentabilidad",
   "/asistente-ia":   "Asistente IA",
   "/recordatorios":  "Recordatorios",
+  "/whatsapp":       "WhatsApp",
 };
 
 function CajaNavItem({ item, location }) {
@@ -158,7 +160,7 @@ export default function Layout({ children }) {
   const prevCountRef = useRef(null); // null = primera carga, no mostrar popup
 
   const checkRecordatorios = useCallback(async () => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) return;
     try {
       const { data } = await getRecordatoriosPendientes();
       const count = data.length;
@@ -170,14 +172,14 @@ export default function Layout({ children }) {
       prevCountRef.current = count;
       setPendientesCount(count);
     } catch { /* silencioso */ }
-  }, [isSuperAdmin]);
+  }, [isAdmin]);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!isAdmin) return;
     checkRecordatorios().then(() => {});
     const interval = setInterval(checkRecordatorios, 5 * 60 * 1000);
     return () => clearInterval(interval);
-  }, [isSuperAdmin, checkRecordatorios]);
+  }, [isAdmin, checkRecordatorios]);
 
   useEffect(() => {
     const handler = () => {
@@ -375,7 +377,7 @@ export default function Layout({ children }) {
             }}>
               {new Date().toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short", year: "numeric", timeZone: "America/Argentina/Buenos_Aires" })}
             </span>
-            {isSuperAdmin && (
+            {isAdmin && (
               <button
                 onClick={() => navigate("/recordatorios")}
                 title="Recordatorios"
@@ -403,7 +405,7 @@ export default function Layout({ children }) {
       </div>
 
       {/* ── Notificación flotante de nuevos recordatorios ── */}
-      {isSuperAdmin && notifVisible && notifItems.length > 0 && (
+      {isAdmin && notifVisible && notifItems.length > 0 && (
         <div style={{
           position: "fixed", top: 64, right: 20, zIndex: 9999,
           maxWidth: 340, display: "flex", flexDirection: "column", gap: 8,
