@@ -283,12 +283,12 @@ export default function Layout({ children }) {
               </NavLink>
             </div>
           )}
-          {isSuperAdmin && (
+          {isAdmin && (
             <div>
               <div className="sidebar-section">
                 <span className="sidebar-section-label">Analytics</span>
               </div>
-              {NAV_SUPERADMIN_EXTRA.map((item) => (
+              {NAV_SUPERADMIN_EXTRA.filter((item) => isSuperAdmin || item.to === "/recordatorios").map((item) => (
                 <NavLink
                   key={item.to} to={item.to}
                   className={({ isActive }) => "sidebar-link" + (isActive ? " active" : "")}
