@@ -22,6 +22,7 @@ import Dashboard from "./pages/Dashboard";
 import Rentabilidad  from "./pages/Rentabilidad";
 import AsistenteIA  from "./pages/AsistenteIA";
 import Recordatorios from "./pages/Recordatorios";
+import WhatsApp      from "./pages/WhatsApp";
 
 // Ruta protegida: redirige a /login si no hay sesión.
 // Si el usuario es vendedor y la ruta no está permitida, redirige a su home.
@@ -89,7 +90,8 @@ function AppRoutes() {
         <Route path="/catalogos"               element={<CatalogosPersonalizados />} />
         <Route path="/asistente-ia"            element={<AdminRoute><AsistenteIA /></AdminRoute>} />
         <Route path="/rentabilidad"            element={<SuperAdminRoute><Rentabilidad /></SuperAdminRoute>} />
-        <Route path="/recordatorios"           element={<SuperAdminRoute><Recordatorios /></SuperAdminRoute>} />
+        <Route path="/recordatorios"           element={<AdminRoute><Recordatorios /></AdminRoute>} />
+        <Route path="/whatsapp"                element={<SuperAdminRoute><WhatsApp /></SuperAdminRoute>} />
       </Route>
 
       {/* Fallback */}
