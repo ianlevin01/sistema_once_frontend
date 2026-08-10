@@ -603,6 +603,13 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
     ? (saldoMostrado > 0 ? "Le debemos" : "Sin deuda")
     : (saldoMostrado > 0 ? "Debe" : "Saldo a favor");
 
+  const totalDebitos = movsConSaldoReal
+    .filter((m) => m.afecta_saldo !== false && m.tipo === "debito")
+    .reduce((acc, m) => acc + Number(m.monto), 0);
+  const totalPagos = movsConSaldoReal
+    .filter((m) => m.afecta_saldo !== false && m.tipo === "pago")
+    .reduce((acc, m) => acc + Number(m.monto), 0);
+
   const GRID = "110px 1fr 130px 120px 110px 70px 120px 60px 36px";
 
   return (
@@ -689,6 +696,28 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
             </button>
           )}
         </div>
+      </div>
+
+      {/* ── Resumen de cuenta ── */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        {[
+          { label: esProveedor ? "Total comprado" : "Total gastado", value: totalDebitos, color: "var(--danger)" },
+          { label: "Total pagado",                                    value: totalPagos,   color: "var(--success)" },
+          { label: saldoLabel,                                        value: Math.abs(saldo), color: saldoColor },
+        ].map(({ label, value, color }) => (
+          <div key={label} style={{
+            flex: 1, minWidth: 140,
+            background: "var(--bg2)", border: "1px solid var(--border)",
+            borderRadius: 8, padding: "12px 16px",
+          }}>
+            <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>
+              {label}
+            </div>
+            <div style={{ fontSize: 20, fontFamily: "var(--font-mono)", fontWeight: 700, color }}>
+              {fmtMonto(value, divisa)}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
