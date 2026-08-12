@@ -202,6 +202,7 @@ export default function Products() {
   const [depQuery,     setDepQuery]     = useState("");
   const [depProducts,  setDepProducts]  = useState([]);
   const [depLoading,   setDepLoading]   = useState(false);
+  const [depLimit,     setDepLimit]     = useState("");
   const depSearchIdRef = useRef(0);
 
   const loadDep = async (wh, q = "") => {
@@ -214,7 +215,8 @@ export default function Products() {
         const { data } = await searchProducts(q.trim());
         rows = Array.isArray(data) ? data : [];
       } else {
-        const { data } = await getProductsForReorder(80);
+        const limit = depLimit !== "" ? Math.max(1, Number(depLimit)) : 9999;
+        const { data } = await getProductsForReorder(limit);
         rows = Array.isArray(data) ? data : (data?.products ?? []);
       }
       if (id !== depSearchIdRef.current) return;
@@ -235,6 +237,11 @@ export default function Products() {
     const t = setTimeout(() => loadDep(depWarehouse, depQuery), depQuery.trim() ? 300 : 0);
     return () => clearTimeout(t);
   }, [depQuery]);
+
+  useEffect(() => {
+    if (!depWarehouse || depQuery.trim()) return;
+    loadDep(depWarehouse, "");
+  }, [depLimit]);
 
   // ── Tab / Import-Export ───────────────────────────────────────────────────
   const [activeTab,      setActiveTab]      = useState("catalogo");
@@ -1300,11 +1307,11 @@ export default function Products() {
             </div>
 
             {/* Selector de depósito */}
-            <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:20 }}>
+            <div style={{ display:"flex", gap:12, alignItems:"center", marginBottom:20, flexWrap:"wrap" }}>
               <select
                 className="input"
                 value={depWarehouse?.id || ""}
-                onChange={(e) => setDepWarehouse(warehouseList.find((w) => w.id === e.target.value) || null)}
+                onChange={(e) => { setDepWarehouse(warehouseList.find((w) => w.id === e.target.value) || null); setDepLimit(""); }}
                 style={{ width:240 }}
               >
                 <option value="">Seleccionar depósito…</option>
@@ -1312,9 +1319,21 @@ export default function Products() {
                   <option key={w.id} value={w.id}>{w.name}</option>
                 ))}
               </select>
-              {depWarehouse && (
+              <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>Límite:</span>
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="todos"
+                  value={depLimit}
+                  onChange={(e) => setDepLimit(e.target.value)}
+                  className="input"
+                  style={{ width:90, fontSize:12, height:32 }}
+                />
+              </div>
+              {depWarehouse && !depLoading && (
                 <span style={{ fontSize:11, color:"var(--text-dim)", fontFamily:"var(--font-mono)" }}>
-                  {depLoading ? "Cargando…" : `${depProducts.length} producto${depProducts.length !== 1 ? "s" : ""}`}
+                  {depProducts.length} cargado{depProducts.length !== 1 ? "s" : ""}
                 </span>
               )}
             </div>
@@ -1379,7 +1398,11 @@ export default function Products() {
                         {depQuery.trim() ? `Sin resultados para "${depQuery}"` : "No hay productos cargados"}
                       </div>
                     ) : (
-                      depProducts.map((p) => {
+                      depProducts.filter((p) => {
+                        const entry = (p.stock || []).find((s) => s.warehouse_id === depWarehouse.id);
+                        const qty   = entry != null ? Number(entry.quantity) : null;
+                        return qty === null || qty > 0;
+                      }).map((p) => {
                         const entry = (p.stock || []).find((s) => s.warehouse_id === depWarehouse.id);
                         const qty   = entry != null ? Number(entry.quantity) : null;
                         const isPos  = qty !== null && qty > 0;
