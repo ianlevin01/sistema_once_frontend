@@ -109,6 +109,9 @@ export const getProductReservas   = (id)         => api.get(`/products/${id}/res
 export const getProductOverride   = (id)         => api.get(`/products/${id}/price-overrides`);
 export const setProductOverride   = (id, data)   => api.put(`/products/${id}/price-overrides`, data);
 export const deleteProductOverride = (id)        => api.delete(`/products/${id}/price-overrides`);
+export const getProductVariants    = (id)        => api.get(`/products/${id}/variants`);
+export const createProductVariant  = (id, data)  => api.post(`/products/${id}/variants`, data);
+export const deleteProductVariant  = (id, vid)   => api.delete(`/products/${id}/variants/${vid}`);
 export const exportProducts        = ()           => api.get("/products/export", { responseType: "blob" });
 export const generateProductImage  = (prompt, referenceImage) => {
   if (referenceImage) {

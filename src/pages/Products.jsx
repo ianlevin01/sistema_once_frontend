@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage, getProductReservas, getComprobante } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage, getProductReservas, getComprobante, getProductVariants, createProductVariant, deleteProductVariant } from "../utils/api";
 import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
@@ -19,6 +19,88 @@ const WAREHOUSES_DEFAULT = [];
 const VAL  = (v) => (v !== undefined && v !== null && v !== "") ? v : null;
 const FMT  = (v) => v != null ? Number(v).toLocaleString("es-AR", { minimumFractionDigits: 2 }) : "—";
 const FMTN = (v) => v != null ? Number(v).toLocaleString("es-AR") : "—";
+
+// ─── Preview de variantes en el panel de detalle ─────────────────────────────
+function VariantesPreview({ productId }) {
+  const [data, setData] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setData(null);
+    getProductVariants(productId)
+      .then(({ data: d }) => { if (!cancelled) setData(d); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [productId]);
+
+  if (!data) return null;
+  const colores = data.filter((v) => v.tipo === "color");
+  const tamanios = data.filter((v) => v.tipo === "tamaño");
+  if (!colores.length && !tamanios.length) return null;
+
+  return (
+    <div style={{
+      marginTop: 10,
+      background: "var(--bg3)",
+      border: "1px solid var(--border)",
+      borderRadius: 8,
+      padding: "10px 12px",
+      display: "flex",
+      flexDirection: "column",
+      gap: 10,
+    }}>
+      <div style={{ fontSize:10, fontWeight:700, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.07em", fontFamily:"var(--font-mono)" }}>
+        Variantes
+      </div>
+
+      {colores.length > 0 && (
+        <div>
+          <div style={{ fontSize:10, color:"var(--text-dim)", marginBottom:6, letterSpacing:"0.05em" }}>Colores</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+            {colores.map((v) => (
+              <div key={v.id} title={v.nombre} style={{
+                display:"flex", alignItems:"center", gap:5,
+                padding:"3px 8px 3px 5px", borderRadius:20,
+                border:"1px solid var(--border)", background:"var(--bg2)",
+              }}>
+                <div style={{
+                  width:12, height:12, borderRadius:"50%", flexShrink:0,
+                  background: v.hex || "#bbb",
+                  border:"1px solid rgba(0,0,0,0.15)",
+                  boxShadow:"0 1px 2px rgba(0,0,0,0.1)",
+                }} />
+                <span style={{ fontSize:11, fontWeight:600, color:"var(--text)", lineHeight:1 }}>{v.nombre}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tamanios.length > 0 && (
+        <div>
+          <div style={{ fontSize:10, color:"var(--text-dim)", marginBottom:6, letterSpacing:"0.05em" }}>Tamaños</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+            {tamanios.map((v) => {
+              const parts = [];
+              if (v.alto != null) parts.push(`A:${v.alto}`);
+              if (v.ancho != null) parts.push(`An:${v.ancho}`);
+              if (v.profundidad != null) parts.push(`P:${v.profundidad}`);
+              return (
+                <div key={v.id} style={{
+                  padding:"3px 8px", borderRadius:5,
+                  border:"1px solid var(--border)", background:"var(--bg2)",
+                  fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-muted)",
+                }}>
+                  {parts.join(" · ")}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── Componente de upload de imágenes ────────────────────────────────────────
 function ImageUploadSlot({ label, file, preview, onFileChange, onClear }) {
@@ -293,6 +375,58 @@ export default function Products() {
       setReservasData(data);
     } catch { addToast("Error cargando reservas", "error"); }
     setReservasLoading(false);
+  };
+
+  // ── Variantes ─────────────────────────────────────────────────────────────
+  const [variantesModal,   setVariantesModal]   = useState(false);
+  const [variantes,        setVariantes]        = useState([]);
+  const [variantesLoading, setVariantesLoading] = useState(false);
+  const [variantesTab,     setVariantesTab]     = useState("color");
+  const [varColorNombre,   setVarColorNombre]   = useState("");
+  const [varColorHex,      setVarColorHex]      = useState("#000000");
+  const [varTalleAlto,     setVarTalleAlto]     = useState("");
+  const [varTalleAncho,    setVarTalleAncho]    = useState("");
+  const [varTalleProf,     setVarTalleProf]     = useState("");
+  const [varianteSaving,   setVarianteSaving]   = useState(false);
+
+  const openVariantesModal = async () => {
+    setVariantesModal(true);
+    setVariantesTab("color");
+    setVarColorNombre(""); setVarColorHex("#000000");
+    setVarTalleAlto(""); setVarTalleAncho(""); setVarTalleProf("");
+    setVariantesLoading(true);
+    try {
+      const { data } = await getProductVariants(selected.id);
+      setVariantes(data);
+    } catch { addToast("Error cargando variantes", "error"); }
+    setVariantesLoading(false);
+  };
+
+  const handleAddVariante = async () => {
+    setVarianteSaving(true);
+    try {
+      let payload;
+      if (variantesTab === "color") {
+        payload = { tipo: "color", nombre: varColorNombre, hex: varColorHex };
+      } else {
+        payload = { tipo: "tamaño", alto: varTalleAlto, ancho: varTalleAncho, profundidad: varTalleProf };
+      }
+      const { data } = await createProductVariant(selected.id, payload);
+      setVariantes((prev) => [...prev, data]);
+      if (variantesTab === "color") { setVarColorNombre(""); setVarColorHex("#000000"); }
+      else { setVarTalleAlto(""); setVarTalleAncho(""); setVarTalleProf(""); }
+      addToast("Variante agregada", "success");
+    } catch (err) {
+      addToast(err?.response?.data?.message || err.message || "Error", "error");
+    }
+    setVarianteSaving(false);
+  };
+
+  const handleDeleteVariante = async (vid) => {
+    try {
+      await deleteProductVariant(selected.id, vid);
+      setVariantes((prev) => prev.filter((v) => v.id !== vid));
+    } catch { addToast("Error eliminando variante", "error"); }
   };
 
   // ── Price overrides ───────────────────────────────────────────────────────
@@ -871,6 +1005,9 @@ export default function Products() {
               {!isVendedor && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>}
               {selected && !isVendedor && <>
                 <button className="btn btn-ghost btn-sm" onClick={openEdit}>Editar</button>
+                <button className="btn btn-ghost btn-sm" onClick={openVariantesModal} style={{ fontSize:11 }}>
+                  ◈ Variantes
+                </button>
                 <button className="btn btn-danger btn-sm" onClick={handleDelete}>Eliminar</button>
                 <button
                   className="btn btn-ghost btn-sm"
@@ -983,6 +1120,7 @@ export default function Products() {
                             })}
                           </>
                         </div>
+                        <VariantesPreview productId={selected.id} />
                       </div>
                     </div>
                   </section>
@@ -2021,6 +2159,159 @@ export default function Products() {
           </div>
         </div>
       )}
+      {/* ── Modal de variantes ── */}
+      {variantesModal && selected && (
+        <div className="modal-overlay" onClick={() => setVariantesModal(false)}>
+          <div className="modal" style={{ maxWidth:600, maxHeight:"88vh", display:"flex", flexDirection:"column" }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ flexShrink:0 }}>
+              <div>
+                <span className="modal-title">Variantes</span>
+                <div style={{ fontSize:11, color:"var(--text-dim)", marginTop:2 }}>{selected.code ? `${selected.code} · ` : ""}{selected.name}</div>
+              </div>
+              <button className="modal-close" onClick={() => setVariantesModal(false)}>✕</button>
+            </div>
+
+            {/* Tabs */}
+            <div style={{ display:"flex", borderBottom:"1px solid var(--border)", flexShrink:0, padding:"0 20px" }}>
+              {[{id:"color", label:"Colores"},{id:"tamaño", label:"Tamaños"}].map((t) => (
+                <button key={t.id} onClick={() => setVariantesTab(t.id)} style={{
+                  padding:"10px 16px", background:"none", border:"none", cursor:"pointer",
+                  fontSize:13, fontWeight:600, color: variantesTab === t.id ? "var(--accent)" : "var(--text-muted)",
+                  borderBottom: variantesTab === t.id ? "2px solid var(--accent)" : "2px solid transparent",
+                  marginBottom:-1, transition:"all 0.15s",
+                }}>{t.label}</button>
+              ))}
+            </div>
+
+            <div style={{ flex:1, overflowY:"auto", padding:"20px" }}>
+
+              {/* ─ Formulario agregar ─ */}
+              <div style={{ background:"var(--bg3)", border:"1px solid var(--border)", borderRadius:8, padding:"14px 16px", marginBottom:20 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.06em", marginBottom:12 }}>
+                  {variantesTab === "color" ? "Agregar color" : "Agregar tamaño"}
+                </div>
+
+                {variantesTab === "color" ? (
+                  <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+                    <div style={{ flex:1, minWidth:140 }}>
+                      <div className="input-label">Nombre del color *</div>
+                      <input className="input" placeholder="Ej: Rojo, Azul marino..." value={varColorNombre}
+                        onChange={(e) => setVarColorNombre(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleAddVariante(); }}
+                        style={{ height:34 }}
+                      />
+                    </div>
+                    <div>
+                      <div className="input-label">Color</div>
+                      <div style={{ display:"flex", gap:6, alignItems:"center" }}>
+                        <input type="color" value={varColorHex} onChange={(e) => setVarColorHex(e.target.value)}
+                          style={{ width:34, height:34, borderRadius:6, border:"1px solid var(--border)", cursor:"pointer", padding:2, background:"var(--bg)" }}
+                        />
+                        <input className="input" value={varColorHex} onChange={(e) => setVarColorHex(e.target.value)}
+                          placeholder="#000000" maxLength={7}
+                          style={{ width:88, height:34, fontFamily:"var(--font-mono)", fontSize:12 }}
+                        />
+                      </div>
+                    </div>
+                    <button className="btn btn-primary btn-sm" onClick={handleAddVariante} disabled={varianteSaving || !varColorNombre.trim()} style={{ height:34 }}>
+                      {varianteSaving ? "..." : "+ Agregar"}
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display:"flex", gap:10, alignItems:"flex-end", flexWrap:"wrap" }}>
+                    {[
+                      { label:"Alto (cm)", val:varTalleAlto, set:setVarTalleAlto },
+                      { label:"Ancho (cm)", val:varTalleAncho, set:setVarTalleAncho },
+                      { label:"Prof. (cm)", val:varTalleProf, set:setVarTalleProf },
+                    ].map(({label,val,set}) => (
+                      <div key={label} style={{ flex:1, minWidth:100 }}>
+                        <div className="input-label">{label}</div>
+                        <input className="input" type="text" inputMode="decimal" placeholder="—" value={val}
+                          onChange={(e) => set(e.target.value)}
+                          onWheel={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          style={{ height:34, textAlign:"center", fontFamily:"var(--font-mono)" }}
+                        />
+                      </div>
+                    ))}
+                    <button className="btn btn-primary btn-sm" onClick={handleAddVariante} disabled={varianteSaving || (!varTalleAlto && !varTalleAncho && !varTalleProf)} style={{ height:34 }}>
+                      {varianteSaving ? "..." : "+ Agregar"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ─ Lista existente ─ */}
+              {variantesLoading ? (
+                <div style={{ padding:"24px", textAlign:"center", color:"var(--text-dim)", fontSize:13 }}>Cargando...</div>
+              ) : (
+                (() => {
+                  const lista = variantes.filter((v) => v.tipo === variantesTab);
+                  if (!lista.length) return (
+                    <div style={{ padding:"32px", textAlign:"center", color:"var(--text-dim)", fontSize:13 }}>
+                      No hay {variantesTab === "color" ? "colores" : "tamaños"} cargados aún
+                    </div>
+                  );
+                  if (variantesTab === "color") return (
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:8 }}>
+                      {lista.map((v) => (
+                        <div key={v.id} style={{
+                          display:"flex", alignItems:"center", gap:8, padding:"7px 10px 7px 8px",
+                          borderRadius:8, border:"1px solid var(--border)", background:"var(--bg2)",
+                          transition:"border-color 0.15s",
+                        }}>
+                          <div style={{
+                            width:22, height:22, borderRadius:5, flexShrink:0,
+                            background: v.hex || "#ccc",
+                            border:"1px solid rgba(0,0,0,0.12)",
+                            boxShadow:"0 1px 3px rgba(0,0,0,0.12)",
+                          }} />
+                          <span style={{ fontSize:13, fontWeight:600, color:"var(--text)" }}>{v.nombre}</span>
+                          {v.hex && <span style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)" }}>{v.hex}</span>}
+                          <button onClick={() => handleDeleteVariante(v.id)} style={{
+                            background:"none", border:"none", cursor:"pointer", color:"var(--text-dim)",
+                            fontSize:12, padding:"0 2px", lineHeight:1, marginLeft:2,
+                            display:"flex", alignItems:"center",
+                          }} title="Eliminar">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                  return (
+                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                      {lista.map((v) => {
+                        const parts = [];
+                        if (v.alto != null) parts.push(`Alto: ${v.alto} cm`);
+                        if (v.ancho != null) parts.push(`Ancho: ${v.ancho} cm`);
+                        if (v.profundidad != null) parts.push(`Prof: ${v.profundidad} cm`);
+                        return (
+                          <div key={v.id} style={{
+                            display:"flex", alignItems:"center", justifyContent:"space-between",
+                            padding:"10px 14px", borderRadius:8, border:"1px solid var(--border)", background:"var(--bg2)",
+                          }}>
+                            <div style={{ display:"flex", gap:12, flexWrap:"wrap" }}>
+                              {parts.map((p) => (
+                                <span key={p} style={{ fontSize:12, color:"var(--text)", fontFamily:"var(--font-mono)" }}>
+                                  <span style={{ color:"var(--text-dim)", fontFamily:"var(--font-sans)", fontSize:11 }}>{p.split(":")[0]}: </span>
+                                  <strong>{p.split(":")[1]}</strong>
+                                </span>
+                              ))}
+                            </div>
+                            <button onClick={() => handleDeleteVariante(v.id)} style={{
+                              background:"none", border:"none", cursor:"pointer", color:"var(--text-dim)",
+                              fontSize:13, padding:"0 4px", lineHeight:1,
+                            }} title="Eliminar">✕</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Modal generación de imagen con IA ── */}
       {aiImgModal && (
         <div className="modal-overlay" onClick={closeAiModal}>
