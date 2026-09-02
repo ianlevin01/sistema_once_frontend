@@ -130,7 +130,7 @@ export default function StockMovimientos() {
   const displayedStock = inclManual ? totalStock : (totalEntradas - totalSalidas);
 
   return (
-    <div style={{ maxWidth: 1100 }}>
+    <div style={{ width: "100%" }}>
       <h2 style={{ margin: "0 0 20px", fontSize: 18, fontWeight: 700, color: "var(--text)" }}>
         Movimientos de Stock
       </h2>
