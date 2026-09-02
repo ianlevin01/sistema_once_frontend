@@ -11,7 +11,11 @@ const fmtDate = (d) =>
   }) : "—";
 
 const fmtQty   = (n) => (n != null ? Number(n).toLocaleString("es-AR") : "");
-const fmtPrice = (n) => (n != null ? `$${Number(n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—");
+const fmtPrice = (n, divisa) => {
+  if (n == null) return "—";
+  const formatted = Number(n).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return divisa === "USD" ? `U$S ${formatted}` : `$${formatted}`;
+};
 
 export default function StockMovimientos() {
   const { user } = useAuth();
@@ -317,6 +321,7 @@ export default function StockMovimientos() {
                     { label: "Precio",                         align: "right" },
                     { label: "Entradas",                       align: "right" },
                     { label: "Salidas",                        align: "right" },
+                    { label: "Stock depósito",                 align: "right" },
                   ].map(({ label, align }) => (
                     <th key={label} style={{
                       padding: "9px 12px", textAlign: align,
@@ -361,7 +366,7 @@ export default function StockMovimientos() {
                           )}
                         </td>
                         <td style={{ padding: "7px 12px", textAlign: "right", whiteSpace: "nowrap", borderRight: "1px solid var(--border)", color: "var(--text-dim)" }}>
-                          {fmtPrice(m.precio)}
+                          {fmtPrice(m.precio, m.divisa)}
                         </td>
                         <td style={{
                           padding: "7px 12px", textAlign: "right", fontWeight: esEntrada ? 700 : 400,
@@ -375,8 +380,20 @@ export default function StockMovimientos() {
                           padding: "7px 12px", textAlign: "right", fontWeight: esSalida ? 700 : 400,
                           color: esSalida ? "var(--danger)" : "var(--text-dim)",
                           fontSize: esSalida ? 14 : 13,
+                          borderRight: "1px solid var(--border)",
                         }}>
                           {esSalida ? fmtQty(m.salidas) : ""}
+                        </td>
+                        <td style={{
+                          padding: "7px 12px", textAlign: "right", whiteSpace: "nowrap",
+                          fontFamily: "var(--font-mono)", fontSize: 12,
+                          color: m.stock_despues == null ? "var(--text-dim)"
+                               : Number(m.stock_despues) > 0 ? "var(--text)"
+                               : Number(m.stock_despues) < 0 ? "var(--danger)"
+                               : "var(--text-muted)",
+                          fontWeight: 600,
+                        }}>
+                          {m.stock_despues != null ? fmtQty(m.stock_despues) : "—"}
                         </td>
                       </tr>
                     );
@@ -392,9 +409,10 @@ export default function StockMovimientos() {
                     <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 14, borderRight: "1px solid var(--border)", color: "var(--success)" }}>
                       {totalEntradas > 0 ? fmtQty(totalEntradas) : ""}
                     </td>
-                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 14, color: "var(--danger)" }}>
+                    <td style={{ padding: "8px 12px", textAlign: "right", fontSize: 14, borderRight: "1px solid var(--border)", color: "var(--danger)" }}>
                       {totalSalidas > 0 ? fmtQty(totalSalidas) : ""}
                     </td>
+                    <td />
                   </tr>
                 </tfoot>
               )}
