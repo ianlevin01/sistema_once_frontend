@@ -338,7 +338,7 @@ export default function StockMovimientos() {
               <tbody>
                 {data.movements.length === 0 ? (
                   <tr>
-                    <td colSpan={6} style={{ textAlign: "center", padding: 32, color: "var(--text-dim)" }}>
+                    <td colSpan={7} style={{ textAlign: "center", padding: 32, color: "var(--text-dim)" }}>
                       Sin movimientos registrados para este producto.
                       {!inclManual && " (Los ajustes manuales están desactivados)"}
                     </td>
@@ -387,11 +387,12 @@ export default function StockMovimientos() {
                         <td style={{
                           padding: "7px 12px", textAlign: "right", whiteSpace: "nowrap",
                           fontFamily: "var(--font-mono)", fontSize: 12,
-                          color: m.stock_despues == null ? "var(--text-dim)"
+                          color: m.stock_despues == null ? "#aaa"
                                : Number(m.stock_despues) > 0 ? "var(--text)"
                                : Number(m.stock_despues) < 0 ? "var(--danger)"
-                               : "var(--text-muted)",
+                               : "#aaa",
                           fontWeight: 600,
+                          borderLeft: "1px solid var(--border)",
                         }}>
                           {m.stock_despues != null ? fmtQty(m.stock_despues) : "—"}
                         </td>
