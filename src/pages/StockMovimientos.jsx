@@ -386,15 +386,22 @@ export default function StockMovimientos() {
                         </td>
                         <td style={{
                           padding: "7px 12px", textAlign: "right", whiteSpace: "nowrap",
-                          fontFamily: "var(--font-mono)", fontSize: 12,
-                          color: m.stock_despues == null ? "#aaa"
-                               : Number(m.stock_despues) > 0 ? "var(--text)"
-                               : Number(m.stock_despues) < 0 ? "var(--danger)"
-                               : "#aaa",
-                          fontWeight: 600,
                           borderLeft: "1px solid var(--border)",
                         }}>
-                          {m.stock_despues != null ? fmtQty(m.stock_despues) : "—"}
+                          <div style={{
+                            fontFamily: "var(--font-mono)", fontSize: 12, fontWeight: 600,
+                            color: m.stock_despues == null ? "#aaa"
+                                 : Number(m.stock_despues) > 0 ? "var(--text)"
+                                 : Number(m.stock_despues) < 0 ? "var(--danger)"
+                                 : "#aaa",
+                          }}>
+                            {m.stock_despues != null ? fmtQty(m.stock_despues) : "—"}
+                          </div>
+                          {m.deposito && (
+                            <div style={{ fontSize: 10, color: "#aaa", marginTop: 1, fontFamily: "var(--font-mono)" }}>
+                              {m.deposito}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
