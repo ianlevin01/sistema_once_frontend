@@ -222,6 +222,8 @@ export default function Products() {
   const { addToast, ToastContainer } = useToast();
   const { user } = useAuth();
   const isVendedor = user?.role === "vendedor";
+  const isML       = user?.role === "mercadolibre";
+  const isReadOnly = isVendedor || isML;
 
   // ── Reorder ──────────────────────────────────────────────────────────────
   const [reorderN,        setReorderN]        = useState("50");
@@ -965,7 +967,7 @@ export default function Products() {
 
         {/* ══ TAB BAR ════════════════════════════════════════════════════════ */}
         <div style={{ display:"flex", borderBottom:"1px solid var(--border)", background:"var(--bg2)", flexShrink:0 }}>
-          {[["catalogo","Catálogo"],["deposito","Stock por depósito"],["import","Actualización masiva"],["ordenar","Ordenar"]].filter(([tab]) => !isVendedor || tab === "catalogo" || tab === "deposito").map(([tab, label]) => (
+          {[["catalogo","Catálogo"],["deposito","Stock por depósito"],["import","Actualización masiva"],["ordenar","Ordenar"]].filter(([tab]) => !isReadOnly || tab === "catalogo" || tab === "deposito").map(([tab, label]) => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding:"10px 20px", border:"none", background:"none", cursor:"pointer",
               fontSize:13, fontFamily:"var(--font-sans)", fontWeight: activeTab === tab ? 600 : 400,
@@ -1002,8 +1004,8 @@ export default function Products() {
               )}
             </div>
             <div style={{ display:"flex", gap:8 }}>
-              {!isVendedor && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>}
-              {selected && !isVendedor && <>
+              {!isReadOnly && <button className="btn btn-primary btn-sm" onClick={openNew}>+ Nuevo</button>}
+              {selected && !isReadOnly && <>
                 <button className="btn btn-ghost btn-sm" onClick={openEdit}>Editar</button>
                 <button className="btn btn-ghost btn-sm" onClick={openVariantesModal} style={{ fontSize:11 }}>
                   ◈ Variantes
@@ -1060,65 +1062,95 @@ export default function Products() {
                       <div style={{ flex:1 }}>
                         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:6 }}>
                           <LBL style={{ margin:0 }}>Precios</LBL>
-                          {!isVendedor && (
+                          {!isReadOnly && (
                             <button className="btn btn-ghost" style={{ fontSize:11, padding:"3px 8px" }} onClick={openOverrideModal}>
                               {selected.has_price_override ? "✏️ % personalizados" : "✏️ Porcentajes"}
                             </button>
                           )}
                         </div>
                         <div style={{ border:"1px solid var(--border)", borderRadius:7, overflow:"hidden", background:"var(--bg2)" }}>
-                          <>
-                            <div style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
-                              <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
-                              <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"center" }}>%</span>
-                              <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
-                              <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
-                            </div>
-                            {(() => {
-                              const costoUsd   = selected.costo_usd ? Number(selected.costo_usd) : null;
-                              const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
-                              const costoArs   = costoUsd != null && cotizacion != null
-                                ? costoUsd * cotizacion
-                                : (() => { const c = getCost(); return c ? Number(c.price) : null; })();
-                              return (
-                                <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
-                                  <span style={{ fontSize:11, color:"var(--danger)", fontWeight:500 }}>Costo</span>
-                                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)", textAlign:"right" }}>
-                                    {costoArs != null ? FMTARS(costoArs) : "—"}
-                                  </span>
-                                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
-                                    {costoUsd != null ? FMTUSD(costoUsd) : "—"}
-                                  </span>
-                                </div>
-                              );
-                            })()}
-                            {[1,2,3,4,5].map((n, idx) => {
-                              const p = getPrice(`precio_${n}`);
-                              const isLast = idx === 4;
-                              const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
-                              let arsVal = null, usdVal = null;
-                              if (p) {
-                                arsVal = p.price     != null ? Number(p.price)     : null;
-                                usdVal = p.price_usd != null ? Number(p.price_usd)
-                                       : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
-                              }
-                              const isOverridden = selected[`ovr_pct_${n}`] != null;
-                              return (
-                                <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
-                                  <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
-                                  <span style={{ fontFamily:"var(--font-mono)", fontSize:11, textAlign:"center", color: isOverridden ? "var(--warning)" : "var(--text-dim)", fontWeight: isOverridden ? 700 : 400 }}>
-                                    {p ? `${p.pct}%` : "—"}
-                                  </span>
-                                  <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign:"right" }}>
-                                    {arsVal != null ? FMTARS(arsVal) : "—"}
-                                  </span>
-                                  <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
-                                    {usdVal != null ? FMTUSD(usdVal) : "—"}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </>
+                          {isML ? (
+                            // Vista Mercado Libre: solo muestra precio_3 como "Costo"
+                            <>
+                              <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
+                              </div>
+                              {(() => {
+                                const p = getPrice("precio_3");
+                                const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                                const arsVal = p?.price != null ? Number(p.price) : null;
+                                const usdVal = p?.price_usd != null ? Number(p.price_usd)
+                                             : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
+                                return (
+                                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px" }}>
+                                    <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Costo</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--accent)", textAlign:"right" }}>
+                                      {arsVal != null ? FMTARS(arsVal) : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                      {usdVal != null ? FMTUSD(usdVal) : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          ) : (
+                            // Vista completa: costo real + 5 precios
+                            <>
+                              <div style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", padding:"4px 10px", background:"var(--bg3)", borderBottom:"1px solid var(--border)" }}>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em" }}></span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"center" }}>%</span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Pesos (ARS)</span>
+                                <span style={{ fontSize:10, color:"var(--text-dim)", fontFamily:"var(--font-mono)", textTransform:"uppercase", letterSpacing:"0.05em", textAlign:"right" }}>Dólares (USD)</span>
+                              </div>
+                              {(() => {
+                                const costoUsd   = selected.costo_usd ? Number(selected.costo_usd) : null;
+                                const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                                const costoArs   = costoUsd != null && cotizacion != null
+                                  ? costoUsd * cotizacion
+                                  : (() => { const c = getCost(); return c ? Number(c.price) : null; })();
+                                return (
+                                  <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 1fr", alignItems:"center", padding:"6px 10px", background:"#fff5f5", borderBottom:"1px solid rgba(220,38,38,0.12)" }}>
+                                    <span style={{ fontSize:11, color:"var(--danger)", fontWeight:500 }}>Costo</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight:700, color:"var(--danger)", textAlign:"right" }}>
+                                      {costoArs != null ? FMTARS(costoArs) : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                      {costoUsd != null ? FMTUSD(costoUsd) : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
+                              {[1,2,3,4,5].map((n, idx) => {
+                                const p = getPrice(`precio_${n}`);
+                                const isLast = idx === 4;
+                                const cotizacion = selected.cotizacion_dolar ? Number(selected.cotizacion_dolar) : null;
+                                let arsVal = null, usdVal = null;
+                                if (p) {
+                                  arsVal = p.price     != null ? Number(p.price)     : null;
+                                  usdVal = p.price_usd != null ? Number(p.price_usd)
+                                         : (arsVal != null && cotizacion) ? arsVal / cotizacion : null;
+                                }
+                                const isOverridden = selected[`ovr_pct_${n}`] != null;
+                                return (
+                                  <div key={n} style={{ display:"grid", gridTemplateColumns:"80px 44px 1fr 1fr", alignItems:"center", padding:"6px 10px", borderBottom: isLast ? "none" : "1px solid var(--border)", background: arsVal != null ? "var(--accent-light)" : "transparent" }}>
+                                    <span style={{ fontSize:11, color:"var(--text-muted)", fontWeight:500 }}>Precio #{n}</span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:11, textAlign:"center", color: isOverridden ? "var(--warning)" : "var(--text-dim)", fontWeight: isOverridden ? 700 : 400 }}>
+                                      {p ? `${p.pct}%` : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:13, fontWeight: arsVal != null ? 700 : 400, color: arsVal != null ? "var(--accent)" : "var(--text-dim)", textAlign:"right" }}>
+                                      {arsVal != null ? FMTARS(arsVal) : "—"}
+                                    </span>
+                                    <span style={{ fontFamily:"var(--font-mono)", fontSize:12, color:"var(--text-muted)", textAlign:"right" }}>
+                                      {usdVal != null ? FMTUSD(usdVal) : "—"}
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
                         </div>
                         <VariantesPreview productId={selected.id} />
                       </div>
@@ -1144,7 +1176,7 @@ export default function Products() {
                     </div>
                   </section>
 
-                  {lastCosts.length > 0 && (
+                  {!isML && lastCosts.length > 0 && (
                     <section>
                       <LBL>Historial de costos</LBL>
                       <div style={{ display:"flex", gap:6 }}>
@@ -1199,7 +1231,7 @@ export default function Products() {
                           {FMTN(totalStock)}
                         </span>
                       )}
-                      {!isVendedor && (
+                      {!isReadOnly && (
                         <button
                           onClick={() => { setStockQty(""); setStockModal(true); }}
                           style={{ background:"rgba(255,255,255,0.25)", border:"1px solid rgba(255,255,255,0.4)", color:"#fff", borderRadius:4, padding:"2px 8px", fontSize:12, fontWeight:700, cursor:"pointer", lineHeight:1.4 }}

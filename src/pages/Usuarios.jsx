@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getUsers, createUser, updateUser, deleteUser, getWarehouses, createWarehouse } from "../utils/api";
 import { useToast } from "../utils/useToast";
 
-const ROLES = ["admin", "superadmin", "vendedor", "deposito", "caja"];
+const ROLES = ["admin", "superadmin", "vendedor", "deposito", "caja", "mercadolibre"];
 const EMPTY  = { name: "", email: "", password: "", role: "vendedor", warehouse_id: "", active: true };
 
 export default function Usuarios() {
@@ -120,8 +120,9 @@ export default function Usuarios() {
   const warehouseName = (id) => warehouses.find((w) => w.id === id)?.name || "—";
 
   const roleBadgeColor = (role) => {
-    if (role === "admin")    return { background: "rgba(220,100,60,0.15)", color: "var(--danger)",  border: "1px solid rgba(220,100,60,0.3)" };
-    if (role === "vendedor") return { background: "rgba(60,160,220,0.12)", color: "#60b0e8",        border: "1px solid rgba(60,160,220,0.3)" };
+    if (role === "admin")         return { background: "rgba(220,100,60,0.15)", color: "var(--danger)", border: "1px solid rgba(220,100,60,0.3)" };
+    if (role === "vendedor")      return { background: "rgba(60,160,220,0.12)", color: "#60b0e8",       border: "1px solid rgba(60,160,220,0.3)" };
+    if (role === "mercadolibre")  return { background: "rgba(255,200,0,0.15)", color: "#b8860b",        border: "1px solid rgba(255,200,0,0.5)" };
     return { background: "var(--bg3)", color: "var(--text-muted)", border: "1px solid var(--border)" };
   };
 

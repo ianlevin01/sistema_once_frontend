@@ -30,7 +30,7 @@ function PrivateRoute({ children }) {
   const { isAuthenticated, user } = useAuth();
   const location = useLocation();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  if (user?.role === "vendedor" && !isPathAllowedForVendedor(location.pathname)) {
+  if ((user?.role === "vendedor" || user?.role === "mercadolibre") && !isPathAllowedForVendedor(location.pathname)) {
     return <Navigate to={VENDEDOR_HOME} replace />;
   }
   return children;
@@ -54,7 +54,7 @@ function AdminRoute({ children }) {
 
 function AppRoutes() {
   const { isAuthenticated, user } = useAuth();
-  const homePath = user?.role === "vendedor" ? VENDEDOR_HOME : "/dashboard";
+  const homePath = (user?.role === "vendedor" || user?.role === "mercadolibre") ? VENDEDOR_HOME : "/dashboard";
 
   return (
     <Routes>

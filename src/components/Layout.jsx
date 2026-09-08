@@ -148,9 +148,10 @@ export default function Layout({ children }) {
   const { user, logout } = useAuth();
 
   const isVendedor    = user?.role === "vendedor";
+  const isML          = user?.role === "mercadolibre";
   const isSuperAdmin  = user?.role === "superadmin";
   const isAdmin       = user?.role === "admin" || isSuperAdmin;
-  const NAV = isVendedor ? NAV_VENDEDOR : NAV_ADMIN;
+  const NAV = (isVendedor || isML) ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
 
   // ── Recordatorios polling (solo superadmin) ────────────────────────────
@@ -323,6 +324,17 @@ export default function Layout({ children }) {
                 whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
               }}>
                 Vendedor
+              </div>
+            )}
+            {isML && (
+              <div style={{
+                fontSize: 10, fontFamily: "var(--font-mono)", color: "#b8860b",
+                background: "rgba(255,200,0,0.15)", border: "1px solid rgba(255,200,0,0.5)",
+                borderRadius: 3, padding: "2px 7px", marginBottom: 6,
+                display: "inline-block", textTransform: "uppercase", letterSpacing: "0.06em",
+                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%",
+              }}>
+                Mercado Libre
               </div>
             )}
             <div style={{
