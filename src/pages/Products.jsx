@@ -925,22 +925,26 @@ export default function Products() {
   const getPrice = (type) => prices.find((p) => p.price_type === type);
   const getCost  = () => getPrice("costo") || (selected?.cost ? { price: selected.cost } : null);
 
-  const totalStock = stock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
+  const mlStock = isML ? stock.filter((s) => (s.warehouse?.name || s.warehouse_name) === "Oficina ML") : stock;
+  const totalStock = mlStock.reduce((a, s) => a + (Number(s.quantity) || 0), 0);
 
   // Reserva total: suma de los reserved por warehouse (viene del backend)
   // Fallback a stock_reserva global si el backend aún no devuelve reserved por fila
-  const totalReserved = stock.some((s) => s.reserved != null)
-    ? stock.reduce((a, s) => a + (Number(s.reserved) || 0), 0)
+  const totalReserved = mlStock.some((s) => s.reserved != null)
+    ? mlStock.reduce((a, s) => a + (Number(s.reserved) || 0), 0)
     : (selected?.stock_reserva || 0);
 
   // stockRows: usa stock real del backend + reserved por warehouse
-  const stockRows = stock.length > 0
+  const allStockRows = stock.length > 0
     ? stock.map((s) => ({
         name:     s.warehouse?.name || s.warehouse_name || s.warehouse_id,
         qty:      s.quantity,
         reserved: Number(s.reserved) || 0,
       }))
     : warehouseList.map((w) => ({ name: w.name, qty: null, reserved: 0 }));
+  const stockRows = isML
+    ? allStockRows.filter((r) => r.name === "Oficina ML")
+    : allStockRows;
 
   const lastCosts = [...costs].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)).slice(0, 3);
   const selectedPhotos = selected?.images?.length
