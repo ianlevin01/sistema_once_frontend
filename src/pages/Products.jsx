@@ -484,6 +484,14 @@ export default function Products() {
     getWarehouses().then(({ data }) => setWarehouseList(data || [])).catch(() => {});
   }, []);
 
+  // Para el rol ML: auto-seleccionar "Oficina ML" ni bien cargan los depósitos
+  useEffect(() => {
+    if (isML && warehouseList.length > 0 && !depWarehouse) {
+      const mlWh = warehouseList.find((w) => w.name === "Oficina ML");
+      if (mlWh) setDepWarehouse(mlWh);
+    }
+  }, [isML, warehouseList]);
+
   // ── Categorías ────────────────────────────────────────────────────────────
   const [categories,      setCategories]      = useState([]);
   const [catInput,        setCatInput]        = useState("");
@@ -1485,7 +1493,7 @@ export default function Products() {
                 style={{ width:240 }}
               >
                 <option value="">Seleccionar depósito…</option>
-                {warehouseList.map((w) => (
+                {(isML ? warehouseList.filter((w) => w.name === "Oficina ML") : warehouseList).map((w) => (
                   <option key={w.id} value={w.id}>{w.name}</option>
                 ))}
               </select>
