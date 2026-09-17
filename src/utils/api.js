@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "https://gestionmayorista.online/api",
+  baseURL: "http://localhost:3000/api",
 });
 
 api.interceptors.request.use((config) => {
@@ -113,6 +113,8 @@ export const getProductVariants    = (id)        => api.get(`/products/${id}/var
 export const createProductVariant  = (id, data)  => api.post(`/products/${id}/variants`, data);
 export const deleteProductVariant  = (id, vid)   => api.delete(`/products/${id}/variants/${vid}`);
 export const exportProducts        = ()           => api.get("/products/export", { responseType: "blob" });
+export const exportProductOrder    = ()           => api.get("/products/export-order", { responseType: "blob" });
+export const importProductOrder    = (file)       => { const fd = new FormData(); fd.append("file", file); return api.post("/products/import-order", fd); };
 export const generateProductImage  = (prompt, referenceImage) => {
   if (referenceImage) {
     const fd = new FormData();

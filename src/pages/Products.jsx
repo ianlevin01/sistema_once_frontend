@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import Modal from "../components/Modal";
-import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage, getProductReservas, getComprobante, getProductVariants, createProductVariant, deleteProductVariant } from "../utils/api";
+import { searchProducts, getProduct, createProduct, updateProduct, deleteProduct, getCategories, createCategory, setProductOverride, deleteProductOverride, subirProducto, agregarStock, exportProducts, importProductsDiff, importProductsApply, getWarehouses, getProductsForReorder, reorderProducts, generateProductImage, getProductReservas, getComprobante, getProductVariants, createProductVariant, deleteProductVariant, exportProductOrder, importProductOrder } from "../utils/api";
 import { printComprobantePDF } from "../utils/printDoc";
 import { useToast } from "../utils/useToast";
 import { useAuth } from "../utils/useAuth";
@@ -233,6 +233,9 @@ export default function Products() {
   const [dragFrom,        setDragFrom]        = useState(null);
   const [dragTarget,      setDragTarget]      = useState(null);
   const dragFromRef = useRef(null);
+  const [orderExporting,  setOrderExporting]  = useState(false);
+  const [orderImporting,  setOrderImporting]  = useState(false);
+  const orderImportRef = useRef(null);
 
   const loadReorderItems = async () => {
     const n = Math.max(1, Math.min(500, Number(reorderN) || 50));
@@ -279,6 +282,32 @@ export default function Products() {
       addToast("Orden guardado", "success");
     } catch { addToast("Error guardando orden", "error"); }
     setReorderSaving(false);
+  };
+
+  const handleExportOrder = async () => {
+    setOrderExporting(true);
+    try {
+      const { data } = await exportProductOrder();
+      const url = URL.createObjectURL(new Blob([data]));
+      const a = document.createElement("a");
+      a.href = url; a.download = "orden_productos.xlsx"; a.click();
+      URL.revokeObjectURL(url);
+    } catch { addToast("Error exportando orden", "error"); }
+    setOrderExporting(false);
+  };
+
+  const handleImportOrder = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setOrderImporting(true);
+    try {
+      const { data } = await importProductOrder(file);
+      addToast(`Orden aplicado: ${data.reordered} productos reordenados, ${data.appended} al final`, "success");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Error importando orden", "error");
+    }
+    setOrderImporting(false);
   };
 
   // ── Stock por Depósito ────────────────────────────────────────────────────
@@ -1417,6 +1446,24 @@ export default function Products() {
             <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:20 }}>
               Cargá los primeros N productos (ordenados por más reciente) y arrastralos para definir el orden en que aparecen en la tienda.
             </div>
+
+            {/* Sección exportar/importar orden por Excel */}
+            <div style={{ marginBottom:28, padding:"16px 20px", background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:8 }}>
+              <div style={{ fontSize:13, fontWeight:600, color:"var(--text)", marginBottom:4 }}>Reordenar por Excel</div>
+              <div style={{ fontSize:12, color:"var(--text-dim)", marginBottom:14 }}>
+                Exportá el Excel con el orden actual, reorganizá las filas como quieras, e importalo para aplicar el nuevo orden de una sola vez.
+              </div>
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                <button className="btn btn-ghost btn-sm" onClick={handleExportOrder} disabled={orderExporting}>
+                  {orderExporting ? "Exportando..." : "⬇ Exportar orden actual"}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => orderImportRef.current?.click()} disabled={orderImporting}>
+                  {orderImporting ? "Aplicando..." : "⬆ Importar orden desde Excel"}
+                </button>
+                <input ref={orderImportRef} type="file" accept=".xlsx,.xls" style={{ display:"none" }} onChange={handleImportOrder} />
+              </div>
+            </div>
+
             <div style={{ display:"flex", gap:10, alignItems:"flex-end", marginBottom:24 }}>
               <div className="input-group" style={{ margin:0 }}>
                 <label className="input-label">Cantidad de productos</label>
