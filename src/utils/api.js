@@ -37,8 +37,9 @@ export const updateUser  = (id, data)   => api.put(`/users/${id}`, data);
 export const deleteUser  = (id)         => api.delete(`/users/${id}`);
 
 // ── WAREHOUSES ────────────────────────────────────────────────
-export const getWarehouses    = ()       => api.get("/warehouses");
-export const createWarehouse  = (name)   => api.post("/warehouses", { name });
+export const getWarehouses      = (includeInactive) => api.get(`/warehouses${includeInactive ? "?include_inactive=true" : ""}`);
+export const createWarehouse    = (name)             => api.post("/warehouses", { name });
+export const setWarehouseActive = (id, active)       => api.patch(`/warehouses/${id}`, { active });
 
 // ── VENDEDORES ────────────────────────────────────────────────
 export const getVendedores        = ()         => api.get("/vendedores");

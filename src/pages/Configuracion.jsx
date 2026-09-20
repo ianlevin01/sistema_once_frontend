@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../utils/useToast";
 import api from "../utils/api";
-import { getWarehouses, createWarehouse, getAIPermissions, updateAIPermission } from "../utils/api";
+import { getWarehouses, createWarehouse, setWarehouseActive, getAIPermissions, updateAIPermission } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 
 const fmt  = (v, dec = 2) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -51,6 +51,7 @@ export default function Configuracion() {
   const [savingWh,           setSavingWh]           = useState(false);
   const [preferredWarehouse, setPreferredWarehouse] = useState("");
   const [savingPw,           setSavingPw]           = useState(false);
+  const [togglingWh,         setTogglingWh]         = useState(null);
 
   // ── Permisos Asistente IA ─────────────────────────────────────
   const [aiPerms,      setAiPerms]      = useState({});
@@ -73,7 +74,7 @@ export default function Configuracion() {
       try {
         const [{ data: cfg }, { data: whs }, { data: aiPermsData }] = await Promise.all([
           api.get("/config/precios"),
-          getWarehouses(),
+          getWarehouses(true),
           getAIPermissions(),
         ]);
         setConfig({
@@ -159,6 +160,19 @@ export default function Configuracion() {
       addToast("Error guardando depósito de preferencia", "error");
     }
     setSavingPw(false);
+  };
+
+  const handleToggleWarehouse = async (w) => {
+    setTogglingWh(w.id);
+    try {
+      const { data } = await setWarehouseActive(w.id, !w.active);
+      setWarehouses((prev) => prev.map((x) => (x.id === w.id ? { ...x, active: data.active } : x)));
+      if (!data.active && preferredWarehouse === w.id) setPreferredWarehouse("");
+      addToast(`Depósito "${w.name}" ${data.active ? "reactivado" : "desactivado"}`, "success");
+    } catch (err) {
+      addToast(err?.response?.data?.message || "Error actualizando depósito", "error");
+    }
+    setTogglingWh(null);
   };
 
   const handleAddWarehouse = async () => {
@@ -464,9 +478,28 @@ export default function Configuracion() {
                       padding:"10px 16px",
                       borderBottom: i < warehouses.length - 1 ? "1px solid var(--border)" : "none",
                       background: i % 2 === 0 ? "transparent" : "var(--bg2)",
+                      opacity: w.active ? 1 : 0.55,
                     }}>
-                      <span style={{ fontSize:14, color:"var(--text)" }}>{w.name}</span>
-                      <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{w.id.slice(0, 8).toUpperCase()}</span>
+                      <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                        <span style={{ fontSize:14, color:"var(--text)" }}>{w.name}</span>
+                        {!w.active && (
+                          <span style={{
+                            fontSize:10, fontFamily:"var(--font-mono)", padding:"2px 8px", borderRadius:4,
+                            background:"var(--bg3)", color:"var(--text-dim)", border:"1px solid var(--border)",
+                            textTransform:"uppercase", letterSpacing:"0.06em",
+                          }}>
+                            Inactivo
+                          </span>
+                        )}
+                        <span style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)" }}>{w.id.slice(0, 8).toUpperCase()}</span>
+                      </div>
+                      <button
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => handleToggleWarehouse(w)}
+                        disabled={togglingWh === w.id}
+                      >
+                        {togglingWh === w.id ? "..." : w.active ? "Desactivar" : "Reactivar"}
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -480,7 +513,7 @@ export default function Configuracion() {
                     disabled={savingPw}
                   >
                     <option value="">— Sin preferencia —</option>
-                    {warehouses.map((w) => (
+                    {warehouses.filter((w) => w.active).map((w) => (
                       <option key={w.id} value={w.id}>{w.name}</option>
                     ))}
                   </select>
