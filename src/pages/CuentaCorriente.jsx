@@ -610,7 +610,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
     .filter((m) => m.afecta_saldo !== false && m.tipo === "pago")
     .reduce((acc, m) => acc + Number(m.monto), 0);
 
-  const GRID = "110px 1fr 130px 120px 110px 70px 120px 60px 36px";
+  const GRID = "110px 1fr 130px 120px 110px 70px 90px 120px 36px";
 
   return (
     <div>
@@ -756,7 +756,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
         (() => {
           const movsComprobantes = movsVisibles.filter((m) => m.order_id);
           const movsCobranzas    = movsVisibles.filter((m) => !m.order_id);
-          const GRID_COMP  = "90px 1fr 100px 60px 28px";
+          const GRID_COMP  = "90px 1fr 100px 28px";
           const GRID_COB   = "90px 1fr 100px 110px 30px";
           const colHdr = (label) => (
             <div style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</div>
@@ -811,7 +811,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                   <span style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>Comprobantes ({movsComprobantes.length})</span>
                 </div>
                 <div style={{ display: "grid", gridTemplateColumns: GRID_COMP, gap: 8, padding: "6px 12px", background: "var(--bg3)", borderBottom: "1px solid var(--border)" }}>
-                  {["Fecha", "Concepto", "Monto", "Tipo", ""].map(colHdr)}
+                  {["Fecha", "Concepto", "Monto", ""].map(colHdr)}
                 </div>
                 {movsComprobantes.length === 0 ? (
                   <div style={{ padding: "16px 12px", fontSize: 12, color: "var(--text-dim)", fontFamily: "var(--font-mono)" }}>Sin comprobantes</div>
@@ -853,7 +853,6 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                             </div>
                           </div>
                           <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: montoColor }}>{montoSign}{fmtMonto(m.monto, divisaCC)}</span>
-                          <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 9, opacity: isVisual ? 0.5 : 1 }}>{m.tipo === "debito" ? "Déb" : "Cobro"}</span>
                           <button
                             style={{ background: "none", border: "none", cursor: "pointer", color: "var(--danger)", fontSize: 13, padding: "2px 3px", borderRadius: 4 }}
                             title="Eliminar comprobante"
@@ -899,6 +898,9 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                             {m.monto_original != null && divisaCobro !== divisaCC && (
                               <span style={{ fontFamily: "var(--font-mono)", fontSize: 10, color: "var(--text-dim)" }}>{fmtMonto(m.monto_original, divisaCobro)}</span>
                             )}
+                            {m.cotizacion_usada != null && (
+                              <span style={{ fontFamily: "var(--font-mono)", fontSize: 9, color: "var(--text-dim)" }}>cotiz. ${Number(m.cotizacion_usada).toLocaleString("es-AR")}</span>
+                            )}
                           </div>
                           <button
                             onClick={() => onEditMov(m)}
@@ -923,7 +925,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
             </div>
           )}
           <div style={{ display: "grid", gridTemplateColumns: GRID, gap: 10, padding: "8px 12px", background: "var(--bg3)", borderRadius: filterFromDate ? "0" : "6px 6px 0 0", borderBottom: "2px solid var(--border)" }}>
-            {["Fecha", "Concepto", "Método", "Monto", "Original", "D.Cobro", "Saldo", "Tipo", ""].map((h) => (
+            {["Fecha", "Concepto", "Método", "Monto", "Original", "D.Cobro", "Cotización", "Saldo", ""].map((h) => (
               <div key={h} style={{ fontSize: 10, fontFamily: "var(--font-mono)", color: "var(--text-dim)", textTransform: "uppercase", letterSpacing: "0.08em" }}>{h}</div>
             ))}
           </div>
@@ -986,11 +988,11 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                     {hayConv && m.monto_original != null ? fmtMonto(m.monto_original, divisaCobro) : "—"}
                   </span>
                   <span><DivisaBadge divisa={divisaCobro} /></span>
+                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: isVisual ? "#1d4ed8" : (m.cotizacion_usada != null ? "var(--text-muted)" : "var(--text-dim)") }}>
+                    {m.cotizacion_usada != null ? `$${Number(m.cotizacion_usada).toLocaleString("es-AR")}` : "—"}
+                  </span>
                   <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: isVisual ? "#1d4ed8" : (m._saldo_momento < 0 ? "var(--success)" : m._saldo_momento > 0 ? "var(--danger)" : "var(--text-dim)") }}>
                     {fmtMontoSigned(m._saldo_momento, divisa)}
-                  </span>
-                  <span className={`badge ${m.tipo === "debito" ? "badge-danger" : "badge-success"}`} style={{ fontSize: 10, opacity: isVisual ? 0.5 : 1 }}>
-                    {m.tipo === "debito" ? "Déb" : "Cobro"}
                   </span>
                   {m.order_id ? (
                     <button

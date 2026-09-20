@@ -990,20 +990,60 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
     : (saldo > 0 ? "Debe" : "Saldo a favor");
 
   const fmt = (n, dv) => `${dv === "USD" ? "USD " : "$"}${fmtMoney(n)}`;
+  const fmtSigned = (n, dv) => {
+    const num = Number(n || 0);
+    const abs = Math.abs(num);
+    const neg = num < 0;
+    return `${neg ? "−" : ""}${fmt(abs, dv)}`;
+  };
 
-  const rowsHtml = [...movimientos].reverse().map((m) => {
-    const divisaCC    = m.divisa_cuenta ?? divisa;
-    const hayConv     = m.divisa_cobro && m.divisa_cobro !== divisaCC;
-    const signo       = m.tipo === "debito" ? "+" : "−";
-    const col         = m.tipo === "debito" ? "color:#dc2626" : "color:#16a34a";
+  // Réplica exacta del cálculo de saldo corriente de CCView: recorre ASC (más viejo primero)
+  // acumulando el saldo momento a momento, respetando afecta_saldo y el caso saldo_inicial de proveedores.
+  const asc = [...movimientos].reverse();
+  let running = 0;
+  const movsConSaldo = asc.map((m) => {
+    if (m.afecta_saldo !== false) {
+      if (esProveedor) {
+        if (m.concepto && m.concepto.toLowerCase().includes("saldo_inicial")) running += Number(m.monto);
+        else if (m.tipo === "debito") running -= Number(m.monto);
+        else running += Number(m.monto);
+      } else {
+        running += m.tipo === "debito" ? Number(m.monto) : -Number(m.monto);
+      }
+    }
+    return { ...m, _saldo_momento: running };
+  });
+
+  const rowsHtml = [...movsConSaldo].reverse().map((m) => {
+    const divisaCC     = m.divisa_cuenta ?? divisa;
+    const divisaCobro  = m.divisa_cobro ?? divisaCC;
+    const hayConv      = divisaCobro !== divisaCC;
+    const isVisual     = m.afecta_saldo === false;
+    const esSaldoInicial = esProveedor && m.concepto && m.concepto.toLowerCase().includes("saldo_inicial");
+
+    const signo = isVisual ? ""
+      : esProveedor
+        ? (esSaldoInicial ? "+" : m.tipo === "debito" ? "−" : "+")
+        : (m.tipo === "debito" ? "+" : "−");
+    const col = isVisual ? "color:#1d4ed8"
+      : esSaldoInicial ? "color:#111"
+      : (m.tipo === "debito" ? "color:#dc2626" : "color:#16a34a");
+    const saldoCol = m._saldo_momento < 0 ? "color:#16a34a" : m._saldo_momento > 0 ? "color:#dc2626" : "color:#999";
+    const divisaCobroCol = divisaCobro === "USD" ? "color:#16a34a" : "color:#2563eb";
+    const concepto = m.order_id
+      ? `<a href="/comprobantes/editar/${m.order_id}" target="_blank" style="color:#2563eb;text-decoration:underline">${m.concepto || "Comprobante"}</a>`
+      : (m.concepto || "—");
+
     return `
-      <tr>
-        <td style="font-family:monospace;font-size:11px">${fmtDate(m.created_at)}</td>
-        <td>${m.order_id ? `<a href="/comprobantes/editar/${m.order_id}" target="_blank" style="color:#2563eb;text-decoration:underline">${m.concepto || "Comprobante"}</a>` : (m.concepto || "—")}</td>
-        <td style="font-family:monospace;font-size:11px">${m.metodo_pago || "—"}</td>
+      <tr style="${isVisual ? "background:#eff6ff" : ""}">
+        <td style="font-family:monospace;font-size:11px;${isVisual ? "font-weight:700;color:#1d4ed8" : ""}">${fmtDate(m.created_at)}</td>
+        <td style="${isVisual ? "font-weight:700;color:#1d4ed8" : ""}">${concepto}</td>
+        <td style="font-family:monospace;font-size:11px;${isVisual ? "color:#1d4ed8;font-weight:700" : ""}">${m.metodo_pago || (!isVisual ? "Cta Cte" : "—")}</td>
         <td class="right" style="font-family:monospace;font-weight:700;${col}">${signo}${fmt(Number(m.monto || 0), divisaCC)}</td>
-        <td class="right" style="font-family:monospace;font-size:11px">${hayConv && m.monto_original != null ? fmt(m.monto_original, m.divisa_cobro) : "—"}</td>
-        <td style="font-size:11px">${m.tipo === "debito" ? "Débito" : "Cobro"}</td>
+        <td class="right" style="font-family:monospace;font-size:11px;color:#666">${hayConv && m.monto_original != null ? fmt(m.monto_original, divisaCobro) : "—"}</td>
+        <td style="font-family:monospace;font-size:10px;font-weight:700;${divisaCobroCol}">${divisaCobro}</td>
+        <td class="right" style="font-family:monospace;font-size:11px;color:#666">${m.cotizacion_usada != null ? `$${Number(m.cotizacion_usada).toLocaleString("es-AR")}` : "—"}</td>
+        <td class="right" style="font-family:monospace;font-weight:700;${saldoCol}">${fmtSigned(m._saldo_momento, divisa)}</td>
       </tr>`;
   }).join("");
 
@@ -1042,16 +1082,18 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
     <table>
       <thead>
         <tr>
-          <th style="width:90px">Fecha</th>
+          <th style="width:85px">Fecha</th>
           <th>Concepto</th>
-          <th style="width:90px">Método</th>
-          <th class="right" style="width:120px">Monto CC</th>
-          <th class="right" style="width:100px">Original</th>
-          <th style="width:60px">Tipo</th>
+          <th style="width:80px">Método</th>
+          <th class="right" style="width:100px">Monto CC</th>
+          <th class="right" style="width:90px">Original</th>
+          <th style="width:55px">D.Cobro</th>
+          <th class="right" style="width:75px">Cotización</th>
+          <th class="right" style="width:100px">Saldo</th>
         </tr>
       </thead>
       <tbody>
-        ${rowsHtml || "<tr><td colspan='6' style='text-align:center;color:#999;padding:20px'>Sin movimientos</td></tr>"}
+        ${rowsHtml || "<tr><td colspan='8' style='text-align:center;color:#999;padding:20px'>Sin movimientos</td></tr>"}
       </tbody>
     </table>
   </div>
