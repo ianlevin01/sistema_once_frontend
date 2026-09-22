@@ -14,7 +14,8 @@ import { printComprobantePDF } from "../utils/printDoc";
 // ── Constantes ─────────────────────────────────────────────────
 const TIPOS   = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedor"];
 const PAGOS   = ["Contado","Cta Cte","Tarjeta","Banco","Mercado Pago","Cheque"];
-const PRECIOS = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
+const PRECIOS            = ["precio_1","precio_2","precio_3","precio_4","precio_5","costo"];
+const PRECIOS_REPOSICION = ["costo","precio_1","precio_2","precio_3","precio_4","precio_5"];
 const PRECIO_LBL = {
   precio_1:"Precio #1", precio_2:"Precio #2", precio_3:"Precio #3",
   precio_4:"Precio #4", precio_5:"Precio #5", costo:"Costo",
@@ -66,7 +67,7 @@ function LeftPanel({
   divisa, setDivisa,
   custSel, custQuery, setCustQuery, custResults, selectCust, setCustSel,
   provSel, provQuery, setProvQuery, provResults, selectProv, setProvSel,
-  warehouses, warehouseId, setWarehouseId,
+  warehouses, warehouseId, setWarehouseId, sourceWarehouseId, setSourceWarehouseId,
   vendedores, lastPrice, user,
   onSave, onCancel, onReset, onPresupuestar, saving, isEditing,
   total, itemCount,
@@ -89,6 +90,8 @@ function LeftPanel({
   const [provHighlight, setProvHighlight] = useState(-1);
   const custDropdownRef = useRef(null);
   const provDropdownRef = useRef(null);
+
+  const activePriceList = tipo === "Reposicion" ? PRECIOS_REPOSICION : PRECIOS;
 
   // Auto-foco en tipo al abrir el formulario
   useEffect(() => {
@@ -137,10 +140,18 @@ function LeftPanel({
     const idx = TIPOS.indexOf(tipo);
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setTipo(TIPOS[Math.min(idx + 1, TIPOS.length - 1)]);
+      const newTipo = TIPOS[Math.min(idx + 1, TIPOS.length - 1)];
+      const newIsRep = newTipo === "Reposicion" || newTipo === "Devol a proveedor";
+      setTipo(newTipo);
+      if (newIsRep) setPriceType("costo");
+      else if (esReposicion) setPriceType("precio_1");
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setTipo(TIPOS[Math.max(idx - 1, 0)]);
+      const newTipo = TIPOS[Math.max(idx - 1, 0)];
+      const newIsRep = newTipo === "Reposicion" || newTipo === "Devol a proveedor";
+      setTipo(newTipo);
+      if (newIsRep) setPriceType("costo");
+      else if (esReposicion) setPriceType("precio_1");
     } else if (e.key === "Enter") {
       e.preventDefault();
       if (admiteConsumidorFinal) cfToggleRef.current?.focus();
@@ -223,13 +234,13 @@ function LeftPanel({
 
   // Handler teclado precio
   const handlePrecioKeyDown = (e) => {
-    const idx = PRECIOS.indexOf(priceType);
+    const idx = activePriceList.indexOf(priceType);
     if (e.key === "ArrowDown" || e.key === "ArrowRight") {
       e.preventDefault();
-      setPriceType(PRECIOS[Math.min(idx + 1, PRECIOS.length - 1)]);
+      setPriceType(activePriceList[Math.min(idx + 1, activePriceList.length - 1)]);
     } else if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
       e.preventDefault();
-      setPriceType(PRECIOS[Math.max(idx - 1, 0)]);
+      setPriceType(activePriceList[Math.max(idx - 1, 0)]);
     } else if (e.key === "Enter") {
       e.preventDefault();
       vendedorRef.current?.focus();
@@ -277,7 +288,12 @@ function LeftPanel({
           }}
         >
           {TIPOS.map((t) => (
-            <button key={t} onClick={() => setTipo(t)}
+            <button key={t} onClick={() => {
+              const newIsRep = t === "Reposicion" || t === "Devol a proveedor";
+              setTipo(t);
+              if (newIsRep) setPriceType("costo");
+              else if (esReposicion) setPriceType("precio_1");
+            }}
               disabled={isEditing}
               style={{
                 padding:"6px 4px", borderRadius:4, cursor: isEditing ? "default" : "pointer",
@@ -490,6 +506,15 @@ function LeftPanel({
                 </select>
               </div>
             )}
+            {!esReposicion && !isEditing && (
+              <div className="input-group">
+                <label className="input-label">Depósito origen</label>
+                <select className="select" value={sourceWarehouseId} onChange={(e) => setSourceWarehouseId(e.target.value)} style={{ fontSize:12, height:32 }}>
+                  <option value="">— sin especificar —</option>
+                  {warehouses.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+                </select>
+              </div>
+            )}
             <div className="input-group">
               <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                 <span>Método de pago</span>
@@ -522,7 +547,7 @@ function LeftPanel({
               </div>
             </div>
 
-            {!esReposicion && (
+            {tipo !== "Devol a proveedor" && (
               <div className="input-group">
                 <label className="input-label" style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <span>Tipo de precio</span>
@@ -539,7 +564,7 @@ function LeftPanel({
                     boxShadow: focusedSection === 'precio' ? "0 0 0 2px var(--accent)" : "none",
                   }}
                 >
-                  {PRECIOS.map((p) => (
+                  {activePriceList.map((p) => (
                     <button key={p} onClick={() => setPriceType(p)}
                       style={{
                         padding:"5px 10px", borderRadius:4, fontSize:11, fontFamily:"var(--font-mono)", cursor:"pointer",
@@ -668,6 +693,7 @@ export default function Comprobantes({ initialCreating = false }) {
 
   const [warehouses,         setWarehouses]         = useState([]);
   const [warehouseId,        setWarehouseId]        = useState("");
+  const [sourceWarehouseId,  setSourceWarehouseId]  = useState("");
   const preferredWhRef = useRef("");
 
   const [items,       setItems]       = useState([]);
@@ -702,6 +728,13 @@ export default function Comprobantes({ initialCreating = false }) {
       if (defaultWh) setWarehouseId(defaultWh);
     }
   }, [esReposicion]);
+
+  // Inicializar depósito origen con el del usuario logueado
+  useEffect(() => {
+    if (user?.warehouse_id && !sourceWarehouseId) {
+      setSourceWarehouseId(user.warehouse_id);
+    }
+  }, [user?.warehouse_id]);
 
   // ── Carga ─────────────────────────────────────────────────────
   const loadAll = async (f = appliedFrom, t = appliedTo) => {
@@ -786,10 +819,10 @@ export default function Comprobantes({ initialCreating = false }) {
   useEffect(() => { if (!admiteConsumidorFinal) setEsConsumidorFinal(false); }, [tipo, admiteConsumidorFinal]);
 
   useEffect(() => {
-    if (esReposicion && warehouses.length === 0) {
+    if (warehouses.length === 0) {
       getWarehouses().then(({ data }) => setWarehouses(data)).catch(() => {});
     }
-  }, [esReposicion]);
+  }, []);
 
   useEffect(() => {
     if (!custQuery.trim() || esReposicion || esConsumidorFinal) { setCustResults([]); return; }
@@ -896,7 +929,7 @@ export default function Comprobantes({ initialCreating = false }) {
       const { data: nuevoComp } = await createComprobante({
         customer_id:             esReposicion ? null : (esConsumidorFinal ? null : custSel.id),
         supplier_id:             esReposicion ? provSel.id : null,
-        warehouse_id:            user?.warehouse_id || null,
+        warehouse_id:            esReposicion ? (user?.warehouse_id || null) : (sourceWarehouseId || user?.warehouse_id || null),
         destino_warehouse_id:    esReposicion ? (warehouseId || null) : null,
         user_id:                 user?.id || null,
         payment_method:          payMethod,
@@ -931,7 +964,7 @@ export default function Comprobantes({ initialCreating = false }) {
       setTipo(c.tipo || "Presupuesto");
       setVendedor(c.vendedor || "");
       setTextoLibre(c.texto_libre || "");
-      setPriceType(c.price_type || "precio_1");
+      setPriceType(c.price_type || ((c.tipo === "Reposicion" || c.tipo === "Devol a proveedor") ? "costo" : "precio_1"));
 
       const paymentMethod = c.payments?.[0]?.method || "Contado";
       setPayMethod(paymentMethod);
@@ -1403,7 +1436,7 @@ export default function Comprobantes({ initialCreating = false }) {
             custResults={custResults} selectCust={selectCust} setCustSel={setCustSel}
             provSel={provSel} provQuery={provQuery} setProvQuery={setProvQuery}
             provResults={provResults} selectProv={selectProv} setProvSel={setProvSel}
-            warehouses={warehouses} warehouseId={warehouseId} setWarehouseId={setWarehouseId}
+            warehouses={warehouses} warehouseId={warehouseId} setWarehouseId={setWarehouseId} sourceWarehouseId={sourceWarehouseId} setSourceWarehouseId={setSourceWarehouseId}
             vendedores={vendedores} lastPrice={lastPrice} user={user}
             onSave={isEditing ? handleSaveEdit : handleCreate}
             onCancel={() => { if (initialCreating || editId) { window.close(); return; } setCreating(false); resetForm(); }}
