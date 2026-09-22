@@ -80,7 +80,7 @@ export const getCuentaCorrienteCliente  = (id)       => api.get(`/cuenta-corrien
 export const registrarPagoCC            = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/pago`, data);
 export const agregarSaldoCC             = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/saldo`, data);
 export const registrarCobranzaCC        = (id, data) => api.post(`/cuenta-corriente/cliente/${id}/cobranza`, data);
-export const getCobranzasCC             = (from, to, personal = false) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
+export const getCobranzasCC             = (from, to, personal = false, todo = false) => api.get(`/cuenta-corriente/cobranzas${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}${todo ? "&todo=true" : ""}`);
 // Editar / eliminar movimientos de cliente
 export const editarMovimientoCC   = (movId, data) => api.put(`/cuenta-corriente/movimientos/${movId}`, data);
 export const eliminarMovimientoCC = (movId, data) => api.delete(`/cuenta-corriente/movimientos/${movId}`, { data });
@@ -174,12 +174,12 @@ export const getUltimasCompras = (from, to) =>
   api.get(`/comprobantes/ultimas-compras${from && to ? `?from=${from}&to=${to}` : ""}`);
 
 // ── CAJA LISTADO ──────────────────────────────────────────────
-export const getListadoCaja = (from, to, personal = false) =>
-  api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
+export const getListadoCaja = (from, to, personal = false, todo = false) =>
+  api.get(`/comprobantes/listado${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}${todo ? "&todo=true" : ""}`);
 
 // ── CASH ──────────────────────────────────────────────────────
-export const getCashMovements   = (from, to, personal = false) =>
-  api.get(`/cash${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}`);
+export const getCashMovements   = (from, to, personal = false, todo = false) =>
+  api.get(`/cash${from && to ? `?from=${from}&to=${to}` : "?"}${personal ? "&personal=true" : ""}${todo ? "&todo=true" : ""}`);
 export const getCashMovement    = (id)   => api.get(`/cash/${id}`);
 export const createCashMovement = (data) => api.post("/cash", data);
 

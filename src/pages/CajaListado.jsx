@@ -952,7 +952,7 @@ export default function CajaListado() {
   const [from, setFrom] = useState(today());
   const [to,   setTo]   = useState(today());
   const [loading,       setLoading]       = useState(false);
-  const [vistaPersonal, setVistaPersonal] = useState(false);
+  const [vistaModo, setVistaModo] = useState("deposito"); // "deposito" | "personal" | "todo"
 
   const [presupuestos, setPresupuestos] = useState([]);
   const [reposiciones, setReposiciones] = useState([]);
@@ -993,10 +993,12 @@ export default function CajaListado() {
   async function load() {
     setLoading(true);
     try {
+      const esPersonal = vistaModo === "personal";
+      const esTodo     = vistaModo === "todo";
       const [listadoRes, cashRes, cobranzasRes] = await Promise.all([
-        getListadoCaja(from, to, vistaPersonal),
-        getCashMovements(from, to, vistaPersonal),
-        getCobranzasCC(from, to, vistaPersonal),
+        getListadoCaja(from, to, esPersonal, esTodo),
+        getCashMovements(from, to, esPersonal, esTodo),
+        getCobranzasCC(from, to, esPersonal, esTodo),
       ]);
       const data = listadoRes.data;
       setPresupuestos(data.presupuestos  || []);
@@ -1009,7 +1011,7 @@ export default function CajaListado() {
     setLoading(false);
   }
 
-  useEffect(() => { load(); }, [vistaPersonal]);
+  useEffect(() => { load(); }, [vistaModo]);
 
   // Recargar cuando el usuario vuelve a esta pestaña
   const loadRef = useRef(null);
@@ -1196,25 +1198,37 @@ export default function CajaListado() {
         <button className="btn btn-ghost" onClick={load}>Filtrar</button>
         <div style={{ marginLeft:"auto", display:"flex", gap:4, background:"var(--bg2)", border:"1px solid var(--border)", borderRadius:6, padding:3 }}>
           <button
-            onClick={() => setVistaPersonal(false)}
+            onClick={() => setVistaModo("deposito")}
             style={{
               padding:"5px 12px", borderRadius:4, fontSize:12, fontFamily:"var(--font-mono)", cursor:"pointer", border:"none",
-              background: !vistaPersonal ? "var(--accent)" : "transparent",
-              color:      !vistaPersonal ? "#fff"          : "var(--text-dim)",
-              fontWeight: !vistaPersonal ? 700             : 400,
+              background: vistaModo === "deposito" ? "var(--accent)" : "transparent",
+              color:      vistaModo === "deposito" ? "#fff"          : "var(--text-dim)",
+              fontWeight: vistaModo === "deposito" ? 700             : 400,
             }}>
             Depósito
           </button>
           <button
-            onClick={() => setVistaPersonal(true)}
+            onClick={() => setVistaModo("personal")}
             style={{
               padding:"5px 12px", borderRadius:4, fontSize:12, fontFamily:"var(--font-mono)", cursor:"pointer", border:"none",
-              background: vistaPersonal ? "var(--accent)" : "transparent",
-              color:      vistaPersonal ? "#fff"          : "var(--text-dim)",
-              fontWeight: vistaPersonal ? 700             : 400,
+              background: vistaModo === "personal" ? "var(--accent)" : "transparent",
+              color:      vistaModo === "personal" ? "#fff"          : "var(--text-dim)",
+              fontWeight: vistaModo === "personal" ? 700             : 400,
             }}>
             Personal
           </button>
+          {user?.role === "superadmin" && (
+            <button
+              onClick={() => setVistaModo("todo")}
+              style={{
+                padding:"5px 12px", borderRadius:4, fontSize:12, fontFamily:"var(--font-mono)", cursor:"pointer", border:"none",
+                background: vistaModo === "todo" ? "var(--accent)" : "transparent",
+                color:      vistaModo === "todo" ? "#fff"          : "var(--text-dim)",
+                fontWeight: vistaModo === "todo" ? 700             : 400,
+              }}>
+              Todo
+            </button>
+          )}
         </div>
       </div>
 
