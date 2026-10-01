@@ -759,14 +759,24 @@ export default function Comprobantes({ initialCreating = false }) {
   // convertir los precios de los items ya cargados.
   // Los items se almacenan en itemsBaseDivisaRef (la divisa en la que se cargaron).
   // Convertimos FROM itemsBaseDivisaRef TO divisa usando la cotización actual.
-  const prevDivisaRef = useRef("ARS");
+  const prevDivisaRef     = useRef("ARS");
+  const conversionTokenRef = useRef(0);
   useEffect(() => {
     const prev = prevDivisaRef.current;
     prevDivisaRef.current = divisa;
     if (prev === divisa) return;
     if (skipDivisaConv.current) { skipDivisaConv.current = false; return; }
 
+    // Token de esta ejecución del efecto: si el usuario dispara OTRO cambio de
+    // divisa (ej. deseleccionar cliente y al toque elegir uno nuevo) antes de que
+    // la cotización asincrónica de ESTA ejecución llegue, el token ya no va a
+    // coincidir y la conversión vieja se descarta en vez de aplicarse fuera de
+    // orden y corromper itemsBaseDivisaRef de nuevo.
+    const myToken    = ++conversionTokenRef.current;
+    const targetDivisa = divisa;
+
     const performConversion = (cotiz) => {
+      if (myToken !== conversionTokenRef.current) return;
       if (!cotiz || cotiz <= 0) return;
       const baseDivisa = itemsBaseDivisaRef.current;
 
@@ -775,13 +785,13 @@ export default function Comprobantes({ initialCreating = false }) {
           let newPrice = Number(it.unit_price);
 
           // Convertir desde baseDivisa a divisa objetivo
-          if (baseDivisa === divisa) {
+          if (baseDivisa === targetDivisa) {
             // Ya están en la divisa correcta, no convertir
             return { ...it, unit_price: newPrice };
-          } else if (baseDivisa === "ARS" && divisa === "USD") {
+          } else if (baseDivisa === "ARS" && targetDivisa === "USD") {
             // ARS → USD: dividir por cotización
             newPrice = Math.round((newPrice / cotiz) * 100) / 100;
-          } else if (baseDivisa === "USD" && divisa === "ARS") {
+          } else if (baseDivisa === "USD" && targetDivisa === "ARS") {
             // USD → ARS: multiplicar por cotización
             newPrice = Math.round((newPrice * cotiz) * 100) / 100;
           }
@@ -789,6 +799,10 @@ export default function Comprobantes({ initialCreating = false }) {
           return { ...it, unit_price: newPrice };
         })
       );
+
+      // Los items ya quedaron expresados en `targetDivisa` — actualizar la
+      // referencia para que la PRÓXIMA conversión parta del estado real.
+      itemsBaseDivisaRef.current = targetDivisa;
     };
 
     const cotiz = cotizacionRef.current;
