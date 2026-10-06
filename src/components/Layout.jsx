@@ -154,6 +154,12 @@ export default function Layout({ children }) {
   const NAV = (isVendedor || isML) ? NAV_VENDEDOR : NAV_ADMIN;
   const title = PAGE_TITLES[location.pathname] || "Sistema";
 
+  // ── Menú mobile (drawer) ────────────────────────────────────────────────
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const closeMobileNav = () => setMobileNavOpen(false);
+  // Cerrar el drawer automáticamente al cambiar de página
+  useEffect(() => { setMobileNavOpen(false); }, [location.pathname]);
+
   // ── Recordatorios polling (solo superadmin) ────────────────────────────
   const [pendientesCount,  setPendientesCount]  = useState(0);
   const [notifVisible,     setNotifVisible]      = useState(false);
@@ -226,7 +232,8 @@ export default function Layout({ children }) {
 
   return (
     <div className="layout">
-      <aside className="sidebar">
+      {mobileNavOpen && <div className="sidebar-backdrop" onClick={closeMobileNav} />}
+      <aside className={"sidebar" + (mobileNavOpen ? " mobile-open" : "")}>
         <div className="sidebar-logo">
           <div className="sidebar-logo-icon">S</div>
           <div className="sidebar-logo-text">
@@ -371,7 +378,12 @@ export default function Layout({ children }) {
 
       <div className="main">
         <header className="topbar">
-          <span className="topbar-title">{title}</span>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+            <button className="hamburger-btn" onClick={() => setMobileNavOpen((v) => !v)} aria-label="Abrir menú" title="Menú">
+              ☰
+            </button>
+            <span className="topbar-title">{title}</span>
+          </div>
           <div className="topbar-actions" style={{ display: "flex", gap: 10, alignItems: "center" }}>
             {user?.warehouse_name && (
               <span style={{
@@ -382,7 +394,7 @@ export default function Layout({ children }) {
                 🏭 {user.warehouse_name}
               </span>
             )}
-            <span style={{
+            <span className="topbar-date" style={{
               fontSize: 12, fontFamily: "var(--font-mono)", color: "var(--text-dim)",
               background: "var(--bg3)", padding: "4px 10px",
               borderRadius: "var(--radius)", border: "1px solid var(--border)",

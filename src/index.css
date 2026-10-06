@@ -659,8 +659,64 @@ thead tr {
   to   { transform: translateX(0);    opacity: 1; }
 }
 
+/* ══ HAMBURGER (toggle del menú en mobile) ══════════════════════════════════ */
+.hamburger-btn {
+  display: none;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.sidebar-backdrop { display: none; }
+.topbar-date { }
+
 /* ══ RESPONSIVE ═══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
-  .sidebar { width: 0; border: none; }
+  .hamburger-btn { display: inline-flex; }
+
+  /* El sidebar pasa a ser un drawer que se superpone, no ocupa espacio del layout */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    width: 240px;
+    max-width: 82vw;
+    transform: translateX(-100%);
+    transition: transform 0.22s cubic-bezier(0.4,0,0.2,1);
+    z-index: 200;
+  }
+
+  .sidebar.mobile-open { transform: translateX(0); }
+
+  /* Abierto en mobile = siempre expandido (no hay :hover en touch) */
+  .sidebar.mobile-open .sidebar-logo-text,
+  .sidebar.mobile-open .sidebar-section-label,
+  .sidebar.mobile-open .sidebar-link .link-label {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15,18,25,0.45);
+    z-index: 190;
+  }
+
+  .topbar { padding: 0 12px; gap: 8px; }
+  .topbar-title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .topbar-date { display: none; }
+  .page { padding: 14px; }
+
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
 }

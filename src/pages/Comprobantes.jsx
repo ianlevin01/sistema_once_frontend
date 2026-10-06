@@ -3,13 +3,14 @@ import { useParams } from "react-router-dom";
 import {
   getComprobantes, getComprobante, createComprobante, updateComprobante,
   deleteComprobante, searchCustomers, searchProveedores, getWarehouses,
-  getLastSalePrice, getPriceConfig, getCustomer,
+  getLastSalePrice, getPriceConfig, getCustomer, scanComprobanteImage,
 } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 import { useToast } from "../utils/useToast";
 import { useVendedores } from "../utils/useVendedores";
 import ProductSearchBar from "../components/ProductSearchBar";
 import { printComprobantePDF } from "../utils/printDoc";
+import { useIsMobile } from "../utils/useIsMobile";
 
 // ── Constantes ─────────────────────────────────────────────────
 const TIPOS   = ["Presupuesto","Devolucion","Nota de Pedido","Reposicion","Devol a proveedor"];
@@ -59,6 +60,7 @@ function ItemRow({ item, idx, onRemove, onChangeQty, onChangePrice, onChangeDesc
 
 // ── Panel izquierdo de configuración ──────────────────────────
 function LeftPanel({
+  isMobile,
   tipo, setTipo, payMethod, setPayMethod, priceType, setPriceType,
   vendedor, setVendedor, textoLibre, setTextoLibre,
   esReposicion, admiteConsumidorFinal,
@@ -248,7 +250,13 @@ function LeftPanel({
   };
 
   return (
-    <div style={{ width:300, flexShrink:0, borderRight:"1px solid var(--border)", display:"flex", flexDirection:"column", background:"var(--bg2)", overflow:"hidden" }}>
+    <div style={{
+      width: isMobile ? "100%" : 300, flexShrink:0,
+      borderRight: isMobile ? "none" : "1px solid var(--border)",
+      borderBottom: isMobile ? "1px solid var(--border)" : "none",
+      display:"flex", flexDirection:"column", background:"var(--bg2)",
+      overflow: isMobile ? "visible" : "hidden",
+    }}>
 
       {/* Header compacto */}
       <div style={{ padding:"14px 16px 10px", borderBottom:"1px solid var(--border)", flexShrink:0 }}>
@@ -487,7 +495,7 @@ function LeftPanel({
       </div>
 
       {/* Configuración colapsable */}
-      <div style={{ flex:1, overflowY:"auto" }}>
+      <div style={{ flex: isMobile ? "none" : 1, overflowY: isMobile ? "visible" : "auto" }}>
         <button
           onClick={() => setShowConfig(v => !v)}
           style={{ width:"100%", padding:"10px 16px", background:"transparent", border:"none", borderBottom:"1px solid var(--border)", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)", textTransform:"uppercase", letterSpacing:"0.06em" }}>
@@ -643,12 +651,16 @@ export default function Comprobantes({ initialCreating = false }) {
   const { editId } = useParams() ?? {};
   const { user } = useAuth();
   const vendedores = useVendedores();
+  const isMobile = useIsMobile();
   const [comprobantes, setComprobantes] = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [selected,     setSelected]     = useState(null);
   const [loadingDetail,setLoadingDetail]= useState(false);
   const [creating,     setCreating]     = useState(initialCreating);
   const [editingId,    setEditingId]    = useState(null); // id del comprobante en edición
+  const [scanning,     setScanning]     = useState(false);
+  const [scanImageKey, setScanImageKey] = useState(null); // key S3 de la foto escaneada, se guarda junto al comprobante al crear
+  const scanFileInputRef = useRef(null);
 
   const [from,        setFrom]        = useState(today());
   const [to,          setTo]          = useState(today());
@@ -928,6 +940,36 @@ export default function Comprobantes({ initialCreating = false }) {
   const changeItemPrice= (i, p) => setItems((prev) => prev.map((it, idx) => idx === i ? { ...it, unit_price: p } : it));
   const changeItemDesc = (i, d) => setItems((prev) => prev.map((it, idx) => idx === i ? { ...it, description: d } : it));
 
+  // ── Escanear comprobante por foto (IA) ───────────────────────────
+  // Sube la imagen, la IA extrae los items y los matchea contra el catálogo.
+  // No crea nada acá: guarda el resultado y abre la pestaña de "nuevo
+  // comprobante" (igual que el botón + Nuevo) ya con los items cargados.
+  const handleScanFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setScanning(true);
+    try {
+      const { data } = await scanComprobanteImage(file);
+      const found = data.items?.length || 0;
+      const missing = data.unmatched?.length || 0;
+      if (found === 0) {
+        addToast(missing > 0 ? `No se pudo identificar ningún producto (${missing} sin coincidencia)` : "No se encontraron productos en la imagen", "error");
+        return;
+      }
+      addToast(missing > 0 ? `${found} productos cargados, ${missing} no se encontraron en el catálogo` : `${found} productos cargados desde la foto`, "success");
+      localStorage.setItem("once_scan_pending", JSON.stringify({
+        items: data.items,
+        scanImageKey: data.image_key,
+        ts: Date.now(),
+      }));
+      window.open("/comprobantes/nuevo", "_blank");
+    } catch (err) {
+      addToast(err.response?.data?.message || "Error analizando la imagen", "error");
+    }
+    setScanning(false);
+  };
+
   // ── Crear ──────────────────────────────────────────────────────
   const handleCreate = async () => {
     if (esReposicion) {
@@ -953,6 +995,7 @@ export default function Comprobantes({ initialCreating = false }) {
         divisa:                  divisa,
         descuento_pct:           admiteDescuento ? descuentoPctNum : 0,
         items: items.map(({ product_id, quantity, unit_price }) => ({ product_id, quantity, unit_price })),
+        scan_image_key:          scanImageKey || null,
       });
       addToast("Comprobante creado", "success");
       if (initialCreating) {
@@ -1043,6 +1086,21 @@ export default function Comprobantes({ initialCreating = false }) {
   };
 
   useEffect(() => { if (editId) handleOpenEdit(editId); }, [editId]);
+
+  // Si esta pestaña se abrió desde "Escanear comprobante" en el listado, precargar
+  // los items que ya analizó la IA (ver handleScanFile). Se consume una sola vez.
+  useEffect(() => {
+    if (!initialCreating) return;
+    try {
+      const raw = localStorage.getItem("once_scan_pending");
+      if (!raw) return;
+      localStorage.removeItem("once_scan_pending");
+      const data = JSON.parse(raw);
+      if (!data || Date.now() - data.ts > 2 * 60 * 1000) return; // evitar datos viejos si algo falló
+      if (Array.isArray(data.items) && data.items.length > 0) setItems(data.items);
+      if (data.scanImageKey) setScanImageKey(data.scanImageKey);
+    } catch {}
+  }, [initialCreating]);
 
   // ── Guardar edición ────────────────────────────────────────────
   const handleSaveEdit = async () => {
@@ -1190,6 +1248,23 @@ export default function Comprobantes({ initialCreating = false }) {
         /* ── LISTADO ── */
         <>
           <div style={{ display:"flex", gap:10, marginBottom:24, alignItems:"center", flexWrap:"wrap" }}>
+            <button
+              className="btn btn-ghost"
+              style={{ fontSize:15, padding:"10px 14px" }}
+              title="Escanear comprobante con una foto"
+              onClick={() => scanFileInputRef.current?.click()}
+              disabled={scanning}
+            >
+              {scanning ? "Analizando..." : "📷 Escanear"}
+            </button>
+            <input
+              ref={scanFileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display:"none" }}
+              onChange={handleScanFile}
+            />
             <div style={{ display:"flex", gap:10, alignItems:"center" }}>
               <span style={{ fontSize:12, fontFamily:"var(--font-mono)", color:"var(--text-muted)" }}>DESDE</span>
               <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width:150 }} />
@@ -1316,6 +1391,9 @@ export default function Comprobantes({ initialCreating = false }) {
                 <div className="modal-header">
                   <span className="modal-title">{selected.tipo || "Comprobante"} — {selected.id?.slice(0,8)}…</span>
                   <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    {selected.scan_image_url && (
+                      <button className="btn btn-ghost btn-sm" title="Ver foto del comprobante escaneado" onClick={() => window.open(selected.scan_image_url, "_blank")}>📷 Foto</button>
+                    )}
                     <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(selected)}>🖨 Imprimir</button>
                     <button className="modal-close" onClick={() => setSelected(null)}>✕</button>
                   </div>
@@ -1434,9 +1512,15 @@ export default function Comprobantes({ initialCreating = false }) {
         </>
       ) : (
         /* ── NUEVO / EDITAR COMPROBANTE ── */
-        <div style={{ display:"flex", height:"calc(100vh - 56px)", margin:"-28px", overflow:"hidden" }}>
+        <div style={{
+          display:"flex", flexDirection: isMobile ? "column" : "row",
+          height: isMobile ? "auto" : "calc(100vh - 56px)",
+          minHeight: isMobile ? "calc(100vh - 56px)" : undefined,
+          margin: isMobile ? "-14px" : "-28px", overflow: isMobile ? "visible" : "hidden",
+        }}>
 
           <LeftPanel
+            isMobile={isMobile}
             tipo={tipo} setTipo={setTipo}
             payMethod={payMethod} setPayMethod={setPayMethod}
             priceType={priceType} setPriceType={setPriceType}
@@ -1462,8 +1546,8 @@ export default function Comprobantes({ initialCreating = false }) {
           />
 
           {/* Panel central */}
-          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow:"hidden", background:"var(--bg)" }}>
-            <div style={{ flex:1, overflowY:"auto", padding:"20px 24px" }}>
+          <div style={{ flex:1, display:"flex", flexDirection:"column", overflow: isMobile ? "visible" : "hidden", background:"var(--bg)", minWidth:0 }}>
+            <div style={{ flex: isMobile ? "none" : 1, overflowY: isMobile ? "visible" : "auto", padding: isMobile ? "16px" : "20px 24px" }}>
               {items.length === 0 ? (
                 <div style={{ height:"100%", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", color:"var(--text-dim)", gap:14 }}>
                   <span style={{ fontSize:48 }}>🧾</span>
@@ -1471,6 +1555,11 @@ export default function Comprobantes({ initialCreating = false }) {
                 </div>
               ) : (
                 <>
+                  {/* En mobile las columnas fijas no entran en el ancho de pantalla — se
+                      deja la grilla intacta (mismo comportamiento/alineación que desktop)
+                      pero dentro de un contenedor con scroll horizontal, igual que .table-wrap */}
+                  <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+                  <div style={{ minWidth: isMobile ? 560 : "auto" }}>
                   {/* Header de columnas */}
                   <div style={{ display:"grid", gridTemplateColumns:"80px 1fr 90px 110px 110px 36px", gap:8, padding:"0 0 8px", borderBottom:"2px solid var(--border)", marginBottom:2 }}>
                     {["Código","Descripción","Cant.","Precio","Total",""].map((h) => (
@@ -1485,7 +1574,9 @@ export default function Comprobantes({ initialCreating = false }) {
                       onChangeDesc={changeItemDesc}
                     />
                   ))}
-                  <div style={{ display:"flex", justifyContent:"flex-end", marginTop:20, paddingTop:14, borderTop:"2px solid var(--border)", gap:24, alignItems:"flex-end" }}>
+                  </div>
+                  </div>
+                  <div style={{ display:"flex", justifyContent: isMobile ? "space-between" : "flex-end", flexWrap:"wrap", marginTop:20, paddingTop:14, borderTop:"2px solid var(--border)", gap:24, alignItems:"flex-end" }}>
                     {admiteDescuento && (
                       <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:4 }}>
                         <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase" }}>Descuento / Recargo %</div>
@@ -1522,7 +1613,7 @@ export default function Comprobantes({ initialCreating = false }) {
             </div>
 
             {/* Barra de búsqueda */}
-            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding:"12px 24px 14px", flexShrink:0 }}>
+            <div style={{ borderTop:"2px solid var(--border)", background:"var(--bg2)", padding: isMobile ? "10px 14px 12px" : "12px 24px 14px", flexShrink:0 }}>
               {prodSel && (
                 <div style={{ marginBottom:8 }}>
                   <div style={{ padding:"8px 12px", background:"var(--accent-dim)", border:"1px solid var(--accent)", borderRadius:6, display:"flex", alignItems:"center", gap:10 }}>
@@ -1560,19 +1651,19 @@ export default function Comprobantes({ initialCreating = false }) {
                   onKeyDown={(e) => { if (e.key === "Enter") confirmItem(); }} />
               </div>
 
-              <div style={{ display:"flex", gap:8, alignItems:"flex-end" }}>
-                <div style={{ flex:2, minWidth:0 }}>
+              <div style={{ display:"flex", gap:8, alignItems:"flex-end", flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                <div style={{ flex: isMobile ? "1 1 100%" : 2, minWidth:0 }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Código o descripción</div>
                   <ProductSearchBar ref={prodSearchRef} priceType={esReposicion ? "costo" : priceType} divisa={divisa} onSelect={handleProdSelect} onSearchFocus={() => setSearchActive(true)} autoFocus={!prodSel} dropUp />
                 </div>
-                <div style={{ flex:"0 0 100px" }}>
+                <div style={{ flex: isMobile ? "1 1 80px" : "0 0 100px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>Cantidad</div>
                   <input ref={qtyRef} className="input"
                     style={{ height:38, fontSize:15, fontFamily:"var(--font-mono)", textAlign:"center", width:"100%" }}
                     placeholder="0" value={itemQty} onChange={(e) => setItemQty(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (Number(itemQty) > 0) priceRef.current?.focus(); } }} />
                 </div>
-                <div style={{ flex:"0 0 120px" }}>
+                <div style={{ flex: isMobile ? "1 1 80px" : "0 0 120px" }}>
                   <div style={{ fontSize:10, fontFamily:"var(--font-mono)", color:"var(--text-dim)", textTransform:"uppercase", marginBottom:4 }}>
                     {PRECIO_LBL[priceType]}
                   </div>
@@ -1582,7 +1673,7 @@ export default function Comprobantes({ initialCreating = false }) {
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); confirmItem(); } }} />
                 </div>
                 <button className="btn btn-primary" onClick={confirmItem}
-                  style={{ height:38, fontSize:13, padding:"0 18px", flexShrink:0 }}>
+                  style={{ height:38, fontSize:13, padding:"0 18px", flexShrink:0, flex: isMobile ? "1 1 auto" : "none" }}>
                   + Agregar
                 </button>
               </div>

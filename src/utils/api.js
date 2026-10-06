@@ -166,6 +166,11 @@ export const getComprobantes   = (from, to) =>
   api.get(`/comprobantes${from && to ? `?from=${from}&to=${to}` : ""}`);
 export const getComprobante    = (id)        => api.get(`/comprobantes/${id}`);
 export const createComprobante = (data)      => api.post("/comprobantes", data);
+export const scanComprobanteImage = (file)   => {
+  const fd = new FormData();
+  fd.append("image", file);
+  return api.post("/comprobantes/scan", fd);
+};
 export const updateComprobante = (id, data)  => api.put(`/comprobantes/${id}`, data);
 export const deleteComprobante = (id, password) => api.delete(`/comprobantes/${id}`, { data: { password } });
 export const getLastSalePrice  = (customer_id, product_id) =>

@@ -1662,6 +1662,9 @@ export default function CajaListado() {
             <div className="modal-header">
               <span className="modal-title">{viewItem.tipo||"Comprobante"} — {viewItem.customer_name||viewItem.supplier_name||"—"}</span>
               <div style={{ display:"flex", gap:8 }}>
+                {viewItem.scan_image_url && (
+                  <button className="btn btn-ghost btn-sm" title="Ver foto del comprobante escaneado" onClick={() => window.open(viewItem.scan_image_url, "_blank")}>📷 Foto</button>
+                )}
                 <button className="btn btn-ghost btn-sm" onClick={() => printComprobantePDF(viewItem)}>🖨️ Imprimir</button>
                 <button className="modal-close" onClick={() => setViewItem(null)}>✕</button>
               </div>
