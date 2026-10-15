@@ -699,8 +699,10 @@ function SeccionCobranzas({ cobranzas, divisa }) {
   }, {});
   const total = filtered.reduce((a, c) => a + getMontoDisplay(c), 0);
 
-  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.55)" : "rgba(6,182,212,0.55)";
-  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.025)" : "rgba(6,182,212,0.025)";
+  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.9)" : "rgba(6,182,212,0.9)";
+  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.16)" : "rgba(6,182,212,0.16)";
+  const rowBg1       = divisa === "USD" ? "rgba(16,185,129,0.09)" : "rgba(6,182,212,0.09)";
+  const rowBg2       = divisa === "USD" ? "rgba(16,185,129,0.15)" : "rgba(6,182,212,0.15)";
 
   return (
     <div className="card" style={{ marginBottom:24, borderLeft:`3px solid ${sectionColor}`, background:sectionBg }}>
@@ -724,7 +726,7 @@ function SeccionCobranzas({ cobranzas, divisa }) {
             {filtered.map((c, rowIdx) => {
               const monto = getMontoDisplay(c);
               return (
-                <tr key={c.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                <tr key={c.id} style={{ background: rowIdx % 2 === 0 ? rowBg1 : rowBg2 }}>
                   <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(c.created_at)}</td>
                   <td>
                     <div style={{ fontSize:14, fontWeight:500 }}>{c.customer_name||"—"}</div>
@@ -788,8 +790,10 @@ function SeccionReposiciones({ reposiciones, divisa, onView, onPrint, onDelete }
   const totalDevolP = devolPr.reduce((a, r) => a + Number(r.total || 0), 0);
   const total       = filtered.reduce((a, r) => a + Number(r.total || 0), 0);
 
-  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.55)" : "rgba(245,158,11,0.55)";
-  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.025)" : "rgba(245,158,11,0.025)";
+  const sectionColor = divisa === "USD" ? "rgba(16,185,129,0.9)" : "rgba(245,158,11,0.9)";
+  const sectionBg    = divisa === "USD" ? "rgba(16,185,129,0.16)" : "rgba(245,158,11,0.16)";
+  const rowBg1       = divisa === "USD" ? "rgba(16,185,129,0.09)" : "rgba(245,158,11,0.09)";
+  const rowBg2       = divisa === "USD" ? "rgba(16,185,129,0.15)" : "rgba(245,158,11,0.15)";
 
   return (
     <div className="card" style={{ marginBottom:24, borderLeft:`3px solid ${sectionColor}`, background:sectionBg }}>
@@ -808,7 +812,7 @@ function SeccionReposiciones({ reposiciones, divisa, onView, onPrint, onDelete }
           </thead>
           <tbody>
             {filtered.map((r, rowIdx) => (
-              <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+              <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? rowBg1 : rowBg2 }}>
                 <td>
                   <span className={`badge ${r.tipo === "Devol a proveedor" ? "badge-danger" : "badge-accent"}`}
                     style={{ fontSize:11 }}>
@@ -880,7 +884,7 @@ function SeccionDevoluciones({ presupuestos, onView, onPrint, onDelete }) {
     const fmtVal = (n) => divisa === "USD" ? fmtUSD(n) : `$${fmt(n)}`;
     const total  = lista.reduce((a, p) => a + Number(p.total || 0), 0);
     return (
-      <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(239,68,68,0.55)", background:"rgba(239,68,68,0.025)" }}>
+      <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(239,68,68,0.9)", background:"rgba(239,68,68,0.16)" }}>
         <div className="card-header">
           <span className="card-title">Devoluciones en {divisa === "USD" ? "DÓLARES" : "PESOS"}</span>
           <span className="badge badge-danger">{lista.length}</span>
@@ -893,7 +897,7 @@ function SeccionDevoluciones({ presupuestos, onView, onPrint, onDelete }) {
             </thead>
             <tbody>
               {lista.map((p, rowIdx) => (
-                <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "rgba(239,68,68,0.09)" : "rgba(239,68,68,0.15)" }}>
                   <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(p.created_at)}</td>
                   <td style={{ fontSize:14 }}>{p.customer_name || "—"}</td>
                   <td style={{ fontSize:13, color:"var(--text-muted)" }}>{p.vendedor || "—"}</td>
@@ -1243,7 +1247,7 @@ export default function CajaListado() {
         <>
           {/* ── PRESUPUESTOS EN PESOS ── */}
           {presARS.length > 0 && (
-            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(59,130,246,0.55)", background:"rgba(59,130,246,0.025)" }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(59,130,246,0.9)", background:"rgba(59,130,246,0.16)" }}>
               <div className="card-header">
                 <span className="card-title">Presupuestos en PESOS</span>
                 <span className="badge badge-info">{presARS.length}</span>
@@ -1260,7 +1264,7 @@ export default function CajaListado() {
                   </thead>
                   <tbody>
                     {presARS.map((p, rowIdx) => (
-                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "rgba(59,130,246,0.09)" : "rgba(59,130,246,0.15)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1330,7 +1334,7 @@ export default function CajaListado() {
 
           {/* ── PRESUPUESTOS EN DÓLARES ── */}
           {presUSD.length > 0 && (
-            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(16,185,129,0.55)", background:"rgba(16,185,129,0.025)" }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(16,185,129,0.9)", background:"rgba(16,185,129,0.16)" }}>
               <div className="card-header">
                 <span className="card-title">Presupuestos en DÓLARES</span>
                 <span className="badge badge-info">{presUSD.length}</span>
@@ -1347,7 +1351,7 @@ export default function CajaListado() {
                   </thead>
                   <tbody>
                     {presUSD.map((p, rowIdx) => (
-                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                      <tr key={p.id} style={{ background: rowIdx % 2 === 0 ? "rgba(16,185,129,0.09)" : "rgba(16,185,129,0.15)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: p.tipo==="Presupuesto Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1423,7 +1427,7 @@ export default function CajaListado() {
 
           {/* ── RESERVAS ── */}
           {notasPedido.length > 0 && (
-            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(139,92,246,0.55)", background:"rgba(139,92,246,0.025)" }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(139,92,246,0.9)", background:"rgba(139,92,246,0.16)" }}>
               <div className="card-header">
                 <span className="card-title">Reservas (Notas de Pedido)</span>
                 <span className="badge badge-info">{notasPedido.length}</span>
@@ -1438,7 +1442,7 @@ export default function CajaListado() {
                   </thead>
                   <tbody>
                     {notasPedido.map((n, rowIdx) => (
-                      <tr key={n.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                      <tr key={n.id} style={{ background: rowIdx % 2 === 0 ? "rgba(139,92,246,0.09)" : "rgba(139,92,246,0.15)" }}>
                         <td>
                           <span className="badge badge-accent" style={{
                             background: n.tipo==="Nota de Pedido Web" ? "rgba(100,200,100,0.15)" : undefined,
@@ -1484,7 +1488,7 @@ export default function CajaListado() {
 
           {/* ── REMITOS ── */}
           {remitos.length > 0 && (
-            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(249,115,22,0.55)", background:"rgba(249,115,22,0.025)" }}>
+            <div className="card" style={{ marginBottom:24, borderLeft:"3px solid rgba(249,115,22,0.9)", background:"rgba(249,115,22,0.16)" }}>
               <div className="card-header">
                 <span className="card-title">Remitos</span>
                 <span className="badge badge-info">{remitos.length}</span>
@@ -1496,7 +1500,7 @@ export default function CajaListado() {
                   </thead>
                   <tbody>
                     {remitos.map((r, rowIdx) => (
-                      <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? "var(--bg)" : "var(--bg2)" }}>
+                      <tr key={r.id} style={{ background: rowIdx % 2 === 0 ? "rgba(249,115,22,0.09)" : "rgba(249,115,22,0.15)" }}>
                         <td style={{ fontSize:13, color:"var(--text-muted)", fontFamily:"var(--font-mono)" }}>{fmtDate(r.created_at)}</td>
                         <td style={{ fontSize:13 }}>{r.origen||"—"}</td>
                         <td style={{ fontSize:13 }}>{r.destino||"—"}</td>
@@ -1541,7 +1545,7 @@ export default function CajaListado() {
             ];
 
             return (
-              <div className="card" style={{ marginTop:24, borderLeft:"3px solid rgba(59,130,246,0.55)", background:"rgba(59,130,246,0.025)" }}>
+              <div className="card" style={{ marginTop:24, borderLeft:"3px solid rgba(59,130,246,0.9)", background:"rgba(59,130,246,0.16)" }}>
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
                   <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--text-dim)", padding:"2px 8px", background:"var(--bg3)", borderRadius:4, border:"1px solid var(--border)" }}>🪙 ARS</span>
@@ -1607,7 +1611,7 @@ export default function CajaListado() {
               { label:"Entradas por Caja", data:entradasUSDPorMetodo,      color:"var(--success)", sign:"",  total:totalEntradasUSD,     totalColor:"var(--success)" },
             ];
             return (
-              <div className="card" style={{ marginTop:16, borderLeft:"3px solid rgba(16,185,129,0.55)", background:"rgba(16,185,129,0.025)" }}>
+              <div className="card" style={{ marginTop:16, borderLeft:"3px solid rgba(16,185,129,0.9)", background:"rgba(16,185,129,0.16)" }}>
                 <div className="card-header">
                   <span className="card-title">Resumen de Caja</span>
                   <span style={{ fontSize:11, fontFamily:"var(--font-mono)", color:"var(--success)", padding:"2px 8px", background:"rgba(52,211,153,0.1)", borderRadius:4, border:"1px solid var(--success)" }}>💵 USD</span>
