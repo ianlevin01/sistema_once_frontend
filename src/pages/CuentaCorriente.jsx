@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import {
   searchCustomers, getCustomer,
   createCustomer, updateCustomer, deleteCustomer, openCuentaCorriente,
@@ -520,6 +521,46 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
     },
   }));
 
+  // Descarga un Excel con el detalle de artículos del comprobante: código,
+  // nombre, cantidad, precio unitario y precio total (cantidad × unitario).
+  const downloadComprobanteExcel = async (m) => {
+    try {
+      let items = orderItems[m.order_id];
+      let divisaDoc, cotizacionDolarDoc;
+      if (items) {
+        divisaDoc = items[0]?._divisa;
+        cotizacionDolarDoc = items[0]?._cotizacion_dolar;
+      } else {
+        const { data } = await getComprobante(m.order_id);
+        divisaDoc = data.divisa;
+        cotizacionDolarDoc = data.cotizacion_dolar;
+        items = (data.items ?? []).map((it) => ({ ...it, _divisa: divisaDoc, _cotizacion_dolar: cotizacionDolarDoc }));
+      }
+
+      const COLS = ["Código", "Nombre", "Cantidad", "Precio Unitario", "Precio Total"];
+      const filas = items.map((it) => {
+        const unitARS  = Number(it.unit_price);
+        const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
+          ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
+          : unitARS;
+        const cantidad = Number(it.quantity);
+        return [
+          it.code || it.product_code || "",
+          it.name || it.product_name || "",
+          cantidad,
+          Number(unitDisp.toFixed(2)),
+          Number((cantidad * unitDisp).toFixed(2)),
+        ];
+      });
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([COLS, ...filas]);
+      ws["!cols"] = [16, 40, 10, 16, 16].map((w) => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, "Comprobante");
+      XLSX.writeFile(wb, `${(m.concepto || "comprobante").replace(/[\\/*?:[\]]/g, "")}.xlsx`);
+    } catch { /* silencioso, igual que el resto de los botones de esta fila */ }
+  };
+
   const handleDeleteComp = async () => {
     if (!deleteCompPwd.trim()) return;
     setDeletingComp(true);
@@ -871,6 +912,11 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
                                 title="Ver artículos"
                                 onClick={() => toggleDetails(m)}
                               >{isExpanded ? "▲ Ocultar" : "▼ Items"}</button>
+                              <button
+                                style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
+                                title="Descargar Excel"
+                                onClick={() => downloadComprobanteExcel(m)}
+                              >📥 Excel</button>
                             </div>
                           </div>
                           <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, fontWeight: 700, color: montoColor }}>{montoSign}{fmtMonto(m.monto, divisaCC)}</span>
@@ -993,6 +1039,13 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
                         onClick={() => toggleDetails(m)}
                       >
                         {isExpanded ? "▲ Ocultar" : "▼ Detalles"}
+                      </button>
+                      <button
+                        style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
+                        title="Descargar Excel"
+                        onClick={() => downloadComprobanteExcel(m)}
+                      >
+                        📥 Excel
                       </button>
                     </div>
                   ) : (
