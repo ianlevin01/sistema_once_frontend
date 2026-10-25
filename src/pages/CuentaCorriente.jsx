@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, forwardRef, useImperativeHandle } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   searchCustomers, getCustomer,
@@ -459,7 +459,7 @@ function EditMovModal({ open, onClose, movimiento, onConfirm, onDelete, saving }
 // ─────────────────────────────────────────────────────────────
 // Vista de cuenta corriente
 // ─────────────────────────────────────────────────────────────
-function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
+const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }, ref) {
   const navigate = useNavigate();
   const [expandedOrders, setExpandedOrders] = useState(new Set());
   const [orderItems,     setOrderItems]     = useState({});
@@ -478,12 +478,16 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
     }
   }, [cc]);
 
-  const toggleDetails = async (orderId) => {
-    if (expandedOrders.has(orderId)) {
-      setExpandedOrders((prev) => { const s = new Set(prev); s.delete(orderId); return s; });
+  // Clave por el id propio del movimiento (no por order_id): un comprobante
+  // puede tener más de una fila en la cuenta corriente (p.ej. un ajuste)
+  // apuntando al mismo order_id, y abrir una no debe abrir la otra.
+  const toggleDetails = async (m) => {
+    const movId = m.id, orderId = m.order_id;
+    if (expandedOrders.has(movId)) {
+      setExpandedOrders((prev) => { const s = new Set(prev); s.delete(movId); return s; });
       return;
     }
-    setExpandedOrders((prev) => new Set([...prev, orderId]));
+    setExpandedOrders((prev) => new Set([...prev, movId]));
     if (!orderItems[orderId]) {
       try {
         const { data } = await getComprobante(orderId);
@@ -498,6 +502,19 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
       }
     }
   };
+
+  // Expone al padre (EntityPanel) los detalles actualmente abiertos, para que
+  // "Imprimir" pueda incluir exactamente los mismos items que se ven en pantalla.
+  useImperativeHandle(ref, () => ({
+    getExpandedItems: () => {
+      const movimientos = cc?.movimientos || [];
+      const result = {};
+      for (const m of movimientos) {
+        if (m.id != null && expandedOrders.has(m.id)) result[m.id] = orderItems[m.order_id] ?? [];
+      }
+      return result;
+    },
+  }));
 
   const handleDeleteComp = async () => {
     if (!deleteCompPwd.trim()) return;
@@ -818,7 +835,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                 ) : (
                   movsComprobantes.map((m) => {
                     const divisaCC   = m.divisa_cuenta ?? divisa;
-                    const isExpanded = expandedOrders.has(m.order_id);
+                    const isExpanded = expandedOrders.has(m.id);
                     const isVisual   = m.afecta_saldo === false;
                     const montoColor = isVisual ? "#1d4ed8"
                       : (esProveedor && m.concepto?.toLowerCase().includes("saldo_inicial") ? "var(--text)"
@@ -848,7 +865,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                               <button
                                 style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: isExpanded ? "var(--accent)" : "var(--text-dim)", fontSize: 10, padding: "1px 5px", borderRadius: 3 }}
                                 title="Ver artículos"
-                                onClick={() => toggleDetails(m.order_id)}
+                                onClick={() => toggleDetails(m)}
                               >{isExpanded ? "▲ Ocultar" : "▼ Items"}</button>
                             </div>
                           </div>
@@ -933,7 +950,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
             const divisaCC    = m.divisa_cuenta ?? divisa;
             const divisaCobro = m.divisa_cobro  ?? divisaCC;
             const hayConv     = divisaCobro !== divisaCC;
-            const isExpanded  = m.order_id && expandedOrders.has(m.order_id);
+            const isExpanded  = expandedOrders.has(m.id);
             const items       = m.order_id ? (orderItems[m.order_id] ?? null) : null;
             const isVisual    = m.afecta_saldo === false;
             const metodoDisplay = m.metodo_pago || (!isVisual ? "Cta Cte" : "—");
@@ -969,7 +986,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
                       <button
                         style={{ background: "none", border: "1px solid var(--border)", cursor: "pointer", color: isExpanded ? "var(--accent)" : "var(--text-dim)", fontSize: 11, padding: "1px 6px", borderRadius: 4, whiteSpace: "nowrap", lineHeight: 1.5 }}
                         title="Ver artículos del comprobante"
-                        onClick={() => toggleDetails(m.order_id)}
+                        onClick={() => toggleDetails(m)}
                       >
                         {isExpanded ? "▲ Ocultar" : "▼ Detalles"}
                       </button>
@@ -1057,7 +1074,7 @@ function CCView({ cc, loadingCC, mode, cotizacion, onEditMov, onRefreshCC }) {
       )}
     </div>
   );
-}
+});
 
 // ─────────────────────────────────────────────────────────────
 // EntityPanel
@@ -1081,6 +1098,7 @@ function EntityPanel({
   const [cc,        setCC]        = useState(null);
   const [loadingCC, setLoadingCC] = useState(false);
   const [viewCC,    setViewCC]    = useState(false);
+  const ccViewRef = useRef(null);
 
   const [modalCobranza,  setModalCobranza]  = useState(false);
   const [savingCobranza, setSavingCobranza] = useState(false);
@@ -1362,7 +1380,7 @@ function EntityPanel({
               </>
             ) : viewCC && selected ? (
               <>
-                <button className="btn btn-ghost btn-sm" onClick={() => printCCPDF({ entity: selected, cc, mode, cotizacion })}>
+                <button className="btn btn-ghost btn-sm" onClick={() => printCCPDF({ entity: selected, cc, mode, cotizacion, expandedItems: ccViewRef.current?.getExpandedItems() ?? {} })}>
                   🖨 Imprimir
                 </button>
                 <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
@@ -1395,7 +1413,7 @@ function EntityPanel({
           ) : loadingDetail ? (
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: 12 }}>Cargando...</div>
           ) : viewCC ? (
-            <CCView cc={cc} loadingCC={loadingCC} mode={mode} cotizacion={cotizacion} onEditMov={setMovEditando} onRefreshCC={() => loadCC(selected.id)} />
+            <CCView ref={ccViewRef} cc={cc} loadingCC={loadingCC} mode={mode} cotizacion={cotizacion} onEditMov={setMovEditando} onRefreshCC={() => loadCC(selected.id)} />
           ) : (
             <EntityFicha selected={selected} mode={mode} />
           )}

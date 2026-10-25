@@ -978,7 +978,7 @@ export function printPreciosPDF(items, opts = {}) {
 // ─────────────────────────────────────────────────────────────
 // IMPRIMIR CUENTA CORRIENTE INDIVIDUAL
 // ─────────────────────────────────────────────────────────────
-export function printCCPDF({ entity, cc, mode, cotizacion }) {
+export function printCCPDF({ entity, cc, mode, cotizacion, expandedItems = {} }) {
   const cuenta      = cc?.cuenta || cc;
   const movimientos = cc?.movimientos || cuenta?.movimientos || [];
   const saldo       = Number(cuenta?.saldo || 0);
@@ -1034,6 +1034,40 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
       ? `<a href="/comprobantes/editar/${m.order_id}" target="_blank" style="color:#2563eb;text-decoration:underline">${m.concepto || "Comprobante"}</a>`
       : (m.concepto || "—");
 
+    const items = expandedItems[m.id];
+    const detailRow = items == null ? "" : `
+      <tr style="${isVisual ? "background:#eff6ff" : ""}">
+        <td colspan="8" style="padding:0">
+          <table style="width:100%;margin:2px 0 8px;background:#f7f7f7;border:1px solid #ddd">
+            <thead>
+              <tr>
+                <th style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#666;text-align:left">Artículo</th>
+                <th style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#666;text-align:center;width:60px">Cant.</th>
+                <th style="font-size:10px;text-transform:uppercase;letter-spacing:0.06em;color:#666;text-align:right;width:110px">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.length === 0
+                ? `<tr><td colspan="3" style="color:#999;font-size:11px">Sin artículos</td></tr>`
+                : items.map((it) => {
+                    const unitARS  = Number(it.unit_price);
+                    const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
+                      ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
+                      : unitARS;
+                    const total = (it.quantity * unitDisp).toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                    return `
+                    <tr>
+                      <td style="font-size:12px"><span style="font-family:monospace;font-size:11px;color:#2563eb;font-weight:700;margin-right:6px">${it.code || it.product_code || "—"}</span>${it.name || it.product_name || "—"}</td>
+                      <td style="font-family:monospace;color:#666;text-align:center">${it.quantity}</td>
+                      <td style="font-family:monospace;font-weight:700;color:#2563eb;text-align:right">${total}</td>
+                    </tr>`;
+                  }).join("")
+              }
+            </tbody>
+          </table>
+        </td>
+      </tr>`;
+
     return `
       <tr style="${isVisual ? "background:#eff6ff" : ""}">
         <td style="font-family:monospace;font-size:11px;${isVisual ? "font-weight:700;color:#1d4ed8" : ""}">${fmtDate(m.created_at)}</td>
@@ -1044,7 +1078,7 @@ export function printCCPDF({ entity, cc, mode, cotizacion }) {
         <td style="font-family:monospace;font-size:10px;font-weight:700;${divisaCobroCol}">${divisaCobro}</td>
         <td class="right" style="font-family:monospace;font-size:11px;color:#666">${m.cotizacion_usada != null ? `$${Number(m.cotizacion_usada).toLocaleString("es-AR")}` : "—"}</td>
         <td class="right" style="font-family:monospace;font-weight:700;${saldoCol}">${fmtSigned(m._saldo_momento, divisa)}</td>
-      </tr>`;
+      </tr>${detailRow}`;
   }).join("");
 
   const html = `<!DOCTYPE html>
