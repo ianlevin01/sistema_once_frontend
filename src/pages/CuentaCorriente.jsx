@@ -505,9 +505,13 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
 
   // Expone al padre (EntityPanel) los detalles actualmente abiertos, para que
   // "Imprimir" pueda incluir exactamente los mismos items que se ven en pantalla.
+  // Mismo fallback cc?.movimientos || cuenta?.movimientos que usa el resto del
+  // componente (ver más abajo) — la cuenta de proveedor llega como
+  // { cuenta, movimientos }, pero se cubre por si acaso.
   useImperativeHandle(ref, () => ({
     getExpandedItems: () => {
-      const movimientos = cc?.movimientos || [];
+      const cuentaRef   = cc?.cuenta || cc;
+      const movimientos = cc?.movimientos || cuentaRef?.movimientos || [];
       const result = {};
       for (const m of movimientos) {
         if (m.id != null && expandedOrders.has(m.id)) result[m.id] = orderItems[m.order_id] ?? [];
