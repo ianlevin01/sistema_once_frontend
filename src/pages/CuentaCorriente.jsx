@@ -1388,12 +1388,45 @@ function EntityPanel({
 
   const handleDelete = async () => {
     if (!selected || !confirm(`¿Eliminar a "${selected.name}"?`)) return;
+    if (mode === "cliente") {
+      // Eliminar un cliente requiere contraseña de superadministrador.
+      setPendingEditData({ isDeleteClient: true });
+      setShowPwdModal(true);
+      return;
+    }
     try {
       await deleteFn(selected.id);
       addToast(`${label} eliminado`, "success");
       setSelected(null); setEditing(false); setCC(null); setViewCC(false);
       setResults((prev) => prev.filter((c) => c.id !== selected.id));
     } catch { addToast("Error eliminando", "error"); }
+  };
+
+  // Procesar la eliminación del cliente después de validar la contraseña de superadmin
+  const handleConfirmDeleteClientWithPassword = async () => {
+    if (!pendingEditData?.isDeleteClient) return;
+    setSavingMovEdit(true);
+    try {
+      await deleteFn(selected.id, { admin_password: adminPassword });
+      addToast(`${label} eliminado`, "success");
+      setSelected(null); setEditing(false); setCC(null); setViewCC(false);
+      setResults((prev) => prev.filter((c) => c.id !== selected.id));
+      setShowPwdModal(false);
+      setAdminPassword("");
+      setPendingEditData(null);
+    } catch (err) {
+      const status = err?.response?.status;
+      const message = err?.response?.data?.message || "Error eliminando cliente";
+      if (status === 403) {
+        addToast(message, "error");
+      } else {
+        addToast(message, "error");
+        setShowPwdModal(false);
+        setAdminPassword("");
+        setPendingEditData(null);
+      }
+    }
+    setSavingMovEdit(false);
   };
 
   return (
@@ -1556,12 +1589,14 @@ function EntityPanel({
             </div>
             <div className="modal-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <p style={{ fontSize: 13, color: "var(--text-muted)", margin: 0 }}>
-                {pendingEditData?.isDelete
+                {pendingEditData?.isDeleteClient
+                  ? "Solo un superadministrador puede eliminar clientes. Ingrese su contraseña:"
+                  : pendingEditData?.isDelete
                   ? "Solo administradores pueden eliminar cobranzas. Ingrese su contraseña:"
                   : "Solo administradores pueden editar montos de cobranzas. Ingrese su contraseña:"}
               </p>
               <div className="input-group">
-                <label className="input-label">Contraseña de administrador</label>
+                <label className="input-label">{pendingEditData?.isDeleteClient ? "Contraseña de superadministrador" : "Contraseña de administrador"}</label>
                 <input
                   className="input"
                   type="password"
@@ -1569,7 +1604,9 @@ function EntityPanel({
                   onChange={(e) => setAdminPassword(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === "Enter" && !savingMovEdit) {
-                      pendingEditData?.isDelete ? handleConfirmDeleteWithPassword() : handleConfirmEditWithPassword();
+                      if (pendingEditData?.isDeleteClient) handleConfirmDeleteClientWithPassword();
+                      else if (pendingEditData?.isDelete) handleConfirmDeleteWithPassword();
+                      else handleConfirmEditWithPassword();
                     }
                   }}
                   placeholder="Ingrese su contraseña"
@@ -1581,10 +1618,14 @@ function EntityPanel({
             <div className="modal-footer">
               <button className="btn btn-ghost" onClick={() => setShowPwdModal(false)} disabled={savingMovEdit}>Cancelar</button>
               <button
-                className={`btn ${pendingEditData?.isDelete ? "btn-danger" : "btn-primary"}`}
-                onClick={pendingEditData?.isDelete ? handleConfirmDeleteWithPassword : handleConfirmEditWithPassword}
+                className={`btn ${pendingEditData?.isDeleteClient || pendingEditData?.isDelete ? "btn-danger" : "btn-primary"}`}
+                onClick={
+                  pendingEditData?.isDeleteClient ? handleConfirmDeleteClientWithPassword
+                  : pendingEditData?.isDelete ? handleConfirmDeleteWithPassword
+                  : handleConfirmEditWithPassword
+                }
                 disabled={savingMovEdit || !adminPassword.trim()}>
-                {savingMovEdit ? "Verificando..." : pendingEditData?.isDelete ? "Eliminar" : "Guardar"}
+                {savingMovEdit ? "Verificando..." : (pendingEditData?.isDeleteClient || pendingEditData?.isDelete) ? "Eliminar" : "Guardar"}
               </button>
             </div>
           </div>
