@@ -89,6 +89,8 @@ export const eliminarMovimientoCC = (movId, data) => api.delete(`/cuenta-corrien
 export const getPriceConfig             = ()       => api.get("/config/precios");
 export const getMarketingConfig         = ()       => api.get("/config/marketing");
 export const setMarketingEnabled        = (enabled) => api.patch("/config/marketing", { email_marketing_enabled: enabled });
+export const getAutoActivarReposicion   = ()       => api.get("/config/reposicion-auto-activar");
+export const setAutoActivarReposicion   = (enabled) => api.patch("/config/reposicion-auto-activar", { auto_activar_en_reposicion: enabled });
 
 // ── PRODUCTS ──────────────────────────────────────────────────
 export const searchProducts          = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);

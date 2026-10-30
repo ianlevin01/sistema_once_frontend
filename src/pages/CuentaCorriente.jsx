@@ -509,6 +509,33 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
   // Mismo fallback cc?.movimientos || cuenta?.movimientos que usa el resto del
   // componente (ver más abajo) — la cuenta de proveedor llega como
   // { cuenta, movimientos }, pero se cubre por si acaso.
+  // Busca los items de un comprobante: usa el caché de orderItems si ya se
+  // pidió (p.ej. al abrir "Detalles"), si no lo pide a la API.
+  const fetchItemsFor = async (orderId) => {
+    const cached = orderItems[orderId];
+    if (cached) return cached;
+    const { data } = await getComprobante(orderId);
+    return (data.items ?? []).map((it) => ({ ...it, _divisa: data.divisa, _cotizacion_dolar: data.cotizacion_dolar }));
+  };
+
+  // Convierte items de un comprobante a filas [Código, Nombre, Cantidad, Precio Unitario, Precio Total]
+  const itemsToRows = (items) => items.map((it) => {
+    const unitARS  = Number(it.unit_price);
+    const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
+      ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
+      : unitARS;
+    const cantidad = Number(it.quantity);
+    return [
+      it.code || it.product_code || "",
+      it.name || it.product_name || "",
+      cantidad,
+      Number(unitDisp.toFixed(2)),
+      Number((cantidad * unitDisp).toFixed(2)),
+    ];
+  });
+
+  const XLSX_COLS = ["Código", "Nombre", "Cantidad", "Precio Unitario", "Precio Total"];
+
   useImperativeHandle(ref, () => ({
     getExpandedItems: () => {
       const cuentaRef   = cc?.cuenta || cc;
@@ -519,42 +546,37 @@ const CCView = forwardRef(function CCView({ cc, loadingCC, mode, cotizacion, onE
       }
       return result;
     },
+    // Descarga en un solo Excel los artículos de TODOS los comprobantes de la
+    // cuenta, uno atrás del otro sin separar por comprobante. Un mismo
+    // order_id puede aparecer en más de un movimiento (p.ej. un ajuste de
+    // edición de una reposición) — se toma una sola vez, con el estado
+    // actual del comprobante.
+    downloadAllExcel: async (filename) => {
+      const cuentaRef   = cc?.cuenta || cc;
+      const movimientos = cc?.movimientos || cuentaRef?.movimientos || [];
+      const vistos = new Set();
+      const filas = [];
+      for (const m of movimientos) {
+        if (!m.order_id || vistos.has(m.order_id)) continue;
+        vistos.add(m.order_id);
+        const items = await fetchItemsFor(m.order_id);
+        filas.push(...itemsToRows(items));
+      }
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet([XLSX_COLS, ...filas]);
+      ws["!cols"] = [16, 40, 10, 16, 16].map((w) => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, "Cuenta Corriente");
+      XLSX.writeFile(wb, `${filename.replace(/[\\/*?:[\]]/g, "")}.xlsx`);
+    },
   }));
 
   // Descarga un Excel con el detalle de artículos del comprobante: código,
   // nombre, cantidad, precio unitario y precio total (cantidad × unitario).
   const downloadComprobanteExcel = async (m) => {
     try {
-      let items = orderItems[m.order_id];
-      let divisaDoc, cotizacionDolarDoc;
-      if (items) {
-        divisaDoc = items[0]?._divisa;
-        cotizacionDolarDoc = items[0]?._cotizacion_dolar;
-      } else {
-        const { data } = await getComprobante(m.order_id);
-        divisaDoc = data.divisa;
-        cotizacionDolarDoc = data.cotizacion_dolar;
-        items = (data.items ?? []).map((it) => ({ ...it, _divisa: divisaDoc, _cotizacion_dolar: cotizacionDolarDoc }));
-      }
-
-      const COLS = ["Código", "Nombre", "Cantidad", "Precio Unitario", "Precio Total"];
-      const filas = items.map((it) => {
-        const unitARS  = Number(it.unit_price);
-        const unitDisp = (it._divisa === "USD" && it._cotizacion_dolar)
-          ? (unitARS / Number(it._cotizacion_dolar)) * cotizacion
-          : unitARS;
-        const cantidad = Number(it.quantity);
-        return [
-          it.code || it.product_code || "",
-          it.name || it.product_name || "",
-          cantidad,
-          Number(unitDisp.toFixed(2)),
-          Number((cantidad * unitDisp).toFixed(2)),
-        ];
-      });
-
+      const items = await fetchItemsFor(m.order_id);
       const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.aoa_to_sheet([COLS, ...filas]);
+      const ws = XLSX.utils.aoa_to_sheet([XLSX_COLS, ...itemsToRows(items)]);
       ws["!cols"] = [16, 40, 10, 16, 16].map((w) => ({ wch: w }));
       XLSX.utils.book_append_sheet(wb, ws, "Comprobante");
       XLSX.writeFile(wb, `${(m.concepto || "comprobante").replace(/[\\/*?:[\]]/g, "")}.xlsx`);
@@ -1155,6 +1177,7 @@ function EntityPanel({
   const [cc,        setCC]        = useState(null);
   const [loadingCC, setLoadingCC] = useState(false);
   const [viewCC,    setViewCC]    = useState(false);
+  const [downloadingCC, setDownloadingCC] = useState(false);
   const ccViewRef = useRef(null);
 
   const [modalCobranza,  setModalCobranza]  = useState(false);
@@ -1472,6 +1495,19 @@ function EntityPanel({
               <>
                 <button className="btn btn-ghost btn-sm" onClick={() => printCCPDF({ entity: selected, cc, mode, cotizacion, expandedItems: ccViewRef.current?.getExpandedItems() ?? {} })}>
                   🖨 Imprimir
+                </button>
+                <button
+                  className="btn btn-ghost btn-sm"
+                  disabled={downloadingCC}
+                  onClick={async () => {
+                    setDownloadingCC(true);
+                    try {
+                      await ccViewRef.current?.downloadAllExcel(`cuenta_corriente_${selected.name}`);
+                    } catch { addToast("Error descargando el Excel", "error"); }
+                    setDownloadingCC(false);
+                  }}
+                >
+                  {downloadingCC ? "Descargando..." : "📥 Descargar"}
                 </button>
                 <button className="btn btn-primary btn-sm" onClick={() => setModalCobranza(true)}>
                   + Registrar Debe / Haber

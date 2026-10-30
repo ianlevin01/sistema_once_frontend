@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../utils/useToast";
 import api from "../utils/api";
-import { getWarehouses, createWarehouse, setWarehouseActive, getAIPermissions, updateAIPermission } from "../utils/api";
+import { getWarehouses, createWarehouse, setWarehouseActive, getAIPermissions, updateAIPermission, getAutoActivarReposicion, setAutoActivarReposicion } from "../utils/api";
 import { useAuth } from "../utils/useAuth";
 
 const fmt  = (v, dec = 2) => Number(v || 0).toLocaleString("es-AR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
@@ -57,6 +57,10 @@ export default function Configuracion() {
   const [aiPerms,      setAiPerms]      = useState({});
   const [savingAiPerm, setSavingAiPerm] = useState(null);
 
+  // ── Reposiciones: reactivar productos automáticamente ─────────
+  const [autoActivarRepo,        setAutoActivarRepo]        = useState(false);
+  const [savingAutoActivarRepo,  setSavingAutoActivarRepo]  = useState(false);
+
   // ── Estado admin ──────────────────────────────────────────────
   const [config, setConfig] = useState({
     cotizacion_dolar: "",
@@ -72,10 +76,11 @@ export default function Configuracion() {
     if (isVendedor) { setLoading(false); return; }
     (async () => {
       try {
-        const [{ data: cfg }, { data: whs }, { data: aiPermsData }] = await Promise.all([
+        const [{ data: cfg }, { data: whs }, { data: aiPermsData }, { data: autoActivarData }] = await Promise.all([
           api.get("/config/precios"),
           getWarehouses(true),
           getAIPermissions(),
+          getAutoActivarReposicion(),
         ]);
         setConfig({
           cotizacion_dolar: String(cfg.cotizacion_dolar),
@@ -95,6 +100,7 @@ export default function Configuracion() {
         const permMap = {};
         for (const p of (aiPermsData || [])) permMap[p.section] = p;
         setAiPerms(permMap);
+        setAutoActivarRepo(!!autoActivarData?.auto_activar_en_reposicion);
       } catch {
         addToast("Error cargando configuración", "error");
       }
@@ -173,6 +179,18 @@ export default function Configuracion() {
       addToast(err?.response?.data?.message || "Error actualizando depósito", "error");
     }
     setTogglingWh(null);
+  };
+
+  const handleToggleAutoActivarRepo = async () => {
+    setSavingAutoActivarRepo(true);
+    try {
+      const { data } = await setAutoActivarReposicion(!autoActivarRepo);
+      setAutoActivarRepo(!!data.auto_activar_en_reposicion);
+      addToast(`Reactivación automática ${data.auto_activar_en_reposicion ? "activada" : "desactivada"}`, "success");
+    } catch {
+      addToast("Error guardando la configuración", "error");
+    }
+    setSavingAutoActivarRepo(false);
   };
 
   const handleAddWarehouse = async () => {
@@ -522,6 +540,32 @@ export default function Configuracion() {
             )}
           </div>
         </div>
+
+        {/* ── Reposiciones ── */}
+        <div style={{ marginTop:32 }}>
+          <div className="card" style={{ padding:"24px 24px" }}>
+            <div style={{ fontFamily:"var(--font-mono)", fontSize:11, color:"var(--text-dim)", textTransform:"uppercase", letterSpacing:"0.08em", marginBottom:4 }}>
+              Reposiciones
+            </div>
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginTop:16 }}>
+              <div style={{ maxWidth:480 }}>
+                <div style={{ fontSize:14, color:"var(--text)", marginBottom:4 }}>Reactivar productos automáticamente</div>
+                <div style={{ fontSize:12, color:"var(--text-dim)", lineHeight:1.5 }}>
+                  Si está activado, al registrar una reposición cualquier producto incluido que
+                  esté marcado como inactivo se reactiva automáticamente.
+                </div>
+              </div>
+              <button
+                className="btn btn-ghost btn-sm"
+                onClick={handleToggleAutoActivarRepo}
+                disabled={savingAutoActivarRepo}
+              >
+                {savingAutoActivarRepo ? "..." : autoActivarRepo ? "Desactivar" : "Activar"}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* ── Asistente IA ── */}
         <div style={{ marginTop:32 }}>
           <div className="card" style={{ padding:"24px 24px" }}>
