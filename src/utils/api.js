@@ -96,10 +96,10 @@ export const setAutoActivarReposicion   = (enabled) => api.patch("/config/reposi
 export const searchProducts          = (name)       => api.get(`/products/search?name=${encodeURIComponent(name)}`);
 export const getProductsForReorder   = (limit)      => api.get(`/products?limit=${limit}`);
 export const reorderProducts         = (ids)        => api.post("/products/reorder", { ids });
-export const getProductsForCatalog = (categoryId) =>
+export const getProductsForCatalog = (categoryId, includeInactive = false) =>
   categoryId && categoryId !== "all"
-    ? api.get(`/products?category_id=${categoryId}&limit=300`)
-    : api.get(`/products?limit=500`);
+    ? api.get(`/products?category_id=${categoryId}&limit=300${includeInactive ? "&include_inactive=true" : ""}`)
+    : api.get(`/products?limit=500${includeInactive ? "&include_inactive=true" : ""}`);
 export const getProduct           = (id)         => api.get(`/products/${id}`);
 export const createProduct        = (data)       => api.post("/products", data);
 export const updateProduct        = (id, data)   => api.put(`/products/${id}`, data);

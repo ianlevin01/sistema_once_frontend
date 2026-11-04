@@ -90,11 +90,11 @@ export default function CatalogosPersonalizados() {
     }
   };
 
-  const loadProducts = async () => {
+  const loadProducts = async (includeInactive = false) => {
     if (!selectedCat || selectedCat === "") return;
     setLoading(true);
     try {
-      const { data } = await getProductsForCatalog(selectedCat);
+      const { data } = await getProductsForCatalog(selectedCat, includeInactive);
       const n = parseInt(autoSelect, 10);
       const autoSelectN = !isNaN(n) && n > 0 ? n : 0;
       setProducts(data);
@@ -196,10 +196,17 @@ export default function CatalogosPersonalizados() {
             />
             <button
               className="btn btn-primary"
-              onClick={loadProducts}
+              onClick={() => loadProducts(false)}
               disabled={!selectedCat || selectedCat === "" || loading}
             >
-              {loading ? "Cargando..." : "Cargar"}
+              {loading ? "Cargando..." : "Cargar activos"}
+            </button>
+            <button
+              className="btn btn-ghost"
+              onClick={() => loadProducts(true)}
+              disabled={!selectedCat || selectedCat === "" || loading}
+            >
+              Cargar todos
             </button>
           </div>
         </div>
