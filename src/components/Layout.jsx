@@ -204,8 +204,8 @@ export default function Layout({ children }) {
     navigate("/login");
   };
 
-  // Cierre automático por inactividad (25 minutos) — global entre pestañas
-  const INACTIVITY_MS = 25 * 60 * 1000;
+  // Cierre automático por inactividad (10 minutos) — global entre pestañas
+  const INACTIVITY_MS = 10 * 60 * 1000;
   const checkIntervalRef = useRef(null);
 
   const updateLastActivity = useCallback(() => {
