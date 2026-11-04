@@ -1008,7 +1008,9 @@ export default function Comprobantes({ initialCreating = false }) {
         return;
       }
       setCreating(false); resetForm(); loadAll(appliedFrom, appliedTo);
-    } catch { addToast("Error creando comprobante", "error"); }
+    } catch (err) {
+      addToast(err.response?.status === 403 ? err.response.data.message : "Error creando comprobante", "error");
+    }
     setSaving(false);
   };
 

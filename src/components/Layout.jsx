@@ -11,8 +11,9 @@ const NAV_ADMIN = [
       { to: "/comprobantes", label: "Comprobantes", icon: "🧾" },
       { to: "/remitos",      label: "Remitos Internos",      icon: "📦" },
       {
-        label: "Caja", icon: "💰",
+        label: "Caja", icon: "💰", homePath: "/cajas",
         submenu: [
+          { to: "/cajas",        label: "Caja"         },
           { to: "/caja",         label: "Imputaciones" },
           { to: "/caja/listado", label: "Listado"      },
         ],
@@ -81,6 +82,7 @@ const PAGE_TITLES = {
   "/remitos":          "Remitos Internos",
   "/caja":             "Caja · Imputaciones",
   "/caja/listado":     "Caja · Listado",
+  "/cajas":            "Caja · Caja",
   "/pedidos-web":      "Pedidos Web",
   "/clientes":         "Clientes",
   "/cuenta-corriente": "Cuenta Corriente",
@@ -105,7 +107,7 @@ function CajaNavItem({ item, location }) {
   const [open, setOpen] = useState(isCajaActive);
 
   const handleClick = () => {
-    navigate(rootPath);
+    navigate(item.homePath || rootPath);
     setOpen(true);
   };
 

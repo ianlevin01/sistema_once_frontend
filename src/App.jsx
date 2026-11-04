@@ -6,6 +6,7 @@ import Comprobantes    from "./pages/Comprobantes";
 import Remitos         from "./pages/Remitos";
 import Cash            from "./pages/Cash";
 import CajaListado     from "./pages/CajaListado";
+import Cajas           from "./pages/Cajas";
 import WebOrders       from "./pages/WebOrders";
 import CuentaCorriente from "./pages/CuentaCorriente";
 import Products        from "./pages/Products";
@@ -76,6 +77,7 @@ function AppRoutes() {
         <Route path="/remitos/editar/:editId"   element={<Remitos />} />
         <Route path="/caja"                     element={<Cash />} />
         <Route path="/caja/listado"             element={<CajaListado />} />
+        <Route path="/cajas"                    element={<Cajas />} />
         <Route path="/pedidos-web"              element={<WebOrders />} />
         <Route path="/cuenta-corriente"         element={<CuentaCorriente />} />
         <Route path="/productos"                element={<Products />} />

@@ -65,7 +65,9 @@ export default function Cash() {
       await createCashMovement({ ...form, amount: Number(form.amount) });
       addToast("Movimiento registrado", "success");
       setModal(false); setForm(EMPTY); load(appliedFrom, appliedTo);
-    } catch { addToast("Error registrando movimiento", "error"); }
+    } catch (err) {
+      addToast(err.response?.status === 403 ? err.response.data.message : "Error registrando movimiento", "error");
+    }
   };
 
   const f = (k) => (e) => setForm((p) => ({ ...p, [k]: e.target.value }));

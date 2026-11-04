@@ -205,6 +205,19 @@ export const setWebOrderReservado = (id, reservado) => api.patch(`/web-orders/${
 // ── STOCK MOVIMIENTOS ─────────────────────────────────────────
 export const getStockMovimientos = (params) => api.get("/stock/movements", { params });
 
+// ── CAJAS ─────────────────────────────────────────────────────
+export const getCajas               = ()                 => api.get("/cajas");
+export const getCajasDestino        = ()                 => api.get("/cajas/destinos");
+export const createCaja             = (nombre)           => api.post("/cajas", { nombre });
+export const updateCaja             = (id, data)         => api.put(`/cajas/${id}`, data);
+export const getCajaUsuarios        = ()                 => api.get("/cajas/usuarios");
+export const setCajaUsuario         = (userId, caja_id)  => api.put(`/cajas/usuarios/${userId}`, { caja_id });
+export const getCajaResumen         = (id, params)       => api.get(`/cajas/${id}/resumen`, { params });
+export const getCajaMovimientos     = (id, params)       => api.get(`/cajas/${id}/movimientos`, { params });
+export const updateCajaMovimiento   = (movId, data)      => api.put(`/cajas/movimientos/${movId}`, data);
+export const deleteCajaMovimiento   = (movId)            => api.delete(`/cajas/movimientos/${movId}`);
+export const transferirEntreCajas   = (data)             => api.post("/cajas/transferencias", data);
+
 // ── EMAIL MARKETING ───────────────────────────────────────────
 export const getEmailRecipients  = ()       => api.get("/email-campaign/recipients");
 export const emailCampaignAI     = (messages) => api.post("/email-campaign/ai-chat", { messages });
