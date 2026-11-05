@@ -25,6 +25,8 @@ const FILAS = [
   { cat: "reposicion",       tipo: "egreso",  label: "Reposiciones" },
   { cat: "devol_proveedor",  tipo: "ingreso", label: "Devol. a proveedor" },
   { cat: "pago_proveedor",   tipo: "egreso",  label: "Pagos a proveedores" },
+  { cat: "pago_cliente",     tipo: "egreso",  label: "Pagos a clientes" },
+  { cat: "cobro_proveedor",  tipo: "ingreso", label: "Cobros de proveedores" },
   { cat: "entrada_manual",   tipo: "ingreso", label: "Imputaciones (entradas)" },
   { cat: "salida_manual",    tipo: "egreso",  label: "Imputaciones (salidas)" },
   { cat: "transferencia",    tipo: "ingreso", label: "Transferencias recibidas" },
@@ -33,6 +35,7 @@ const FILAS = [
 const CAT_LABEL = {
   venta: "Venta", devolucion: "Devolución", cobranza: "Cobranza", reposicion: "Reposición",
   devol_proveedor: "Devol. a proveedor", pago_proveedor: "Pago a proveedor",
+  pago_cliente: "Pago a cliente", cobro_proveedor: "Cobro de proveedor",
   entrada_manual: "Imputación (entrada)", salida_manual: "Imputación (salida)", transferencia: "Transferencia",
 };
 
